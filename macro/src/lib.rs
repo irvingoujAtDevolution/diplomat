@@ -1,5 +1,5 @@
 use proc_macro2::Span;
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use syn::*;
 
 use diplomat_core::ast;
@@ -87,20 +87,37 @@ fn gen_params_invocation(param: &ast::Param, expanded_params: &mut Vec<Expr>) {
                 Ident::new(&format!("{}_diplomat_data", param.name), Span::call_site());
             let len_ident = Ident::new(&format!("{}_diplomat_len", param.name), Span::call_site());
 
-            let tokens = if let ast::TypeName::PrimitiveSlice(_, mutability, _) = &param.ty {
+            let tokens = if let ast::TypeName::PrimitiveSlice(_, mutability, type_name) = &param.ty {
+                let type_name = format_ident!("{}", type_name.to_string());
                 match mutability {
                     ast::Mutability::Mutable => quote! {
-                        unsafe { core::slice::from_raw_parts_mut(#data_ident, #len_ident) }
+                        unsafe{
+                            if #data_ident.is_null() {
+                                core::slice::from_raw_parts_mut(core::ptr::dangling::<#type_name>() as *mut #type_name, 0)
+                            } else {
+                                core::slice::from_raw_parts_mut(#data_ident, #len_ident)
+                            }
+                        }
                     },
                     ast::Mutability::Immutable => quote! {
-                        unsafe { core::slice::from_raw_parts(#data_ident, #len_ident) }
+                        unsafe {
+                            if #data_ident.is_null() {
+                                core::slice::from_raw_parts(core::ptr::dangling(), 0)
+                            } else {
+                                core::slice::from_raw_parts(#data_ident, #len_ident)
+                            }
+                        }
                     },
                 }
             } else {
                 // TODO(#57): don't just unwrap? or should we assume that the other side gives us a good value?
                 quote! {
                     unsafe {
-                        core::str::from_utf8(core::slice::from_raw_parts(#data_ident, #len_ident)).unwrap()
+                        if #data_ident.is_null() {
+                            core::str::from_utf8(core::slice::from_raw_parts(core::ptr::dangling(), 0)).unwrap()
+                        } else {
+                            core::str::from_utf8(core::slice::from_raw_parts(#data_ident, #len_ident)).unwrap()
+                        }
                     }
                 }
             };
