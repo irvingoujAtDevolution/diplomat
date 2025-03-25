@@ -91,7 +91,7 @@ fn gen_params_invocation(param: &ast::Param, expanded_params: &mut Vec<Expr>) {
                 let type_name = format_ident!("{}", type_name.to_string());
                 match mutability {
                     ast::Mutability::Mutable => quote! {
-                        unsafe{
+                        unsafe {
                             if #data_ident.is_null() {
                                 core::slice::from_raw_parts_mut(core::ptr::dangling::<#type_name>() as *mut #type_name, 0)
                             } else {
