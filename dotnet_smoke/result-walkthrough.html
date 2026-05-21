@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Result&lt;T, E&gt; — a layered walkthrough</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/csharp.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto;
+    padding: 28px 32px 80px;
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    line-height: 1.55;
+    max-width: 1200px;
+  }
+  h1 { margin: 0 0 4px 0; font-size: 24px; font-weight: 600; color: #f0f6fc; }
+  h2 { margin: 40px 0 8px 0; font-size: 18px; font-weight: 600; color: #f0f6fc; border-bottom: 1px solid #21262d; padding-bottom: 6px; }
+  h3 { margin: 24px 0 6px 0; font-size: 14px; font-weight: 600; color: #c9d1d9; text-transform: uppercase; letter-spacing: 0.05em; }
+  .subtitle { color: #8b949e; font-size: 14px; margin-bottom: 28px; }
+  p { color: #c9d1d9; }
+  .panel { border: 1px solid #30363d; border-radius: 8px; overflow: hidden; margin: 12px 0; background: #0d1117; }
+  .panel-header {
+    background: #161b22; color: #8b949e; padding: 9px 14px; font-size: 12px;
+    font-family: "SF Mono", Consolas, monospace; border-bottom: 1px solid #30363d;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .panel-header .layer-tag { background: #21262d; color: #c9d1d9; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+  .panel-header .layer-rust         { background: #4d1f00; color: #ffa657; }
+  .panel-header .layer-abi          { background: #2d2d00; color: #d1d100; }
+  .panel-header .layer-csharp-raw   { background: #003a4d; color: #79c0ff; }
+  .panel-header .layer-csharp-impl  { background: #033a16; color: #7ee787; }
+  .panel-header .layer-user         { background: #3a1d5d; color: #d2a8ff; }
+  .panel-header .layer-throw        { background: #5d1d1d; color: #f85149; }
+  pre { margin: 0; }
+  pre code { padding: 14px 16px !important; font-size: 13px; line-height: 1.5; font-family: "SF Mono", Consolas, "Liberation Mono", monospace; }
+  .note { background: #161b22; border-left: 3px solid #58a6ff; padding: 10px 14px; margin: 12px 0; border-radius: 0 6px 6px 0; font-size: 13px; color: #c9d1d9; }
+  .note strong { color: #58a6ff; }
+  .warn { background: #2d1b00; border-left-color: #d29922; }
+  .warn strong { color: #d29922; }
+  .err-note { background: #2d0d0d; border-left-color: #f85149; }
+  .err-note strong { color: #f85149; }
+  .win { background: #07260f; border-left-color: #56d364; }
+  .win strong { color: #56d364; }
+  table.layout {
+    border-collapse: collapse; margin: 14px 0;
+    font-family: "SF Mono", Consolas, monospace; font-size: 12px;
+  }
+  table.layout th, table.layout td { border: 1px solid #30363d; padding: 6px 10px; text-align: center; }
+  table.layout th { background: #161b22; color: #8b949e; font-weight: 500; }
+  table.layout td.ok   { color: #56d364; }
+  table.layout td.err  { color: #f85149; }
+  table.layout td.tag  { color: #d2a8ff; }
+  table.layout td.pad  { color: #6e7681; }
+  .flow { display: grid; grid-template-columns: 1fr; gap: 6px; margin: 20px 0; font-family: "SF Mono", Consolas, monospace; font-size: 13px; }
+  .flow-step { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 10px 14px; }
+  .flow-step.ok-path   { border-left: 3px solid #56d364; }
+  .flow-step.err-path  { border-left: 3px solid #f85149; }
+  .flow-step .lbl { color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+  .flow-arrow { text-align: center; color: #8b949e; font-size: 16px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  code.inline { background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Consolas, monospace; font-size: 12px; color: #79c0ff; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 8px 0 20px 0; font-size: 12px; }
+  .legend span { padding: 3px 10px; border-radius: 4px; }
+  .lg-rust    { background: #4d1f00; color: #ffa657; }
+  .lg-abi     { background: #2d2d00; color: #d1d100; }
+  .lg-raw     { background: #003a4d; color: #79c0ff; }
+  .lg-impl    { background: #033a16; color: #7ee787; }
+  .lg-user    { background: #3a1d5d; color: #d2a8ff; }
+  .lg-throw   { background: #5d1d1d; color: #f85149; }
+</style>
+</head>
+<body>
+
+<h1>Result&lt;T, E&gt; — a layered walkthrough</h1>
+<div class="subtitle">
+  Rust's <em>errors as values</em> meets C#'s <em>exceptions</em>. We're not
+  translating the mechanism — we're translating the <strong>intent</strong>
+  ("this function can fail"). Idiomatic C# binding throws on
+  <code class="inline">Err</code> and returns the Ok value on success.
+</div>
+
+<div class="legend">
+  <span class="lg-user">user code</span>
+  <span class="lg-impl">C# idiomatic (auto-gen)</span>
+  <span class="lg-raw">C# raw P/Invoke (auto-gen)</span>
+  <span class="lg-abi">C ABI contract (binary)</span>
+  <span class="lg-rust">Rust shim (macro-gen)</span>
+  <span class="lg-throw">throw path</span>
+</div>
+
+<h2>The impedance mismatch</h2>
+
+<div class="grid2">
+  <div class="panel">
+    <div class="panel-header">
+      <span>Rust — errors as values</span>
+      <span class="layer-tag layer-rust">rust</span>
+    </div>
+    <pre><code class="language-rust">pub fn parse(s: &amp;DiplomatStr) -&gt; Result&lt;Box&lt;Color&gt;, ColorError&gt;
+{
+    match s {
+        b"red"   =&gt; Ok(Box::new(Color { brightness: 255 })),
+        b"black" =&gt; Ok(Box::new(Color { brightness: 0 })),
+        _        =&gt; Err(ColorError::Unknown),
+    }
+}
+
+// Caller pattern: type system FORCES handling both
+let c = match Color::parse(b"red") {
+    Ok(c)  =&gt; c,
+    Err(e) =&gt; { log::warn!("{:?}", e); return; }
+};</code></pre>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <span>C# — exceptions</span>
+      <span class="layer-tag layer-throw">C#</span>
+    </div>
+    <pre><code class="language-csharp">public static Color Parse(string s)
+{
+    // ... returns Color on success
+    // ... throws ColorParseException on failure
+}
+
+// Caller pattern: try/catch
+try {
+    var c = Color.Parse("red");
+    // ... use c
+} catch (ColorParseException ex) {
+    Log.Warn(ex.Error);
+    return;
+}</code></pre>
+  </div>
+</div>
+
+<div class="note err-note">
+  <strong>What we're trading.</strong>
+  <ul style="margin: 4px 0;">
+    <li><strong>Compile-time "must handle"</strong> — Rust forces you to pattern-match both arms. C# compiler does not check that you catch <code class="inline">ColorParseException</code>.</li>
+    <li><strong>Cost</strong> — Rust <code class="inline">Result</code> is ~free (one tag check). C# exception throw is ~µs (stack unwinding + allocation). Fine if errors are exceptional; not fine if errors are common in hot paths.</li>
+    <li><strong>Composition</strong> — Rust's <code class="inline">?</code> propagates errors cleanly through call chains. C# uses unwinding for the same effect, different mechanism.</li>
+  </ul>
+  We accept these trades because the throw pattern is what every .NET developer expects from every other .NET API. Consistency &gt; preserving Rust's exact semantic.
+</div>
+
+<h2>The example</h2>
+
+<p>
+  One method that demonstrates the full <code class="inline">Result</code>
+  pipeline: input slice, opaque success type, enum error type. Real-world
+  shape for "construct from input, validation might fail."
+</p>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>dotnet_smoke/src/lib.rs</span>
+    <span class="layer-tag layer-rust">rust source</span>
+  </div>
+  <pre><code class="language-rust">pub enum ColorError {
+    Unknown   = 0,
+    BadFormat = 1,
+}
+
+impl Color {
+    /// Look up a named color. Recognizes a small fixed set; returns
+    /// `ColorError::Unknown` for anything else.
+    pub fn parse(s: &amp;DiplomatStr) -&gt; Result&lt;Box&lt;Color&gt;, ColorError&gt; {
+        match s {
+            b"red"   =&gt; Ok(Box::new(Color { brightness: 255 })),
+            b"black" =&gt; Ok(Box::new(Color { brightness: 0 })),
+            b""      =&gt; Err(ColorError::BadFormat),
+            _        =&gt; Err(ColorError::Unknown),
+        }
+    }
+}</code></pre>
+</div>
+
+<h2>Layer 1 — The macro-expanded extern</h2>
+
+<p>
+  The bridge macro emits an <code class="inline">extern "C"</code> shim
+  that returns a <code class="inline">DiplomatResult</code> by value — a
+  <code class="inline">repr(C)</code> tagged union sitting on the native
+  stack. <strong>No control flow tricks, no panic, no unwinding</strong> —
+  the Err case is literally just a different tag value in the same struct.
+</p>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>generated by the macro</span>
+    <span class="layer-tag layer-rust">rust shim</span>
+  </div>
+  <pre><code class="language-rust">#[no_mangle]
+pub unsafe extern "C" fn Color_parse(
+    s: diplomat_runtime::DiplomatStrSlice,
+) -&gt; diplomat_runtime::DiplomatResult&lt;*mut Color, ColorError&gt; {
+    let s: &amp;[u8] = s.into();
+    match Color::parse(s) {
+        Ok(boxed)  =&gt; DiplomatResult::ok(Box::into_raw(boxed)),
+        Err(error) =&gt; DiplomatResult::err(error),
+    }
+}</code></pre>
+</div>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>runtime/src/result.rs (rough shape)</span>
+    <span class="layer-tag layer-rust">runtime</span>
+  </div>
+  <pre><code class="language-rust">#[repr(C)]
+pub union DiplomatResultPayload&lt;T, E&gt; {
+    pub ok: ManuallyDrop&lt;T&gt;,
+    pub err: ManuallyDrop&lt;E&gt;,
+}
+
+#[repr(C)]
+pub struct DiplomatResult&lt;T, E&gt; {
+    pub payload: DiplomatResultPayload&lt;T, E&gt;,
+    pub is_ok:   bool,    // 1 byte; tag at the end
+}</code></pre>
+</div>
+
+<h2>Layer 2 — The C ABI binary layout</h2>
+
+<p>
+  For our specific case <code class="inline">DiplomatResult&lt;*mut Color, ColorError&gt;</code>
+  on x64 — pointer is 8 bytes, the enum is 4 bytes (default
+  <code class="inline">int</code> repr), bool is 1 byte. The union takes
+  <code class="inline">max(sizeof(T), sizeof(E))</code> = 8 bytes; the tag
+  bumps total to 9, padded to <strong>16 bytes</strong> for alignment.
+</p>
+
+<h3>Memory layout (Ok case)</h3>
+
+<table class="layout">
+  <tr>
+    <th>byte offset</th>
+    <td>0..8</td>
+    <td>8</td>
+    <td>9..16</td>
+  </tr>
+  <tr>
+    <th>field</th>
+    <td class="ok"><code>payload.ok</code></td>
+    <td class="tag"><code>is_ok</code></td>
+    <td class="pad">padding</td>
+  </tr>
+  <tr>
+    <th>value</th>
+    <td class="ok">0x000001B4_5F2C8010<br>(Color*)</td>
+    <td class="tag">0x01<br>(true)</td>
+    <td class="pad">—</td>
+  </tr>
+</table>
+
+<h3>Memory layout (Err case)</h3>
+
+<table class="layout">
+  <tr>
+    <th>byte offset</th>
+    <td>0..4</td>
+    <td>4..8</td>
+    <td>8</td>
+    <td>9..16</td>
+  </tr>
+  <tr>
+    <th>field</th>
+    <td class="err"><code>payload.err</code></td>
+    <td class="pad">slack of union</td>
+    <td class="tag"><code>is_ok</code></td>
+    <td class="pad">padding</td>
+  </tr>
+  <tr>
+    <th>value</th>
+    <td class="err">0x00000000<br>(ColorError::Unknown)</td>
+    <td class="pad">unspecified</td>
+    <td class="tag">0x00<br>(false)</td>
+    <td class="pad">—</td>
+  </tr>
+</table>
+
+<div class="note">
+  <strong>The union overlaps.</strong> Bytes 0–8 hold <em>either</em> the
+  Ok payload <em>or</em> the Err payload, never both. The
+  <code class="inline">is_ok</code> tag tells the reader which interpretation
+  is valid. Reading the wrong arm is undefined behavior.
+</div>
+
+<h2>Layer 3 — The C# raw struct (the elegant pattern)</h2>
+
+<p>
+  The naive approach would be a single <code class="inline">[StructLayout(LayoutKind.Explicit)]</code>
+  struct with hand-computed <code class="inline">[FieldOffset(N)]</code> for
+  every field — forcing the codegen to maintain a <code class="inline">sizeof</code>
+  table and compute the tag's offset per <code class="inline">(T, E)</code>
+  pair. <strong>Don't do that.</strong> The original .NET backend (Benoit,
+  PR #124) used a much cleaner pattern that delegates the math to the CLR.
+</p>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>DiplomatResult_Color_ColorError.cs (codegen)</span>
+    <span class="layer-tag layer-csharp-raw">C# raw</span>
+  </div>
+  <pre><code class="language-csharp">// OUTER struct: Sequential. CLR computes all field offsets for us.
+[StructLayout(LayoutKind.Sequential)]
+public partial struct DiplomatResult_Color_ColorError
+{
+    // INNER union: nested private type with Explicit layout.
+    // Only the OVERLAP needs Explicit — and both arms always sit at offset 0.
+    [StructLayout(LayoutKind.Explicit)]
+    private unsafe struct InnerUnion
+    {
+        [FieldOffset(0)] internal Raw.Color* ok;
+        [FieldOffset(0)] internal ColorError err;
+    }
+
+    private InnerUnion _inner;          // CLR places at offset 0
+
+    [MarshalAs(UnmanagedType.U1)]        // force bool to 1 byte (matches Rust)
+    public bool isOk;                     // CLR places after _inner
+
+    public Raw.Color* Ok  =&gt; _inner.ok;
+    public ColorError Err =&gt; _inner.err;
+}</code></pre>
+</div>
+
+<div class="note win">
+  <strong>Zero offset computation in the codegen.</strong>
+  The only <code class="inline">[FieldOffset(N)]</code> values are
+  <code class="inline">0</code> — a constant. Every other offset
+  (<code class="inline">_inner</code>'s position, <code class="inline">isOk</code>'s
+  position, struct total size, alignment) is computed by the CLR from the
+  field type declarations alone. The codegen is a name-shuffler; the CLR
+  is the layout computer.
+</div>
+
+<div class="note">
+  <strong>How the CLR figures out sizes.</strong> Type declarations are all
+  the CLR needs:
+  <ul style="margin: 6px 0;">
+    <li><code class="inline">internal Raw.Color* ok;</code> → CLR knows pointer = 8 bytes on x64</li>
+    <li><code class="inline">internal ColorError err;</code> → CLR knows int-repr enum = 4 bytes</li>
+    <li>→ <code class="inline">InnerUnion</code> size = max(8, 4) = <strong>8 bytes</strong></li>
+    <li><code class="inline">private InnerUnion _inner;</code> → CLR places at offset 0</li>
+    <li><code class="inline">[MarshalAs(U1)] bool isOk;</code> → CLR places at offset <strong>8</strong></li>
+    <li>→ struct size = round_up(9, 8) = <strong>16 bytes</strong></li>
+  </ul>
+  Same 16 bytes Rust's <code class="inline">repr(C)</code> computes. Two
+  compilers, same C ABI rules, identical layouts — without any direct
+  communication.
+</div>
+
+<div class="note warn">
+  <strong><code class="inline">[MarshalAs(UnmanagedType.U1)]</code> on the bool.</strong>
+  Without it, C# defaults to marshaling <code class="inline">bool</code> as
+  a 4-byte BOOL (a Win32 convention). <code class="inline">U1</code> forces
+  1 byte, matching Rust's <code class="inline">bool</code> width. With this
+  marker we can use <code class="inline">bool isOk</code> directly instead of
+  <code class="inline">byte IsOk</code> with manual <code class="inline">!= 0</code> checks.
+</div>
+
+<div class="note">
+  <strong>The principle: delegate layout to the target compiler.</strong>
+  Where possible, generate <em>type declarations</em> that <em>cause</em>
+  values to be computed — don't pre-compute the values yourself.
+  <ul style="margin: 6px 0;">
+    <li>Need overlap? <code class="inline">[FieldOffset(0)]</code> ×2 — the only literal allowed (it's always zero).</li>
+    <li>Need to know union size? Wrap in a nested Sequential — CLR sums fields.</li>
+    <li>Need total struct size? Don't — emit fields, CLR sums them.</li>
+    <li>Need alignment? Don't — CLR picks max of field alignments.</li>
+  </ul>
+  Rust does the same thing on its side via <code class="inline">repr(C)</code>.
+  Both compilers walk the same C-ABI rules from the same type declarations
+  and arrive at identical byte layouts.
+</div>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>RawColor.cs (codegen)</span>
+    <span class="layer-tag layer-csharp-raw">C# raw</span>
+  </div>
+  <pre><code class="language-csharp">[DllImport(NativeLib, EntryPoint = "Color_parse", CallingConvention = CallingConvention.Cdecl)]
+public static extern DiplomatResult_Color_ColorError Parse(DiplomatSliceU8 s);</code></pre>
+</div>
+
+<h2>ABI parity — Rust and C# produce the same 16 bytes</h2>
+
+<p>
+  The codegen never tells either compiler what bytes to produce. Both
+  compilers independently apply the C ABI rules to their respective type
+  declarations and arrive at <strong>byte-identical</strong> output. Here's
+  the parity laid out — same field name on the left and right, same offset
+  in the middle.
+</p>
+
+<h3>Ok case — the wire carries a pointer</h3>
+
+<table class="layout" style="width:100%; font-size: 12px;">
+  <tr>
+    <th style="width: 36%; text-align:left;">Rust field</th>
+    <th style="width: 12%;">offset</th>
+    <th style="width: 16%;">bytes</th>
+    <th style="width: 36%; text-align:left;">C# field</th>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>value.ok: *mut Color</code></td>
+    <td>0..8</td>
+    <td class="ok">10 80 2C 5F<br>B4 01 00 00</td>
+    <td style="text-align:left;"><code>_inner.ok: Color*</code></td>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>is_ok: bool</code></td>
+    <td>8</td>
+    <td class="tag">01</td>
+    <td style="text-align:left;"><code>isOk: bool [U1]</code></td>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><em>struct padding (repr(C))</em></td>
+    <td>9..16</td>
+    <td class="pad">-- -- --<br>-- -- -- --</td>
+    <td style="text-align:left;"><em>struct padding (Sequential)</em></td>
+  </tr>
+</table>
+
+<h3>Err case — the wire carries an enum value (lower 4 bytes), upper 4 are slack</h3>
+
+<table class="layout" style="width:100%; font-size: 12px;">
+  <tr>
+    <th style="width: 36%; text-align:left;">Rust field</th>
+    <th style="width: 12%;">offset</th>
+    <th style="width: 16%;">bytes</th>
+    <th style="width: 36%; text-align:left;">C# field</th>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>value.err: ColorError</code></td>
+    <td>0..4</td>
+    <td class="err">00 00 00 00</td>
+    <td style="text-align:left;"><code>_inner.err: ColorError</code></td>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><em>union slack (uninitialized)</em></td>
+    <td>4..8</td>
+    <td class="pad">?? ?? ?? ??</td>
+    <td style="text-align:left;"><em>union slack — same uninit bytes</em></td>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>is_ok: bool</code></td>
+    <td>8</td>
+    <td class="tag">00</td>
+    <td style="text-align:left;"><code>isOk: bool [U1]</code></td>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><em>struct padding (repr(C))</em></td>
+    <td>9..16</td>
+    <td class="pad">-- -- --<br>-- -- -- --</td>
+    <td style="text-align:left;"><em>struct padding (Sequential)</em></td>
+  </tr>
+</table>
+
+<div class="note win">
+  <strong>Same 16 bytes, two independent compilers.</strong>
+  <ul style="margin: 6px 0;">
+    <li>Rust's <code class="inline">rustc</code> sees <code class="inline">#[repr(C)] struct DiplomatResult&lt;T, E&gt; { value: union, is_ok: bool }</code> and walks the C-ABI layout rules.</li>
+    <li>The CLR sees <code class="inline">[StructLayout(Sequential)] struct DiplomatResult_Color_ColorError { InnerUnion _inner; bool isOk; }</code> and walks the same rules.</li>
+    <li>Neither compiler knows the other exists.</li>
+    <li>The bytes match because the rules are public and deterministic.</li>
+  </ul>
+</div>
+
+<div class="note">
+  <strong>What makes this parity hold mechanically</strong>
+  <ol style="margin: 6px 0;">
+    <li><strong>Field names don't have to match</strong> — Rust calls the union <code class="inline">value</code>, C# calls it <code class="inline">_inner</code>. The CLR / rustc don't care; they only look at <em>types</em> and <em>order</em>.</li>
+    <li><strong>Field <em>order</em> matters absolutely</strong> — Rust declares <code class="inline">value</code> before <code class="inline">is_ok</code>. C# must declare <code class="inline">_inner</code> before <code class="inline">isOk</code>. Swap the order, the tag's offset changes.</li>
+    <li><strong>Field <em>types</em> must be ABI-equivalent</strong> — Rust's <code class="inline">*mut Color</code> is 8 bytes; C# must use a pointer-typed field (<code class="inline">Color*</code> or <code class="inline">IntPtr</code>), not an <code class="inline">int</code>. <code class="inline">bool</code> must be size 1 (the <code class="inline">[MarshalAs(U1)]</code> directive).</li>
+    <li><strong>Layout kinds enforce C ABI on both sides</strong> — Rust's <code class="inline">#[repr(C)]</code> says "use C rules"; C#'s <code class="inline">[StructLayout(Sequential)]</code> says "use C rules." They're saying the same thing in different syntaxes.</li>
+  </ol>
+</div>
+
+<h3>The codegen's actual job in this parity</h3>
+
+<p>
+  Look at what the codegen has to write into the C# struct definition:
+</p>
+
+<table class="layout" style="width:100%; font-size: 12px;">
+  <tr>
+    <th style="width: 30%; text-align:left;">What the codegen writes</th>
+    <th style="width: 70%; text-align:left;">Why it matters for ABI</th>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>[StructLayout(LayoutKind.Sequential)]</code></td>
+    <td style="text-align:left;">Tells CLR "use C ABI rules" — matches Rust's <code class="inline">#[repr(C)]</code></td>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>[StructLayout(LayoutKind.Explicit)]</code> (inner)</td>
+    <td style="text-align:left;">Tells CLR "I'll specify offsets" — only needed for the union part</td>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>[FieldOffset(0)]</code> on both arms</td>
+    <td style="text-align:left;">Tells CLR "these two fields alias at byte 0" — the union semantic. Always <code class="inline">0</code>, never computed.</td>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>Color* ok;</code> + <code>ColorError err;</code></td>
+    <td style="text-align:left;">Field <strong>types</strong> — CLR derives field <strong>sizes</strong> from these. Must be ABI-equivalent to Rust's types.</td>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>InnerUnion _inner;</code> first, <code>bool isOk;</code> second</td>
+    <td style="text-align:left;">Field <strong>order</strong> — must match Rust's declaration order. Swap them and the layout shifts.</td>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>[MarshalAs(UnmanagedType.U1)]</code></td>
+    <td style="text-align:left;">Forces <code class="inline">bool</code> to be 1 byte — matches Rust's <code class="inline">bool</code> on the wire (otherwise C# defaults to 4-byte BOOL)</td>
+  </tr>
+</table>
+
+<p style="font-size: 13px; color: #8b949e;">
+  Six annotations, two type names. No sizeof table, no offset arithmetic,
+  no <code class="inline">Size = N</code> hint. The codegen's job is to
+  write declarations that <em>cause</em> the right bytes to materialize on
+  the C# side — declarations that mirror what Rust already declared on its
+  side. Both compilers do the layout math from those declarations,
+  independently, and arrive at the same 16 bytes.
+</p>
+
+<h2>Layer 4 — The exception class</h2>
+
+<p>
+  Per-error exception type, generated alongside the result struct. The error
+  enum value rides inside as a public property; the message comes from its
+  string form. Catchable by name in C# patterns.
+</p>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>ColorParseException.cs (codegen)</span>
+    <span class="layer-tag layer-csharp-impl">C# exception</span>
+  </div>
+  <pre><code class="language-csharp">namespace DotnetSmoke;
+
+public class ColorParseException : Exception
+{
+    public ColorError Error { get; }
+
+    public ColorParseException(ColorError error)
+        : base($"Color.Parse failed: {error}")
+    {
+        Error = error;
+    }
+}</code></pre>
+</div>
+
+<div class="note">
+  <strong>One exception class per error type, not per fallible method.</strong>
+  All Color methods that fail with <code class="inline">ColorError</code>
+  share <code class="inline">ColorParseException</code> (we may rename to
+  <code class="inline">ColorException</code> for that reason). If we later
+  add a method that fails with a different error enum, that's a separate
+  exception class. Caller writes
+  <code class="inline">catch (ColorException ex)</code> regardless of
+  which method threw.
+</div>
+
+<h2>Layer 5 — The idiomatic wrapper (the throw point)</h2>
+
+<p>
+  The user-facing C# method. Takes a managed <code class="inline">string</code>,
+  hands an opaque <code class="inline">Color</code> back, throws
+  <code class="inline">ColorParseException</code> on failure. This is the
+  function the IronRDP devs (or anyone else) actually calls.
+</p>
+
+<div class="grid2">
+  <div class="panel">
+    <div class="panel-header">
+      <span>The Rust source — what the dev wrote</span>
+      <span class="layer-tag layer-rust">rust</span>
+    </div>
+    <pre><code class="language-rust">impl Color {
+    pub fn parse(s: &amp;DiplomatStr)
+        -&gt; Result&lt;Box&lt;Color&gt;, ColorError&gt;
+    {
+        match s {
+            b""      =&gt; Err(ColorError::BadFormat),
+            b"red"   =&gt; Ok(Box::new(Color { brightness: 255 })),
+            b"black" =&gt; Ok(Box::new(Color { brightness: 0 })),
+            _        =&gt; Err(ColorError::Unknown),
+        }
+    }
+}</code></pre>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <span>The generated C# — Color.cs</span>
+      <span class="layer-tag layer-csharp-impl">C# idiomatic</span>
+    </div>
+    <pre><code class="language-csharp">public static Color Parse(string s)
+{
+    unsafe
+    {
+        byte[] sBytes = Encoding.UTF8.GetBytes(s);
+        fixed (byte* sPtr = sBytes)
+        {
+            var result = Raw.Color.Parse(new DiplomatSliceU8
+            {
+                Ptr = sPtr,
+                Len = (nuint)sBytes.Length,
+            });
+
+            if (!result.isOk)
+            {
+                throw new ColorParseException(result.Err);
+            }
+            return new Color(result.Ok);
+        }
+    }
+}</code></pre>
+  </div>
+</div>
+
+<h3>Line-by-line — what each piece does</h3>
+
+<table class="layout" style="width:100%; font-size: 12px;">
+  <tr>
+    <th style="width: 50%; text-align:left;">C# line</th>
+    <th style="width: 50%; text-align:left;">What it does + which earlier layer it relates to</th>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>public static Color Parse(string s)</code></td>
+    <td style="text-align:left;">Idiomatic return type is <code class="inline">Color</code> (the wrapper class) — error is signaled by exception, not in the type. Param is <code class="inline">string</code> — caller passes managed UTF-16.</td>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>byte[] sBytes = Encoding.UTF8.GetBytes(s);</code></td>
+    <td style="text-align:left;">Encode UTF-16 string → UTF-8 bytes. Required because Rust's <code class="inline">&amp;DiplomatStr</code> wants UTF-8. From the <code class="inline">&amp;DiplomatStr</code> walkthrough.</td>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>fixed (byte* sPtr = sBytes)</code></td>
+    <td style="text-align:left;">Pin the byte array so the GC can't move it during the FFI call. Required for any slice passed by pointer.</td>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>var result = Raw.Color.Parse(...)</code></td>
+    <td style="text-align:left;">The actual P/Invoke. Returns a <code class="inline">DiplomatResult_Color_ColorError</code> struct by value — the 16 bytes we just walked through. <strong>This is where the ABI parity from the previous section is used.</strong></td>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>if (!result.isOk)</code></td>
+    <td style="text-align:left;">Reads byte 8 of the struct — the tag. C# sees <code class="inline">bool</code> because of <code class="inline">[MarshalAs(U1)]</code>; reads as a normal bool. The non-negotiable check from the union mechanics.</td>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>throw new ColorParseException(result.Err)</code></td>
+    <td style="text-align:left;">Reads bytes 0..4 of the union as <code class="inline">ColorError</code> (the active arm when <code class="inline">!isOk</code>). Wraps in the per-error-type exception class.</td>
+  </tr>
+  <tr>
+    <td style="text-align:left;"><code>return new Color(result.Ok)</code></td>
+    <td style="text-align:left;">Reads bytes 0..8 of the union as <code class="inline">Color*</code> (the active arm when <code class="inline">isOk</code>). Wraps in the IDisposable wrapper class — same pattern as every opaque return.</td>
+  </tr>
+</table>
+
+<div class="note">
+  <strong>What the codegen actually has to assemble for this method:</strong>
+  <ul style="margin: 6px 0;">
+    <li><strong>Encode + pin scaffolding</strong> — comes from the <code class="inline">&amp;DiplomatStr</code> input lowering (already shipped)</li>
+    <li><strong>Result struct binding</strong> — <code class="inline">var result = Raw.Color.Parse(...)</code>. The struct type name (<code class="inline">DiplomatResult_Color_ColorError</code>) is the same one in the result registry — emitted once, used here.</li>
+    <li><strong>Tag check + throw</strong> — driven by <code class="inline">method.is_fallible()</code> in the template. The exception class name is derived from <code class="inline">method.error_type</code> on <code class="inline">MethodInfo</code>.</li>
+    <li><strong>Ok unwrap</strong> — kind-specific. <code class="inline">new Color(result.Ok)</code> for opaque returns; <code class="inline">return result.Ok;</code> for primitives; <code class="inline">return Point2D.FromFFI(result.Ok);</code> for structs.</li>
+  </ul>
+  Each piece exists somewhere we've already designed. The template just composes them in order.
+</div>
+
+<h3>What this looks like in the template</h3>
+
+<div class="panel">
+  <div class="panel-header"><span>opaque.impl.cs.jinja (sketch)</span></div>
+  <pre><code class="language-csharp">public {{ method.static_kw }}{{ method.return_type }} {{ method.name }}({{ method.inputs.idiomatic_params }})
+{
+    unsafe
+    {
+        {%- if method.is_instance() %}
+        if (_inner == null) { throw new ObjectDisposedException(nameof({{ name }})); }
+        {%- endif %}
+
+        {%- for line in method.inputs.to_bytes_statements %}
+        {{ line }}
+        {%- endfor %}
+
+        {%- for line in method.inputs.fix_statements %}
+        {{ line }}
+        {%- endfor %}
+        {
+            {%- if method.is_fallible() %}
+            var result = Raw.{{ name }}.{{ method.name }}({{ method.inputs.raw_call_args }});
+            if (!result.isOk) {
+                throw new {{ method.error_type }}Exception(result.Err);
+            }
+                {%- if method.return_type.is_opaque() %}
+                return new {{ method.return_type }}(result.Ok);
+                {%- else if method.return_type.is_void() %}
+                return;
+                {%- else %}
+                return result.Ok;
+                {%- endif %}
+            {%- else %}
+                {# existing non-fallible branches unchanged #}
+            {%- endif %}
+        }
+    }
+}</code></pre>
+</div>
+
+<p style="font-size: 13px; color: #8b949e;">
+  The fallible branch slots in alongside the existing opaque/struct/void
+  return-body branches. Templates already iterate <code class="inline">to_bytes_statements</code>
+  and <code class="inline">fix_statements</code> for slice scaffolding;
+  <code class="inline">method.is_fallible()</code> just picks which return
+  shape comes after.
+</p>
+
+<h2>Layer 6 — User call site</h2>
+
+<div class="grid2">
+  <div class="panel">
+    <div class="panel-header">
+      <span>Happy path</span>
+      <span class="layer-tag layer-user">user code</span>
+    </div>
+    <pre><code class="language-csharp">try
+{
+    using var c = Color.Parse("red");
+    Console.WriteLine(c.Brightness());  // 255
+}
+catch (ColorParseException ex)
+{
+    Console.WriteLine($"unknown: {ex.Error}");
+}</code></pre>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <span>Error path</span>
+      <span class="layer-tag layer-throw">user code + throw</span>
+    </div>
+    <pre><code class="language-csharp">try
+{
+    using var c = Color.Parse("rainbow");
+    // never reached
+}
+catch (ColorParseException ex)
+{
+    // ex.Error == ColorError.Unknown
+    // ex.Message == "Color.Parse failed: Unknown"
+    Console.WriteLine($"unknown: {ex.Error}");
+}</code></pre>
+  </div>
+</div>
+
+<h2>End-to-end data flow</h2>
+
+<h3>Ok path</h3>
+
+<div class="flow">
+  <div class="flow-step ok-path">
+    <div class="lbl">1. User calls Color.Parse("red")</div>
+    Idiomatic wrapper receives the <code>string</code>.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step ok-path">
+    <div class="lbl">2. UTF-8 encode + pin</div>
+    <code>sBytes = [0x72, 0x65, 0x64]</code>, pinned via <code>fixed</code>.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step ok-path">
+    <div class="lbl">3. Raw extern call</div>
+    <code>Raw.Color.Parse(DiplomatSliceU8{ Ptr, Len=3 })</code> →
+    Rust runs the match, hits the <code>b"red"</code> arm, allocates a
+    Color, builds <code>DiplomatResult::ok(boxed.into_raw())</code>.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step ok-path">
+    <div class="lbl">4. Result returned by value (16 bytes)</div>
+    Bytes 0..8 = pointer to Color, byte 8 = 0x01 (isOk = true).
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step ok-path">
+    <div class="lbl">5. C# checks isOk</div>
+    <code>result.isOk == true</code> → enter the Ok branch.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step ok-path">
+    <div class="lbl">6. Wrap and return</div>
+    <code>return new Color(result.Ok);</code> — IDisposable wrapper around
+    the raw pointer. Caller receives a normal Color value.
+  </div>
+</div>
+
+<h3>Err path</h3>
+
+<div class="flow">
+  <div class="flow-step err-path">
+    <div class="lbl">1. User calls Color.Parse("rainbow")</div>
+    Idiomatic wrapper receives the <code>string</code>.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step err-path">
+    <div class="lbl">2. UTF-8 encode + pin</div>
+    Same as Ok path — no special handling on the input side.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step err-path">
+    <div class="lbl">3. Raw extern call</div>
+    Rust's match falls through to the <code>_</code> arm,
+    returns <code>DiplomatResult::err(ColorError::Unknown)</code>.
+    Same 16-byte struct, different tag.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step err-path">
+    <div class="lbl">4. Result returned by value (16 bytes)</div>
+    Bytes 0..4 = ColorError::Unknown (= 0), byte 8 = 0x00 (isOk = false).
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step err-path">
+    <div class="lbl">5. C# checks isOk</div>
+    <code>!result.isOk</code> → enter the Err branch.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step err-path">
+    <div class="lbl">6. Throw</div>
+    <code>throw new ColorParseException(result.Err);</code> — stack
+    unwinds back to the caller's try/catch.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step err-path">
+    <div class="lbl">7. fixed block exits, exception propagates</div>
+    The <code>fixed</code> scope ends cleanly during unwinding (sBytes
+    becomes unpinned, but we don't care — no more native code is running).
+    Caller's <code>catch (ColorParseException ex)</code> receives the
+    exception.
+  </div>
+</div>
+
+<h2>Side by side — match vs try/catch</h2>
+
+<div class="grid2">
+  <div class="panel">
+    <div class="panel-header">
+      <span>Rust: match handles both arms</span>
+      <span class="layer-tag layer-rust">rust</span>
+    </div>
+    <pre><code class="language-rust">match Color::parse(b"rainbow") {
+    Ok(c) =&gt; {
+        // use c (compiler tracks: type is Box&lt;Color&gt;)
+    }
+    Err(ColorError::Unknown) =&gt; {
+        log::warn!("unknown color");
+    }
+    Err(ColorError::BadFormat) =&gt; {
+        log::warn!("malformed input");
+    }
+}</code></pre>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <span>C#: try/catch handles the throw</span>
+      <span class="layer-tag layer-throw">C#</span>
+    </div>
+    <pre><code class="language-csharp">try {
+    using var c = Color.Parse("rainbow");
+    // use c (compiler tracks: type is Color)
+}
+catch (ColorParseException ex) when (ex.Error == ColorError.Unknown) {
+    Log.Warn("unknown color");
+}
+catch (ColorParseException ex) when (ex.Error == ColorError.BadFormat) {
+    Log.Warn("malformed input");
+}</code></pre>
+  </div>
+</div>
+
+<div class="note">
+  <strong>The <code class="inline">when</code> filter is C#'s match-arm equivalent.</strong>
+  Pattern-matching on the error enum is what <code class="inline">match Err(...)</code>
+  does in Rust. C# 6+ supports exception filters (<code class="inline">catch (T) when (predicate)</code>)
+  which gives you the same per-variant dispatch without a giant switch
+  inside the catch block.
+</div>
+
+<h2>What the codegen needs to add</h2>
+
+<div class="panel">
+  <div class="panel-header"><span>1. lower_return — new arm for Fallible</span></div>
+  <pre><code class="language-rust">match output {
+    hir::ReturnType::Fallible(success, Some(failed)) =&gt; {
+        let ok_ty  = lower_success_type(success);     // "Color", "u8", etc.
+        let err_ty = lower_failed_type(failed);       // "ColorError"
+        let result_struct = format!("DiplomatResult_{ok_ty}_{err_ty}");
+        let exc_class = format!("{owner}{method}Exception");  // or per-err-type
+
+        DotnetReturnType::Result {
+            ok_ty, err_ty, result_struct, exc_class,
+            // ReturnBody::Bound generates:
+            //   var result = Raw.X.Y(...);
+            //   if (!result.isOk) throw new ExcClass(result.Err);
+            //   return new {ok_ty}(result.Ok);
+        }
+    }
+    // existing arms...
+}</code></pre>
+</div>
+
+<div class="panel">
+  <div class="panel-header"><span>2. Runtime helper: DiplomatResult_&lt;Ok&gt;_&lt;Err&gt;.cs.jinja</span></div>
+  <pre><code class="language-csharp">[StructLayout(LayoutKind.Sequential)]
+public partial struct DiplomatResult_{{ ok_name }}_{{ err_name }}
+{
+    [StructLayout(LayoutKind.Explicit)]
+    private unsafe struct InnerUnion
+    {
+        [FieldOffset(0)] internal {{ ok_field_ty }}  ok;
+        [FieldOffset(0)] internal {{ err_field_ty }} err;
+    }
+
+    private InnerUnion _inner;
+
+    [MarshalAs(UnmanagedType.U1)]
+    public bool isOk;
+
+    public {{ ok_field_ty }}  Ok  =&gt; _inner.ok;
+    public {{ err_field_ty }} Err =&gt; _inner.err;
+}</code></pre>
+</div>
+
+<p>
+  <strong>No sizeof table. No offset math. No <code class="inline">tag_offset</code>
+  variable.</strong> Codegen only needs the C# type names of Ok and Err
+  (e.g. <code class="inline">Raw.Color*</code>, <code class="inline">ColorError</code>)
+  and the result struct's name. The CLR computes the rest at C# compile
+  time using the same C ABI rules Rust uses on its side.
+</p>
+
+<div class="panel">
+  <div class="panel-header"><span>3. Exception class template</span></div>
+  <pre><code class="language-csharp">namespace {{ namespace }};
+
+public class {{ exc_name }} : Exception
+{
+    public {{ err_ty }} Error { get; }
+
+    public {{ exc_name }}({{ err_ty }} error)
+        : base($"{{ owner }}.{{ method }} failed: {error}")
+    {
+        Error = error;
+    }
+}</code></pre>
+</div>
+
+<div class="panel">
+  <div class="panel-header"><span>4. Template — ReturnBody::Bound for Result</span></div>
+  <pre><code class="language-csharp">// In opaque.impl.cs.jinja, the Bound branch handles this naturally:
+{{ result_struct }} result = Raw.{{ name }}.{{ method.name }}(...);
+if (!result.isOk)
+{
+    throw new {{ exc_class }}(result.Err);
+}
+return new {{ ok_ty }}(result.Ok);
+</code></pre>
+</div>
+
+<h2>Pitfalls</h2>
+
+<div class="note warn">
+  <strong>1. Enum repr must match between Rust and C#.</strong>
+  Diplomat enums default to int-repr (4 bytes) on both sides — that's
+  fine, the CLR sees the C# enum as 4 bytes and lays out the union
+  accordingly. If a Rust enum ever uses <code class="inline">#[repr(u8)]</code>
+  or similar, the C# generated enum has to match (e.g. <code class="inline">: byte</code>
+  underlying type). The codegen handles this by reading the
+  <code class="inline">repr</code> attribute from HIR and emitting the
+  matching C# underlying type.
+</div>
+
+<div class="note err-note">
+  <strong>2. Union slack bytes are unspecified.</strong> When Rust returns
+  Err, the Ok bytes hold whatever was on the stack — not zero, not the err
+  payload zero-extended. C# code <strong>must</strong> check
+  <code class="inline">isOk</code> before reading <code class="inline">Ok</code>
+  or <code class="inline">Err</code>. Reading the wrong arm is UB —
+  pointer-shaped garbage in the Err case, enum-shaped garbage in the Ok case.
+  (Mitigated by the property getters: callers only see <code class="inline">.Ok</code>
+  and <code class="inline">.Err</code>, which the codegen wraps in
+  <code class="inline">if (result.isOk) ...</code> checks at every call site.)
+</div>
+
+<div class="note warn">
+  <strong>3. fixed block lifetime + exception unwinding.</strong> When we
+  throw inside a <code class="inline">fixed</code> block, the unwinding
+  unpins cleanly — that's how try/catch always works. No special care
+  needed. Just don't structure the code such that the raw pointer escapes
+  the <code class="inline">fixed</code> scope.
+</div>
+
+<div class="note warn">
+  <strong>4. Exception cost in hot paths.</strong> <code class="inline">throw new ColorParseException(...)</code>
+  costs ~µs (allocation + stack capture). If a Rust API returns
+  <code class="inline">Result&lt;T, E&gt;</code> as the <em>normal</em> way to
+  signal "not found" or "try again" — and the caller hits the Err path
+  often — exceptions become a real perf liability. In that case the Rust
+  API is mis-designed (should be <code class="inline">Option&lt;T&gt;</code>
+  or a stream pattern); don't try to fix it in the binding.
+</div>
+
+<div class="note">
+  <strong>5. Result&lt;Result&lt;..&gt;&gt; nesting.</strong> Diplomat doesn't
+  let you return nested Results across FFI — the HIR rejects them. If
+  Rust has nested fallibility, flatten it on the Rust side before exposing.
+</div>
+
+<h2>Smoke tests to add</h2>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>dotnet_smoke/tests/Program.cs</span>
+    <span class="layer-tag layer-user">user code</span>
+  </div>
+  <pre><code class="language-csharp">// Ok path
+Test("Parse(\"red\") returns a Color with brightness 255", () =&gt;
+{
+    using var c = Color.Parse("red");
+    AssertEqual&lt;byte&gt;(255, c.Brightness(), "red brightness");
+});
+
+Test("Parse(\"black\") returns a Color with brightness 0", () =&gt;
+{
+    using var c = Color.Parse("black");
+    AssertEqual&lt;byte&gt;(0, c.Brightness(), "black brightness");
+});
+
+// Err path — verify exception type AND error payload
+Test("Parse(\"rainbow\") throws ColorParseException(Unknown)", () =&gt;
+{
+    try {
+        Color.Parse("rainbow");
+        throw new Exception("expected ColorParseException, got none");
+    } catch (ColorParseException ex) {
+        AssertEqual(ColorError.Unknown, ex.Error, "error variant");
+    }
+});
+
+Test("Parse(\"\") throws ColorParseException(BadFormat)", () =&gt;
+{
+    try {
+        Color.Parse("");
+        throw new Exception("expected ColorParseException, got none");
+    } catch (ColorParseException ex) {
+        AssertEqual(ColorError.BadFormat, ex.Error, "different error variant");
+    }
+});</code></pre>
+</div>
+
+<h2>Summary — three-line story</h2>
+
+<ol style="font-size:14px;">
+  <li><strong>Rust says</strong> "errors are values; returns a tagged union." <code class="inline">Result&lt;T, E&gt;</code> rides the stack as a <code class="inline">repr(C)</code> struct.</li>
+  <li><strong>C# binding says</strong> "errors throw; success returns." Idiomatic wrapper checks the tag, returns the Ok or constructs+throws the exception.</li>
+  <li><strong>User says</strong> <code class="inline">try { var x = Foo.Parse(s); } catch (FooException ex) { ... }</code>. Same shape they use for every other .NET API.</li>
+</ol>
+
+<p style="color: #8b949e; font-size: 13px;">
+  Errors-as-values is the <em>mechanism</em>. "This can fail and the
+  caller has to handle it" is the <em>intent</em>. We translate the
+  intent into the target language's idiom — not the mechanism literally.
+  That's the whole job of a binding generator.
+</p>
+
+<script>
+  hljs.highlightAll();
+</script>
+
+</body>
+</html>

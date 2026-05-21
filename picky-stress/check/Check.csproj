@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Syntax-check project for picky-stress.
+    Compiles the generated bindings in ../../target/picky_gen alongside
+    picky-rs's hand-written addons in D:/picky-rs/ffi/dotnet/Devolutions.Picky/src.
+    Verifies that downstream consumers (picky's addons) compile against
+    our codegen output.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Devolutions.Picky</RootNamespace>
+    <NoWarn>CS8019;CS0169;CS0414;CS0649;CS8500;CS0162</NoWarn>
+    <BaseIntermediateOutputPath>obj\</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin\</BaseOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="**\*.cs" />
+    <Compile Include="..\..\target\picky_gen\**\*.cs" />
+    <Compile Include="D:\picky-rs\ffi\dotnet\Devolutions.Picky\src\*.cs" />
+  </ItemGroup>
+
+</Project>

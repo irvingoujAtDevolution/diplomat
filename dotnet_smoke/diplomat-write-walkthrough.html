@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DiplomatWrite — a layered walkthrough</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/csharp.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto; padding: 28px 32px 80px;
+    background: #0d1117; color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    line-height: 1.55; max-width: 1200px;
+  }
+  h1 { margin: 0 0 4px 0; font-size: 24px; font-weight: 600; color: #f0f6fc; }
+  h2 { margin: 40px 0 8px 0; font-size: 18px; font-weight: 600; color: #f0f6fc; border-bottom: 1px solid #21262d; padding-bottom: 6px; }
+  h3 { margin: 24px 0 6px 0; font-size: 14px; font-weight: 600; color: #c9d1d9; text-transform: uppercase; letter-spacing: 0.05em; }
+  .subtitle { color: #8b949e; font-size: 14px; margin-bottom: 28px; }
+  p { color: #c9d1d9; }
+  .panel { border: 1px solid #30363d; border-radius: 8px; overflow: hidden; margin: 12px 0; background: #0d1117; }
+  .panel-header { background: #161b22; color: #8b949e; padding: 9px 14px; font-size: 12px; font-family: "SF Mono", Consolas, monospace; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; }
+  .panel-header .layer-tag { background: #21262d; color: #c9d1d9; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+  .layer-rust          { background: #4d1f00; color: #ffa657; }
+  .layer-abi           { background: #2d2d00; color: #d1d100; }
+  .layer-csharp-raw    { background: #003a4d; color: #79c0ff; }
+  .layer-csharp-impl   { background: #033a16; color: #7ee787; }
+  .layer-user          { background: #3a1d5d; color: #d2a8ff; }
+  .layer-callback      { background: #5d1d1d; color: #f85149; }
+  pre { margin: 0; }
+  pre code { padding: 14px 16px !important; font-size: 13px; line-height: 1.5; font-family: "SF Mono", Consolas, "Liberation Mono", monospace; }
+  .note { background: #161b22; border-left: 3px solid #58a6ff; padding: 10px 14px; margin: 12px 0; border-radius: 0 6px 6px 0; font-size: 13px; color: #c9d1d9; }
+  .note strong { color: #58a6ff; }
+  .warn { background: #2d1b00; border-left-color: #d29922; }
+  .warn strong { color: #d29922; }
+  .err-note { background: #2d0d0d; border-left-color: #f85149; }
+  .err-note strong { color: #f85149; }
+  .win { background: #07260f; border-left-color: #56d364; }
+  .win strong { color: #56d364; }
+  code.inline { background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Consolas, monospace; font-size: 12px; color: #79c0ff; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  table.layout { border-collapse: collapse; margin: 14px 0; font-family: "SF Mono", Consolas, monospace; font-size: 12px; width: 100%; }
+  table.layout th, table.layout td { border: 1px solid #30363d; padding: 6px 10px; text-align: left; }
+  table.layout th { background: #161b22; color: #8b949e; font-weight: 500; }
+  .flow { display: grid; grid-template-columns: 1fr; gap: 6px; margin: 20px 0; font-family: "SF Mono", Consolas, monospace; font-size: 13px; }
+  .flow-step { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 10px 14px; }
+  .flow-step.cs   { border-left: 3px solid #7ee787; }
+  .flow-step.rust { border-left: 3px solid #ffa657; }
+  .flow-step.cb   { border-left: 3px solid #f85149; }
+  .flow-step .lbl { color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+  .flow-arrow { text-align: center; color: #8b949e; font-size: 16px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 8px 0 20px 0; font-size: 12px; }
+  .legend span { padding: 3px 10px; border-radius: 4px; }
+  .lg-user      { background: #3a1d5d; color: #d2a8ff; }
+  .lg-impl      { background: #033a16; color: #7ee787; }
+  .lg-raw       { background: #003a4d; color: #79c0ff; }
+  .lg-abi       { background: #2d2d00; color: #d1d100; }
+  .lg-rust      { background: #4d1f00; color: #ffa657; }
+  .lg-callback  { background: #5d1d1d; color: #f85149; }
+</style>
+</head>
+<body>
+
+<h1>DiplomatWrite — a layered walkthrough</h1>
+<div class="subtitle">
+  The writer pattern. Rust can't return a <code class="inline">String</code>
+  across FFI directly — its heap allocator is its own. Instead, Rust
+  functions take a <strong>caller-provided writer</strong>, append UTF-8
+  bytes into it, and if the buffer fills up, call back into the caller to
+  grow it. From the user's perspective in C# this looks like
+  <code class="inline">return string</code>; under the hood it's a
+  bidirectional dance with function pointers crossing the FFI boundary.
+  <strong>The #1 missing feature for binding real Rust libraries.</strong>
+</div>
+
+<div class="legend">
+  <span class="lg-user">user code</span>
+  <span class="lg-impl">C# idiomatic (auto-gen)</span>
+  <span class="lg-raw">C# raw P/Invoke (auto-gen)</span>
+  <span class="lg-abi">C ABI contract (binary)</span>
+  <span class="lg-rust">Rust shim (macro-gen)</span>
+  <span class="lg-callback">callback into C# (grow buffer)</span>
+</div>
+
+<h2>The problem: Rust can't return String</h2>
+
+<p>
+  You'd expect Rust to write something like:
+</p>
+
+<div class="panel">
+  <div class="panel-header"><span>what we'd <em>like</em> to write</span><span class="layer-tag layer-rust">aspiration</span></div>
+  <pre><code class="language-rust">// Doesn't work for FFI!
+pub fn describe(&amp;self) -&gt; String {
+    format!("Color(brightness={})", self.brightness)
+}</code></pre>
+</div>
+
+<p>
+  But <code class="inline">String</code> is a Rust-specific type — it's a
+  pointer + length + capacity that came from <strong>Rust's allocator</strong>.
+  If you returned it across the FFI boundary, the C# side would see three
+  numbers but couldn't free the pointer (C#'s allocator doesn't know Rust's
+  heap). Even if you tried to copy the bytes, the lifetime is wrong — when
+  does Rust free the original? Who owns what?
+</p>
+
+<div class="note err-note">
+  <strong>The fundamental issue.</strong> Cross-FFI ownership of
+  heap-allocated growable buffers doesn't work. The allocator that
+  malloc'd the bytes has to be the one that frees them. <code class="inline">String</code>'s
+  invariants live entirely on the Rust side; you can't smuggle them across.
+</div>
+
+<h2>The fix: caller-provided writer</h2>
+
+<p>
+  Flip the ownership: <strong>the caller (C#) owns the buffer</strong>.
+  Rust just writes into it.
+</p>
+
+<div class="panel">
+  <div class="panel-header"><span>what Rust actually writes</span><span class="layer-tag layer-rust">how it really works</span></div>
+  <pre><code class="language-rust">use std::fmt::Write;
+
+pub fn describe(&amp;self, write: &amp;mut DiplomatWrite) {
+    let _ = write!(write, "Color(brightness={})", self.brightness);
+    //         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    //         standard `write!` macro on the writer — same code Rust
+    //         would write for any other Write-impl target
+}</code></pre>
+</div>
+
+<p>
+  <code class="inline">DiplomatWrite</code> implements
+  <code class="inline">std::fmt::Write</code>, so all the normal
+  <code class="inline">write!</code> /
+  <code class="inline">writeln!</code> /
+  <code class="inline">format_args!</code> machinery just works. Rust feels
+  like it's "returning a string"; it's actually appending bytes to a buffer
+  the caller passed in.
+</p>
+
+<h3>What if the buffer isn't big enough?</h3>
+
+<p>
+  Then Rust <strong>calls back into the caller</strong> to grow it. The
+  writer struct carries a <code class="inline">grow</code> function
+  pointer (registered by C# at the start of the call). Rust invokes it
+  when it needs more bytes; C# reallocates the buffer and updates the
+  pointer + capacity. <strong>Function pointer marshaling crosses the FFI
+  boundary in the opposite direction</strong> — that's the load-bearing
+  part of this design.
+</p>
+
+<h2>The example</h2>
+
+<p>
+  One simple, end-to-end:
+</p>
+
+<div class="panel">
+  <div class="panel-header"><span>dotnet_smoke/src/lib.rs</span><span class="layer-tag layer-rust">rust source</span></div>
+  <pre><code class="language-rust">impl Color {
+    /// Returns a human-readable description. From C# this looks like
+    /// `string desc = color.Describe();`. Under the hood, C# allocates
+    /// a writer, Rust appends UTF-8 bytes into it, C# extracts the
+    /// string and frees the buffer.
+    pub fn describe(&amp;self, write: &amp;mut DiplomatWrite) {
+        use std::fmt::Write;
+        let _ = write!(write, "Color(brightness={})", self.brightness);
+    }
+}</code></pre>
+</div>
+
+<p>
+  Goal: from C# the user writes <code class="inline">string desc = color.Describe();</code>
+  and gets <code class="inline">"Color(brightness=128)"</code> back. Every
+  layer between is generated.
+</p>
+
+<h2>Layer 1 — The macro-expanded extern</h2>
+
+<div class="panel">
+  <div class="panel-header"><span>generated by #[diplomat::bridge]</span><span class="layer-tag layer-rust">rust shim</span></div>
+  <pre><code class="language-rust">#[no_mangle]
+pub unsafe extern "C" fn Color_describe(
+    handle: *const Color,
+    write: *mut diplomat_runtime::DiplomatWrite,   // ← writer comes IN as a param
+) {                                                 // ← no return value (the write IS the return)
+    let this: &amp;Color = &amp;*handle;
+    let write: &amp;mut DiplomatWrite = &amp;mut *write;
+    this.describe(write);
+    write.flush();   // notify the caller "I'm done writing"
+}</code></pre>
+</div>
+
+<p>
+  Key shape: <strong>the writer is a parameter, not a return value</strong>.
+  At the C ABI level, this function returns <code class="inline">void</code>.
+  The "return value" lives in the bytes that got appended to the writer's
+  buffer.
+</p>
+
+<h2>Layer 2 — The DiplomatWrite struct (the contract)</h2>
+
+<p>
+  This is the load-bearing struct. Rust defines it in
+  <code class="inline">diplomat_runtime</code>; the C# binding mirrors its
+  layout exactly.
+</p>
+
+<div class="panel">
+  <div class="panel-header"><span>diplomat_runtime/src/write.rs (sketch)</span><span class="layer-tag layer-rust">runtime</span></div>
+  <pre><code class="language-rust">#[repr(C)]
+pub struct DiplomatWrite {
+    pub context: *mut c_void,       // caller-specific handle (for callbacks)
+    pub buf:     *mut u8,            // pointer to the byte buffer (caller-owned)
+    pub len:     usize,              // bytes written so far
+    pub cap:     usize,              // total capacity
+    pub flush:   extern "C" fn(*mut c_void),                 // called when Rust is done
+    pub grow:    extern "C" fn(*mut c_void, usize) -&gt; bool,  // called when buffer is full
+}
+
+// Rust impls std::fmt::Write on it; write_str calls grow() if needed,
+// then memcpys the bytes into buf, advances len.</code></pre>
+</div>
+
+<table class="layout">
+  <tr><th>Field</th><th>Size (x64)</th><th>Purpose</th></tr>
+  <tr><td><code>context</code></td><td>8 bytes</td><td>Opaque handle. Caller stuffs whatever it needs in here (e.g., a GCHandle to the C# side). Rust passes it back when calling the callbacks.</td></tr>
+  <tr><td><code>buf</code></td><td>8 bytes</td><td>Pointer to the caller-allocated byte buffer. Rust writes into this.</td></tr>
+  <tr><td><code>len</code></td><td>8 bytes</td><td>How many bytes Rust has written so far. Starts at 0, grows.</td></tr>
+  <tr><td><code>cap</code></td><td>8 bytes</td><td>Total bytes the buffer can hold. If <code>len + new_bytes &gt; cap</code>, Rust calls <code>grow</code>.</td></tr>
+  <tr><td><code>flush</code></td><td>8 bytes</td><td>Function pointer. Rust calls when done writing. Caller can use it to do final cleanup if needed.</td></tr>
+  <tr><td><code>grow</code></td><td>8 bytes</td><td>Function pointer. Rust calls with a requested new capacity. Caller reallocates, updates <code>buf</code> and <code>cap</code>, returns true on success.</td></tr>
+</table>
+
+<p>
+  Total: <strong>48 bytes</strong>. Six 8-byte fields, no padding.
+</p>
+
+<div class="note">
+  <strong>The function pointers are the magic.</strong> They let Rust
+  call <em>back</em> into C# at runtime. C# allocates the buffer; if Rust
+  exceeds the capacity, C# gets a chance to grow it. This is the only
+  way to handle "writes of arbitrary size" without precommitting to a
+  fixed buffer size or doing N-pass writing.
+</div>
+
+<h2>Layer 3 — The C# raw struct</h2>
+
+<div class="panel">
+  <div class="panel-header"><span>DiplomatWriteable.cs (runtime helper)</span><span class="layer-tag layer-csharp-raw">C# raw</span></div>
+  <pre><code class="language-csharp">[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+delegate void WriteFlush(IntPtr context);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+[return: MarshalAs(UnmanagedType.U1)]
+delegate bool WriteGrow(IntPtr context, nuint capacity);
+
+[StructLayout(LayoutKind.Sequential)]
+public struct DiplomatWriteable : IDisposable
+{
+    IntPtr context;
+    IntPtr buf;
+    nuint  len;
+    nuint  cap;
+    IntPtr flush;   // unmanaged function pointer (held as IntPtr)
+    IntPtr grow;    // unmanaged function pointer
+
+    public DiplomatWriteable()
+    {
+        // Allocate buffer with C# allocator (Marshal.AllocHGlobal — unmanaged).
+        // We pin function pointers via Marshal.GetFunctionPointerForDelegate.
+        WriteFlush flushDelegate = Flush;
+        WriteGrow  growDelegate  = Grow;
+
+        context = IntPtr.Zero;
+        buf     = Marshal.AllocHGlobal(64);     // initial capacity
+        len     = 0;
+        cap     = 64;
+        flush   = Marshal.GetFunctionPointerForDelegate(flushDelegate);
+        grow   = Marshal.GetFunctionPointerForDelegate(growDelegate);
+    }
+
+    public string ToUnicode()
+    {
+        // After Rust has written, extract a managed string.
+        return Marshal.PtrToStringUTF8(buf, (int)len);
+    }
+
+    public void Dispose()
+    {
+        if (buf != IntPtr.Zero) {
+            Marshal.FreeHGlobal(buf);
+            buf = IntPtr.Zero;
+        }
+    }
+
+    private static void Flush(IntPtr context) { /* nothing to do */ }
+
+    private unsafe static bool Grow(IntPtr context, nuint capacity)
+    {
+        // Rust asked for at least `capacity` bytes. Reallocate.
+        // ... read DiplomatWriteable from context, double capacity, ReAllocHGlobal ...
+        return true;
+    }
+}</code></pre>
+</div>
+
+<div class="note warn">
+  <strong>The function pointer pinning matters.</strong>
+  <code class="inline">Marshal.GetFunctionPointerForDelegate</code> requires
+  the delegate to stay alive (not be garbage-collected) for as long as the
+  pointer is used. If we let the delegate go out of scope, the GC reclaims
+  it, the function pointer points at freed memory, Rust calls it during
+  <code class="inline">grow</code> → access violation. The
+  <code class="inline">DiplomatWriteable</code> struct has to <strong>hold
+  references to the delegates</strong> (typically as private fields) for
+  its lifetime.
+</div>
+
+<h2>Layer 4 — The C# extern</h2>
+
+<div class="panel">
+  <div class="panel-header"><span>RawColor.cs (codegen)</span><span class="layer-tag layer-csharp-raw">C# raw</span></div>
+  <pre><code class="language-csharp">[DllImport(NativeLib, EntryPoint = "Color_describe", CallingConvention = CallingConvention.Cdecl)]
+public static extern void Describe(Color* handle, DiplomatWriteable* writer);
+//                          ^^^^                              ^^^^^^^^^^^^^^^^^^^^^^
+//                          void return                       writer passed by pointer</code></pre>
+</div>
+
+<p>
+  Signature change vs the existing <code class="inline">[DllImport]</code>
+  patterns: extern return is <code class="inline">void</code>, last
+  parameter is <code class="inline">DiplomatWriteable*</code>. The
+  "actual" return value (the string) is going to land inside the writer
+  the caller passes.
+</p>
+
+<h2>Layer 5 — C# idiomatic: <strong>two overloads, not one</strong></h2>
+
+<p>
+  <strong>This is the part I got wrong in the first draft.</strong> Checking
+  the actual picky-rs generated bindings: the codegen emits <strong>two
+  methods per write-using Rust function</strong>. One mirrors the Rust
+  signature directly; the other is a convenience overload that hides the
+  writer machinery. The Rust signature itself stays as
+  <code class="inline">&amp;mut DiplomatWrite</code> at every layer — the
+  "returns string" form is C# binding sugar, not a transformation of the
+  underlying contract.
+</p>
+
+<h3>Form 1 — explicit, mirrors the Rust signature</h3>
+
+<div class="panel">
+  <div class="panel-header"><span>Color.cs (codegen) — caller manages the writer</span><span class="layer-tag layer-csharp-impl">C# idiomatic</span></div>
+  <pre><code class="language-csharp">public void Describe(DiplomatWriteable writer)
+{
+    unsafe
+    {
+        if (_inner == null) throw new ObjectDisposedException(nameof(Color));
+        Raw.Color.Describe(_inner, &amp;writer);
+        // No string returned — the caller already has the writer; they
+        // can read it themselves via writer.ToUnicode() when they're done.
+    }
+}</code></pre>
+</div>
+
+<p>
+  This form is useful when the caller wants to reuse a writer across
+  multiple calls (one allocation, many appends) or has specific lifetime
+  requirements. Power-user form.
+</p>
+
+<h3>Form 2 — convenience, auto-allocates and returns string</h3>
+
+<div class="panel">
+  <div class="panel-header"><span>Color.cs (codegen) — convenience overload</span><span class="layer-tag layer-csharp-impl">C# idiomatic</span></div>
+  <pre><code class="language-csharp">public string Describe()
+{
+    unsafe
+    {
+        if (_inner == null) throw new ObjectDisposedException(nameof(Color));
+        DiplomatWriteable writer = new DiplomatWriteable();   // 1. allocate buffer + register callbacks
+        Raw.Color.Describe(_inner, &amp;writer);                 // 2. Rust writes into writer.buf
+        string retVal = writer.ToUnicode();                    // 3. extract UTF-8 bytes as managed string
+        writer.Dispose();                                       // 4. free the buffer
+        return retVal;
+    }
+}</code></pre>
+</div>
+
+<p>
+  This is what 99% of C# code will use:
+  <code class="inline">string desc = color.Describe();</code>. The writer
+  exists, but the binding hides it.
+</p>
+
+<div class="note">
+  <strong>Both overloads exist on the same class with the same name.</strong>
+  C# overload resolution picks based on whether the caller passes a writer.
+  <code class="inline">color.Describe(myWriter)</code> → Form 1.
+  <code class="inline">color.Describe()</code> → Form 2.
+</div>
+
+<h3>What's confirmed by looking at picky-rs's actual output</h3>
+
+<p>
+  From <code class="inline">picky-rs/ffi/dotnet/.../BufferTooSmallError.cs</code>
+  for the Rust source
+  <code class="inline">pub fn to_display(&amp;self, writeable: &amp;mut DiplomatWrite)</code>:
+</p>
+
+<div class="panel">
+  <div class="panel-header"><span>actual picky-rs binding (paraphrased)</span><span class="layer-tag layer-csharp-impl">C# idiomatic</span></div>
+  <pre><code class="language-csharp">public void ToDisplay(DiplomatWriteable writeable)
+{
+    if (_inner == null) throw new ObjectDisposedException(...);
+    Raw.BufferTooSmallError.ToDisplay(_inner, &amp;writeable);
+}
+
+public string ToDisplay()
+{
+    if (_inner == null) throw new ObjectDisposedException(...);
+    DiplomatWriteable writeable = new DiplomatWriteable();
+    Raw.BufferTooSmallError.ToDisplay(_inner, &amp;writeable);
+    string retVal = writeable.ToUnicode();
+    writeable.Dispose();
+    return retVal;
+}</code></pre>
+</div>
+
+<p>
+  And for the fallible version
+  <code class="inline">pub fn next(&amp;mut self, writable: &amp;mut DiplomatWrite) -&gt; Result&lt;(), Box&lt;PickyError&gt;&gt;</code>
+  picky-rs generated:
+</p>
+
+<div class="panel">
+  <div class="panel-header"><span>StringIterator.cs from picky-rs</span><span class="layer-tag layer-csharp-impl">C# idiomatic</span></div>
+  <pre><code class="language-csharp">public void Next(DiplomatWriteable writable)
+{
+    if (_inner == null) throw new ObjectDisposedException(...);
+    var result = Raw.StringIterator.Next(_inner, &amp;writable);
+    if (!result.isOk) throw new PickyException(new PickyError(result.Err));
+    // writer is left with whatever Rust wrote — caller owns the read
+}
+
+public string Next()
+{
+    if (_inner == null) throw new ObjectDisposedException(...);
+    DiplomatWriteable writeable = new DiplomatWriteable();
+    var result = Raw.StringIterator.Next(_inner, &amp;writeable);
+    if (!result.isOk) throw new PickyException(new PickyError(result.Err));
+    string retVal = writeable.ToUnicode();
+    writeable.Dispose();
+    return retVal;
+}</code></pre>
+</div>
+
+<p>
+  Same dual-overload pattern. Result error check runs in both — the
+  convenience form just bookends it with allocate-and-extract.
+</p>
+
+<h2>Layer 6 — User call site</h2>
+
+<div class="panel">
+  <div class="panel-header"><span>idiomatic use</span><span class="layer-tag layer-user">user code</span></div>
+  <pre><code class="language-csharp">using var c = Color.New();
+c.SetBrightness(128);
+
+string desc = c.Describe();
+// desc == "Color(brightness=128)"
+
+Console.WriteLine(desc);</code></pre>
+</div>
+
+<p>
+  Looks like any other "returns string" method in C#. The buffer
+  allocation, function-pointer registration, callback dance, and
+  UTF-8-to-UTF-16 conversion are all hidden.
+</p>
+
+<h2>End-to-end data flow — the buffer dance</h2>
+
+<p>
+  Step-by-step, including the case where the buffer has to grow:
+</p>
+
+<div class="flow">
+  <div class="flow-step cs">
+    <div class="lbl">1. C# allocates writer</div>
+    <code>new DiplomatWriteable()</code> calls
+    <code>Marshal.AllocHGlobal(64)</code> — unmanaged 64-byte buffer. Sets
+    <code>cap = 64</code>, <code>len = 0</code>, registers
+    <code>flush</code> and <code>grow</code> function pointers via
+    <code>GetFunctionPointerForDelegate</code>.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step cs">
+    <div class="lbl">2. C# calls Rust</div>
+    <code>Raw.Color.Describe(_inner, &amp;writer)</code> — P/Invoke. Native
+    stack carries opaque <code>Color*</code> + pointer to our 48-byte
+    DiplomatWriteable struct.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step rust">
+    <div class="lbl">3. Rust enters describe()</div>
+    <code>write!(write, "Color(brightness={})", 128)</code> — Rust's
+    format machinery starts producing bytes.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step rust">
+    <div class="lbl">4. Rust writes "Color(brightness=128)" — 22 bytes</div>
+    Fits in cap=64. <code>len += 22</code>, bytes memcpy'd into
+    <code>buf[0..22]</code>. No grow needed.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step cs">
+    <div class="lbl">5. Rust returns, C# resumes</div>
+    Native stack unwound. <code>writer.len == 22</code>,
+    <code>writer.buf[0..22]</code> holds the UTF-8 bytes.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step cs">
+    <div class="lbl">6. C# extracts string</div>
+    <code>Marshal.PtrToStringUTF8(buf, 22)</code> — reads UTF-8 bytes,
+    converts to a managed UTF-16 <code>string</code>. Returns
+    <code>"Color(brightness=128)"</code>.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step cs">
+    <div class="lbl">7. using-scope exits, buffer freed</div>
+    <code>writer.Dispose()</code> calls <code>Marshal.FreeHGlobal(buf)</code>.
+    Unmanaged buffer returned to the OS.
+  </div>
+</div>
+
+<h3>What happens if the buffer is too small?</h3>
+
+<p>
+  Same flow, but step 4 splits in two — first attempt overflows
+  <code class="inline">cap</code>, triggers the grow callback.
+</p>
+
+<div class="flow">
+  <div class="flow-step rust">
+    <div class="lbl">4a. Rust tries to write 100 bytes, cap is only 64</div>
+    Rust's <code>std::fmt::Write</code> impl checks <code>len + needed &gt; cap</code>.
+    Calls <code>(writer.grow)(writer.context, 128)</code> — function
+    pointer call back into C#.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step cb">
+    <div class="lbl">4b. C# Grow() runs (callback)</div>
+    Delegate registered at step 1 is now invoked. Reallocates buffer to
+    at least 128 bytes via <code>Marshal.ReAllocHGlobal(buf, 128)</code>.
+    Updates <code>writer.buf</code> + <code>writer.cap</code>. Returns
+    <code>true</code>.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step rust">
+    <div class="lbl">4c. Rust resumes write</div>
+    Re-reads <code>writer.buf</code> and <code>writer.cap</code>, copies
+    bytes in. Loop until done.
+  </div>
+</div>
+
+<p>
+  The callback is the only direction C# &larr; Rust runtime can flow.
+  <code class="inline">Marshal.GetFunctionPointerForDelegate</code> is
+  how we set it up; the delegate object must outlive the call so its
+  thunk stays valid.
+</p>
+
+<h2>The fallible variant</h2>
+
+<p>
+  Some Rust APIs return <code class="inline">Result&lt;(), E&gt;</code>
+  alongside the writer — formatting can fail (e.g., invalid input).
+  picky-rs uses this pattern heavily:
+</p>
+
+<div class="panel">
+  <div class="panel-header"><span>fallible writer in picky-rs (paraphrased)</span><span class="layer-tag layer-rust">rust</span></div>
+  <pre><code class="language-rust">pub fn to_pem(&amp;self, write: &amp;mut DiplomatWrite)
+    -&gt; Result&lt;(), Box&lt;PickyError&gt;&gt;
+{
+    self.cert.to_pem()
+        .map(|pem| { let _ = write!(write, "{pem}"); })
+        .map_err(...)
+}</code></pre>
+</div>
+
+<p>
+  C# binding combines DiplomatWrite + Result machinery:
+</p>
+
+<div class="panel">
+  <div class="panel-header"><span>generated C# (sketch)</span><span class="layer-tag layer-csharp-impl">C# idiomatic</span></div>
+  <pre><code class="language-csharp">public string ToPem()
+{
+    unsafe
+    {
+        if (_inner == null) throw new ObjectDisposedException(...);
+        using var writer = new DiplomatWriteable();
+        var result = Raw.Cert.ToPem(_inner, &amp;writer);
+        if (!result.IsOk) throw new PickyException(result.Err);
+        return writer.ToUnicode();
+    }
+}</code></pre>
+</div>
+
+<p>
+  Two crossings: the writer for the success-side bytes, the Result for
+  the failure path. Composes naturally with the Result machinery we
+  already shipped.
+</p>
+
+<h2>What the codegen needs to add</h2>
+
+<h3>1. Runtime helper — DiplomatWriteable.cs</h3>
+
+<p>
+  A non-templated <code class="inline">.cs</code> file with the struct,
+  delegates, constructor, ToUnicode/ToUtf8Bytes, Dispose, Flush, Grow.
+  Modeled on Benoit's original. Emitted once per generation run alongside
+  <code class="inline">DiplomatSliceU8.cs</code>.
+</p>
+
+<div class="panel">
+  <div class="panel-header"><span>tool/templates/dotnet/DiplomatWriteable.cs.jinja</span></div>
+  <pre><code class="language-csharp">// ~70 lines: namespace + struct + delegates + helpers.
+// Only thing templated is the {{ namespace }}.</code></pre>
+</div>
+
+<h3>2. New arm in <code>lower_return</code> for SuccessType::Write</h3>
+
+<div class="panel">
+  <div class="panel-header"><span>tool/src/dotnet/gen/method.rs</span></div>
+  <pre><code class="language-rust">hir::SuccessType::Write =&gt; DotnetReturnType::Write,
+// already exists as a placeholder; needs special handling at template
+// emission — the writer becomes an implicit out-parameter and the
+// return type is string instead of void.</code></pre>
+</div>
+
+<h3>3. Template — extern signature carries the writer param</h3>
+
+<p>
+  When a method's return is <code class="inline">Write</code>, the raw extern
+  needs an extra trailing parameter (a <code class="inline">DiplomatWriteable*</code>).
+  The idiomatic method declares return type <code class="inline">string</code>
+  but doesn't expose the writer to the user.
+</p>
+
+<h3>4. <strong>Emit two C# overloads per write-using method</strong></h3>
+
+<p>
+  This is the part to get right. Per picky-rs's pattern, each Rust function
+  with a <code class="inline">&amp;mut DiplomatWrite</code> parameter gets
+  <strong>two C# methods</strong> on the idiomatic class — same name, same
+  argument list <em>except for the writer</em>:
+</p>
+
+<div class="panel">
+  <div class="panel-header"><span>opaque.impl.cs.jinja additions</span></div>
+  <pre><code class="language-jinja">{%- if method.return_type.is_write() %}
+{# Form 1: explicit writer, no string return #}
+public {{ method.static_kw }}void {{ method.name }}(DiplomatWriteable writeable{% if method.inputs.has_idiomatic_params %}, {{ method.inputs.idiomatic_params }}{% endif %})
+{
+    {# ...disposed check...  raw call passing &amp;writeable... return; #}
+}
+
+{# Form 2: convenience, allocates writer + returns string #}
+public {{ method.static_kw }}string {{ method.name }}({{ method.inputs.idiomatic_params }})
+{
+    {# ...disposed check... allocate writer... raw call... extract string... dispose... #}
+}
+{%- endif %}</code></pre>
+</div>
+
+<p>
+  Both methods share a body shape; the convenience form wraps the explicit
+  body with allocate-at-start and extract-at-end. Easiest: factor the
+  inner part (disposed check + raw call) into a sub-snippet, the two
+  overloads compose around it.
+</p>
+
+<h3>5. Raw extern signature — void return + writer pointer param</h3>
+
+<p>
+  The raw <code class="inline">[DllImport]</code> declaration:
+</p>
+
+<div class="panel">
+  <pre><code class="language-csharp">[DllImport(...)]
+public static extern void {{ method.name }}({{ method.inputs.raw_params }}, DiplomatWriteable* writeable);</code></pre>
+</div>
+
+<p>
+  Return type is <code class="inline">void</code> regardless of whether
+  the Rust source has a <code class="inline">Result</code> — because for
+  fallible writers, the Result struct is returned via
+  <code class="inline">IntPtr</code> and unpacked separately. Wait, actually,
+  looking at picky-rs's <code class="inline">StringIterator.Next</code>
+  fallible case more carefully:
+</p>
+
+<div class="panel">
+  <pre><code class="language-csharp">// picky-rs's actual raw extern for the fallible writer case:
+public static unsafe extern IntPtr Next(StringIterator* self, DiplomatWriteable* writable);
+//                                ^^^^^^
+//                                returns IntPtr to a heap-allocated DiplomatResult</code></pre>
+</div>
+
+<p>
+  Picky's pattern returns the Result via heap pointer
+  (<code class="inline">Marshal.PtrToStructure</code> + a destroy call).
+  Different from our current Result handling (by-value return). May need
+  to reconcile when implementing — Benoit's fork used heap-allocated
+  Results for some types, mainline diplomat returns them by-value. For
+  the simple non-fallible writer case (most common), it's just
+  <code class="inline">void</code> + writer pointer param.
+</p>
+
+<h2>Pitfalls</h2>
+
+<div class="note err-note">
+  <strong>1. Delegate lifetime.</strong> <code class="inline">Marshal.GetFunctionPointerForDelegate</code>
+  returns a pointer that's only valid as long as the delegate is alive.
+  If the binding constructs the delegates locally in the
+  <code class="inline">new DiplomatWriteable()</code> ctor but doesn't
+  hold references, the GC reclaims them and Rust's callback into a freed
+  thunk crashes. Hold them as fields on the struct.
+</div>
+
+<div class="note warn">
+  <strong>2. UTF-8 boundaries.</strong> Rust writes UTF-8 bytes; C#'s
+  <code class="inline">Marshal.PtrToStringUTF8</code> reads them. The
+  bytes-to-chars conversion happens on C#'s side. If the byte stream is
+  partially-written and Rust panics mid-write, <code class="inline">len</code>
+  may point at a position inside a multi-byte sequence — extracting could
+  yield a malformed string. Mitigated by Rust only calling
+  <code class="inline">flush</code> when the write is complete.
+</div>
+
+<div class="note warn">
+  <strong>3. Native heap, not managed.</strong> The buffer is allocated
+  via <code class="inline">Marshal.AllocHGlobal</code> (unmanaged heap),
+  not <code class="inline">new byte[]</code>. This matters for cross-FFI
+  pointer stability (managed arrays can move; unmanaged can't) and for
+  ownership (we explicitly free it; the GC never touches it). Forgetting
+  the <code class="inline">using</code> leaks unmanaged memory.
+</div>
+
+<div class="note warn">
+  <strong>4. Exception safety inside the callback.</strong> If
+  <code class="inline">Grow</code> throws (e.g., OOM), the exception is
+  in C# land. But Rust is between us and the throw — unwinding through
+  native code is undefined behavior. The <code class="inline">Grow</code>
+  callback must catch any exception and return <code class="inline">false</code>
+  instead of unwinding.
+</div>
+
+<div class="note warn">
+  <strong>5. Initial buffer size.</strong> 64 bytes is fine for short
+  strings (most error messages, names); for large outputs (PEM
+  certificates, hex dumps) the grow callback will be invoked multiple
+  times. Could be tuned — start at 256 or 1024, exponential growth. Not
+  blocking, but worth knowing.
+</div>
+
+<h2>Smoke tests to add</h2>
+
+<div class="panel">
+  <div class="panel-header"><span>dotnet_smoke/tests/Program.cs</span><span class="layer-tag layer-user">user code</span></div>
+  <pre><code class="language-csharp">// Basic string return
+Test("Describe() returns formatted string", () =&gt;
+{
+    using var c = Color.New();
+    c.SetBrightness(128);
+    AssertEqual&lt;string&gt;("Color(brightness=128)", c.Describe(), "format");
+});
+
+// Multiple states cross discriminant
+Test("Describe() reflects brightness mutation", () =&gt;
+{
+    using var c = Color.New();
+    c.SetBrightness(0);
+    AssertEqual&lt;string&gt;("Color(brightness=0)", c.Describe(), "zero");
+    c.SetBrightness(255);
+    AssertEqual&lt;string&gt;("Color(brightness=255)", c.Describe(), "max");
+});
+
+// Buffer growth (write something longer than 64 bytes)
+Test("Describe() handles output longer than initial buffer (grow callback fires)", () =&gt;
+{
+    using var c = Color.New();
+    string result = c.LongDescription();   // hypothetical &gt;64 byte output
+    Assert(result.Length &gt; 64, "should be long");
+});</code></pre>
+</div>
+
+<p>
+  The long-description test is the real one — exercises the
+  <code class="inline">Grow</code> callback path, which is the part of
+  the machinery that has the most footgun potential.
+</p>
+
+<h2>TL;DR</h2>
+
+<ol style="font-size: 14px;">
+  <li><strong>Rust can't return String across FFI</strong> — heap-owned-by-Rust crosses badly. Invert ownership: caller provides the buffer.</li>
+  <li><strong>DiplomatWrite is a 48-byte struct</strong> — pointer to caller-owned buffer + length + capacity + flush/grow function pointers.</li>
+  <li><strong>If the buffer is too small, Rust calls back into C#</strong> via the function pointer. Bidirectional FFI: data goes Rust→C# via the buffer, control goes C#→Rust via the call, callback goes Rust→C# via the function pointer.</li>
+  <li><strong>Rust signature stays <code class="inline">&amp;mut DiplomatWrite</code> at every layer.</strong> The "return string" form is C# binding sugar — picky-rs generates <strong>two overloads per Rust function</strong>: <code class="inline">void Foo(DiplomatWriteable w)</code> (explicit) and <code class="inline">string Foo()</code> (convenience, auto-allocates). 99% of users call the convenience form.</li>
+  <li><strong>This is the #1 missing feature</strong> for binding real Rust libraries (16/22 picky-rs modules use it).</li>
+  <li><strong>The codegen work is moderate</strong>: one runtime helper file (DiplomatWriteable.cs, ~70 lines), one new arm in lower_return, <strong>and emitting two idiomatic methods per write-using Rust function</strong>. Less invasive than Result was, but a touch more than I initially estimated.</li>
+</ol>
+
+<script>
+  hljs.highlightAll();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,8 @@
+out/
+target/
+check/bin/
+check/obj/
+check/*.lscache
+tests/bin/
+tests/obj/
+tests/*.lscache

@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Callbacks — a layered walkthrough (revised)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/csharp.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto; padding: 28px 32px 80px;
+    background: #0d1117; color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    line-height: 1.55; max-width: 1280px;
+  }
+  h1 { margin: 0 0 4px 0; font-size: 24px; font-weight: 600; color: #f0f6fc; }
+  h2 { margin: 40px 0 8px 0; font-size: 19px; font-weight: 600; color: #f0f6fc; border-bottom: 1px solid #21262d; padding-bottom: 6px; }
+  h3 { margin: 24px 0 6px 0; font-size: 14px; font-weight: 600; color: #c9d1d9; text-transform: uppercase; letter-spacing: 0.05em; }
+  h4 { margin: 18px 0 4px 0; font-size: 13px; font-weight: 600; color: #d2a8ff; }
+  .subtitle { color: #8b949e; font-size: 14px; margin-bottom: 28px; }
+  p { color: #c9d1d9; }
+  .panel { border: 1px solid #30363d; border-radius: 8px; overflow: hidden; margin: 10px 0; background: #0d1117; }
+  .panel-header { background: #161b22; color: #8b949e; padding: 8px 14px; font-size: 12px; font-family: "SF Mono", Consolas, monospace; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; }
+  .panel-header .layer-tag { background: #21262d; color: #c9d1d9; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+  .layer-rust          { background: #4d1f00; color: #ffa657; }
+  .layer-rust-shim     { background: #6d2a00; color: #ffba7a; }
+  .layer-abi           { background: #2d2d00; color: #d1d100; }
+  .layer-csharp-raw    { background: #003a4d; color: #79c0ff; }
+  .layer-csharp-impl   { background: #033a16; color: #7ee787; }
+  .layer-user          { background: #3a1d5d; color: #d2a8ff; }
+  .layer-callback      { background: #5d1d1d; color: #f85149; }
+  pre { margin: 0; }
+  pre code { padding: 14px 16px !important; font-size: 12.5px; line-height: 1.5; font-family: "SF Mono", Consolas, "Liberation Mono", monospace; }
+  .note { background: #161b22; border-left: 3px solid #58a6ff; padding: 10px 14px; margin: 12px 0; border-radius: 0 6px 6px 0; font-size: 13px; color: #c9d1d9; }
+  .note strong { color: #58a6ff; }
+  .warn { background: #2d1b00; border-left-color: #d29922; }
+  .warn strong { color: #d29922; }
+  .err-note { background: #2d0d0d; border-left-color: #f85149; }
+  .err-note strong { color: #f85149; }
+  .win { background: #07260f; border-left-color: #56d364; }
+  .win strong { color: #56d364; }
+  .correction { background: #2d0d0d; border: 1px solid #f85149; border-left: 4px solid #f85149; padding: 12px 16px; margin: 14px 0; border-radius: 6px; }
+  .correction strong { color: #f85149; }
+  code.inline { background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Consolas, monospace; font-size: 12px; color: #79c0ff; }
+  table.layout { border-collapse: collapse; margin: 14px 0; font-family: "SF Mono", Consolas, monospace; font-size: 12px; width: 100%; }
+  table.layout th, table.layout td { border: 1px solid #30363d; padding: 6px 10px; text-align: left; vertical-align: top; }
+  table.layout th { background: #161b22; color: #8b949e; font-weight: 500; }
+  .layer-nav { display: flex; gap: 6px; flex-wrap: wrap; margin: 14px 0; font-size: 11px; font-family: "SF Mono", Consolas, monospace; }
+  .layer-nav span { padding: 4px 10px; border-radius: 4px; background: #161b22; color: #8b949e; border: 1px solid #30363d; }
+  .layer-nav span.A { border-left: 3px solid #d2a8ff; }
+  .layer-nav span.B { border-left: 3px solid #ffba7a; }
+  .layer-nav span.C { border-left: 3px solid #d1d100; }
+  .layer-nav span.D { border-left: 3px solid #79c0ff; }
+  .layer-nav span.E { border-left: 3px solid #7ee787; }
+  .layer-nav span.F { border-left: 3px solid #d2a8ff; }
+  .flavor-section { background: #0a0e14; border: 1px solid #30363d; border-radius: 10px; padding: 18px 22px; margin: 24px 0; }
+  .flavor-section.f1 { border-top: 4px solid #79c0ff; }
+  .flavor-section.f2 { border-top: 4px solid #d29922; }
+  .flavor-section.f3 { border-top: 4px solid #f85149; }
+  .flavor-title { font-size: 16px; font-weight: 600; color: #f0f6fc; margin: 0 0 4px 0; }
+  .flavor-subtitle { color: #8b949e; font-size: 13px; margin-bottom: 14px; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-family: "SF Mono", Consolas, monospace; }
+  .pill-good { background: #07260f; color: #56d364; }
+  .pill-bad  { background: #2d0d0d; color: #f85149; }
+  .pill-mid  { background: #2d1b00; color: #d29922; }
+</style>
+</head>
+<body>
+
+<h1>Callbacks — every layer, every flavor</h1>
+<div class="subtitle">
+  Three flavors exist in current Diplomat: <code class="inline">impl Fn</code>,
+  <code class="inline">impl FnMut</code>, and <code class="inline">impl Trait</code>
+  (where <code class="inline">Trait</code> is declared as a
+  <code class="inline">pub trait</code> inside the bridge). The first two share
+  one wire shape (<code class="inline">DiplomatCallback&lt;R&gt;</code>); the
+  third has its own (a vtable struct). The diplomat macro and
+  <code class="inline">diplomat-runtime</code> already generate the Rust and
+  C-ABI sides — <strong>the .NET backend has to learn to consume
+  them and advertise support</strong>. No core or macro changes should be
+  needed for these shapes.
+</div>
+
+<div class="correction">
+  <strong>Correction from the previous draft.</strong>
+  I previously claimed a third flavor "<code class="inline">#[diplomat::callback]</code>"
+  trait attribute. <strong>That attribute does not exist.</strong> The actual
+  trait flavor uses bare <code class="inline">pub trait X { … }</code>
+  declarations inside the bridge — Diplomat picks them up automatically. I also
+  claimed <code class="inline">&amp;dyn Fn</code> was a possible flavor;
+  <strong>it isn't</strong> — the AST lowering only matches
+  <code class="inline">syn::Type::ImplTrait</code>, so callable parameters
+  <em>must</em> be written as <code class="inline">impl Fn</code> /
+  <code class="inline">impl FnMut</code> /
+  <code class="inline">impl SomeTrait</code>. Sources verified:
+  <code class="inline">core/src/ast/types.rs:1040-1110</code>,
+  <code class="inline">macro/src/snapshots/*.snap</code>,
+  <code class="inline">runtime/src/callback.rs</code>.
+</div>
+
+<h2>The six layers</h2>
+
+<div class="layer-nav">
+  <span class="A">A · user Rust</span>
+  <span class="B">B · Rust shim (macro-generated)</span>
+  <span class="C">C · C ABI wire form</span>
+  <span class="D">D · C# raw P/Invoke</span>
+  <span class="E">E · C# idiomatic wrapper</span>
+  <span class="F">F · user C#</span>
+</div>
+
+<p>
+  Every flavor below is presented in those six layers. A &amp; F are what
+  humans write. B &amp; C are what the diplomat macro and
+  <code class="inline">diplomat-runtime</code> produce (already exist upstream).
+  D &amp; E are what <strong>we</strong> have to generate from the .NET backend.
+</p>
+
+<h2>The shared wire concept (read once)</h2>
+
+<p>
+  C never had closures. Rust faked them across FFI by saying "here's the
+  function pointer, here's a context pointer it should treat as its captured
+  environment". Diplomat formalizes this as a <strong>3-field struct</strong>:
+</p>
+
+<div class="panel">
+  <div class="panel-header"><span>runtime/src/callback.rs (existing, upstream)</span><span class="layer-tag layer-abi">C ABI</span></div>
+  <pre><code class="language-rust">#[repr(C)]
+pub struct DiplomatCallback&lt;ReturnType&gt; {
+    /// Context pointer — usually identifies a foreign-side object that
+    /// owns the captured environment (in C#: a GCHandle to the delegate).
+    pub data: *mut c_void,
+
+    /// The trampoline. Variadic in the type signature so it can hold any
+    /// concrete callback shape; the macro emits `mem::transmute` calls to
+    /// cast it to the actual signature at call sites.
+    pub run_callback: unsafe extern "C" fn(*mut c_void, ...) -&gt; ReturnType,
+
+    /// Optional cleanup — Rust calls this when it drops the callback.
+    /// This is what makes ESCAPING callbacks work (callback stored on the
+    /// Rust side, fired later, eventually destroyed).
+    pub destructor: Option&lt;unsafe extern "C" fn(*mut c_void)&gt;,
+}</code></pre>
+</div>
+
+<div class="win">
+  <strong>Major insight, not in the previous draft:</strong> the
+  <code class="inline">destructor</code> field already exists. That means
+  <strong>escaping callbacks are represented by the ABI</strong>, but they are
+  not automatic on the C# side. The backend must keep both the user target and
+  the generated trampoline delegates rooted until Rust calls the destructor.
+  The wire is not the bottleneck; the C# root/release dance is.
+</div>
+
+<h2 style="border-bottom: 2px solid #79c0ff;">Flavor 1 — <code class="inline">impl Fn(args) -&gt; Ret</code></h2>
+
+<div class="flavor-section f1">
+
+<div class="flavor-title">The bread-and-butter case.</div>
+<div class="flavor-subtitle">
+  Single anonymous function, no captured mutable state. C# users pass a
+  <code class="inline">Func&lt;…&gt;</code> / <code class="inline">Action&lt;…&gt;</code>
+  / lambda. Covers 80% of real-world use.
+</div>
+
+<h3>Layer A — user Rust</h3>
+<div class="panel">
+  <div class="panel-header"><span>what users write</span><span class="layer-tag layer-rust">A · user-Rust</span></div>
+  <pre><code class="language-rust">#[diplomat::bridge]
+pub mod ffi {
+    #[diplomat::opaque]
+    pub struct Pixels(Vec&lt;u8&gt;);
+
+    impl Pixels {
+        pub fn visit(&amp;self, on_pixel: impl Fn(u8)) {
+            for &amp;p in &amp;self.0 { on_pixel(p); }
+        }
+
+        pub fn fold_sum(&amp;self, seed: u32, step: impl Fn(u32, u8) -&gt; u32) -&gt; u32 {
+            self.0.iter().fold(seed, |acc, &amp;b| step(acc, b))
+        }
+    }
+}</code></pre>
+</div>
+
+<h3>Layer B — Rust shim (what the macro emits)</h3>
+<div class="panel">
+  <div class="panel-header"><span>macro output, abridged from callback_arguments.snap</span><span class="layer-tag layer-rust-shim">B · shim</span></div>
+  <pre><code class="language-rust">use diplomat_runtime::*;
+use core::ffi::c_void;
+
+#[no_mangle]
+extern "C" fn Pixels_visit(self_: &amp;Pixels, on_pixel: DiplomatCallback&lt;()&gt;) {
+    // Re-pack DiplomatCallback into something that satisfies `impl Fn(u8)`:
+    let on_pixel = move |arg0: u8| unsafe {
+        let _ = &amp;on_pixel;  // keep `on_pixel` alive across the call
+        std::mem::transmute::&lt;
+            unsafe extern "C" fn(*mut c_void, ...) -&gt; (),
+            unsafe extern "C" fn(*const c_void, u8) -&gt; (),  // ← concrete sig
+        &gt;(on_pixel.run_callback)(on_pixel.data, arg0)
+    };
+    Pixels::visit(self_, on_pixel);   // the user's original method
+    // on_pixel drops here → its `destructor` field is called if Some
+}
+
+#[no_mangle]
+extern "C" fn Pixels_fold_sum(
+    self_: &amp;Pixels, seed: u32, step: DiplomatCallback&lt;u32&gt;,
+) -&gt; u32 {
+    let step = move |a: u32, b: u8| unsafe {
+        let _ = &amp;step;
+        std::mem::transmute::&lt;
+            unsafe extern "C" fn(*mut c_void, ...) -&gt; u32,
+            unsafe extern "C" fn(*const c_void, u32, u8) -&gt; u32,
+        &gt;(step.run_callback)(step.data, a, b)
+    };
+    Pixels::fold_sum(self_, seed, step)
+}</code></pre>
+</div>
+
+<p>
+  Why the <code class="inline">transmute</code>? The wire field
+  <code class="inline">run_callback</code> is typed as variadic
+  (<code class="inline">extern "C" fn(*mut c_void, ...)</code>) so one struct
+  layout can hold any callback. At each call site, the macro knows the actual
+  signature, casts the pointer to that signature, then invokes it. C ABI
+  doesn't care — at the binary level it's just a jump to an address with
+  registers loaded.
+</p>
+
+<h3>Layer C — C ABI / extern signature</h3>
+<div class="panel">
+  <div class="panel-header"><span>what crosses the FFI boundary</span><span class="layer-tag layer-abi">C · wire</span></div>
+  <pre><code class="language-rust">// As the C compiler sees it (or as P/Invoke sees it):
+extern "C" {
+    void Pixels_visit(
+        const Pixels* self_,
+        DiplomatCallback_void on_pixel,    // 3 × pointer-sized fields by value
+    );
+    uint32_t Pixels_fold_sum(
+        const Pixels* self_,
+        uint32_t seed,
+        DiplomatCallback_u32 step,
+    );
+}
+
+// Struct layout (same shape for any ReturnType — the type param only
+// affects how Rust uses it, not the layout):
+struct DiplomatCallback_void {
+    void*  data;          // offset 0,  8 bytes on x64
+    void*  run_callback;  // offset 8,  8 bytes
+    void*  destructor;    // offset 16, 8 bytes (null = no destructor)
+};
+// Total: 24 bytes, passed BY VALUE.</code></pre>
+</div>
+
+<div class="warn">
+  <strong>By-value, 24 bytes.</strong> Important for the C# side: this struct
+  is declared by value in the exported C ABI and in the C# P/Invoke signature.
+  Do not hand-code it as a pointer parameter. ABI details are platform-specific:
+  on Windows x64, non-1/2/4/8-byte aggregate arguments are generally passed
+  indirectly by the ABI even though the source-level signature is by value.
+</div>
+
+<h3>Layer D — C# raw P/Invoke (we generate this)</h3>
+<div class="panel">
+  <div class="panel-header"><span>RawPixels.cs (auto-generated)</span><span class="layer-tag layer-csharp-raw">D · raw</span></div>
+  <pre><code class="language-csharp">using System;
+using System.Runtime.InteropServices;
+
+namespace MyLib.Diplomat
+{
+
+// One delegate type per unique callback signature, dedup'd across the crate.
+// Generated by walking every `impl Fn(...) -> R` we see and slugifying.
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+internal delegate void DiplomatCallback_void_u8_Run(IntPtr context, byte arg0);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+internal delegate uint DiplomatCallback_u32_u32_u8_Run(
+    IntPtr context, uint arg0, byte arg1);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+internal delegate void DiplomatCallback_Destructor(IntPtr context);
+
+// The wire struct — identical to runtime/src/callback.rs's layout.
+// Generic in Rust, monomorphized into one struct per signature in C#:
+[StructLayout(LayoutKind.Sequential)]
+public struct DiplomatCallback_void_u8
+{
+    public IntPtr Data;         // GCHandle.ToIntPtr(...) on the C# side
+    public IntPtr RunCallback;  // GetFunctionPointerForDelegate(...)
+    public IntPtr Destructor;   // function pointer, may be IntPtr.Zero
+}
+
+public struct DiplomatCallback_u32_u32_u8
+{
+    public IntPtr Data;
+    public IntPtr RunCallback;
+    public IntPtr Destructor;
+}
+}
+
+namespace MyLib.Raw
+{
+using MyLib.Diplomat;
+
+[StructLayout(LayoutKind.Sequential)]
+public partial struct Pixels
+{
+    private const string NativeLib = "MyLibNative";
+
+    [DllImport(NativeLib, EntryPoint = "Pixels_visit",
+               CallingConvention = CallingConvention.Cdecl)]
+    public static unsafe extern void Visit(
+        Pixels* handle, DiplomatCallback_void_u8 onPixel);
+
+    [DllImport(NativeLib, EntryPoint = "Pixels_fold_sum",
+               CallingConvention = CallingConvention.Cdecl)]
+    public static unsafe extern uint FoldSum(
+        Pixels* handle, uint seed, DiplomatCallback_u32_u32_u8 step);
+}
+}</code></pre>
+</div>
+
+<h3>Layer E — C# idiomatic wrapper (we generate this)</h3>
+<div class="panel">
+  <div class="panel-header"><span>Pixels.cs (auto-generated)</span><span class="layer-tag layer-csharp-impl">E · idiomatic</span></div>
+  <pre><code class="language-csharp">public unsafe partial class Pixels : IDisposable
+{
+    private sealed class CallbackState<TDelegate>
+        where TDelegate : Delegate
+    {
+        public required TDelegate UserDelegate;
+        public Delegate Trampoline = null!;
+        public Exception? Caught;
+    }
+
+    public void Visit(Action&lt;byte&gt; onPixel)
+    {
+        if (onPixel is null) throw new ArgumentNullException(nameof(onPixel));
+        if (_inner is null) throw new ObjectDisposedException(nameof(Pixels));
+
+        // 1. Build one rooted adapter object containing both the user delegate
+        //    and the trampoline delegate. The GCHandle roots this adapter.
+        var state = new CallbackState&lt;Action&lt;byte&gt;&gt; { UserDelegate = onPixel };
+        DiplomatCallback_void_u8_Run trampoline = (IntPtr ctx, byte b) =&gt; {
+            var s = (CallbackState&lt;Action&lt;byte&gt;&gt;)GCHandle.FromIntPtr(ctx).Target!;
+            if (s.Caught is not null) return;
+            try { s.UserDelegate(b); }
+            catch (Exception e) { s.Caught = e; }
+        };
+        state.Trampoline = trampoline;
+
+        // 2. Root the adapter. This is not a pinned handle; we need lifetime,
+        //    not a stable managed-object address.
+        GCHandle ctxHandle = GCHandle.Alloc(state);
+        try
+        {
+            var wire = new DiplomatCallback_void_u8 {
+                Data        = GCHandle.ToIntPtr(ctxHandle),
+                RunCallback = Marshal.GetFunctionPointerForDelegate(trampoline),
+                Destructor  = IntPtr.Zero,   // sync callback: C# owns Free()
+            };
+
+            Raw.Pixels.Visit(_inner, wire);
+        }
+        finally
+        {
+            ctxHandle.Free();
+            GC.KeepAlive(state);
+        }
+
+        if (state.Caught is not null)
+            throw new TargetInvocationException(state.Caught);
+    }
+
+    public uint FoldSum(uint seed, Func&lt;uint, byte, uint&gt; step)
+    {
+        // Same shape, but the trampoline must return a default value after
+        // capturing an exception because exceptions must not cross the native
+        // callback boundary.
+        // Example policy: after the first exception, store it and return 0 for
+        // every remaining callback invocation, then rethrow after Raw returns.
+    }
+}</code></pre>
+</div>
+
+<h3>Layer F — user C#</h3>
+<div class="panel">
+  <div class="panel-header"><span>what users write</span><span class="layer-tag layer-user">F · user-C#</span></div>
+  <pre><code class="language-csharp">using var px = Pixels.New(/* ... */);
+
+// Push-style: walk every byte.
+px.Visit(b =&gt; Console.WriteLine($"pixel: 0x{b:X2}"));
+
+// Reduce-style: compute a checksum.
+uint sum = px.FoldSum(seed: 0, (acc, b) =&gt; acc + b);
+Console.WriteLine($"sum = {sum}");
+
+// Capturing locals works naturally — it's just an Action/Func.
+int counter = 0;
+px.Visit(_ =&gt; counter++);
+Console.WriteLine($"saw {counter} pixels");</code></pre>
+</div>
+
+</div> <!-- end flavor-section f1 -->
+
+<h2 style="border-bottom: 2px solid #d29922;">Flavor 2 — <code class="inline">impl FnMut(args) -&gt; Ret</code></h2>
+
+<div class="flavor-section f2">
+
+<div class="flavor-title">When the callback needs to mutate state.</div>
+<div class="flavor-subtitle">
+  Same wire as <code class="inline">impl Fn</code>. The only difference is
+  Rust's borrow checker accepting <code class="inline">&amp;mut</code> on the
+  closure. From the C# user's perspective, identical — capturing mutable
+  state works for <code class="inline">Fn</code> too in C# (no
+  <code class="inline">move</code> distinction). The flavor only matters to
+  the <em>Rust author</em>.
+</div>
+
+<h3>Layer A — user Rust</h3>
+<div class="panel">
+  <div class="panel-header"><span>what users write</span><span class="layer-tag layer-rust">A · user-Rust</span></div>
+  <pre><code class="language-rust">impl Pixels {
+    pub fn count_above(&amp;self, threshold: u8, mut tally: impl FnMut(u8)) -&gt; u32 {
+        let mut count = 0;
+        for &amp;p in &amp;self.0 {
+            if p &gt; threshold {
+                tally(p);     // ← needs &amp;mut access to the closure's env
+                count += 1;
+            }
+        }
+        count
+    }
+}</code></pre>
+</div>
+
+<h3>Layer B — Rust shim</h3>
+<div class="panel">
+  <div class="panel-header"><span>macro output (mutability flips the context-pointer pun)</span><span class="layer-tag layer-rust-shim">B · shim</span></div>
+  <pre><code class="language-rust">#[no_mangle]
+extern "C" fn Pixels_count_above(
+    self_: &amp;Pixels, threshold: u8, mut tally: DiplomatCallback&lt;()&gt;,
+) -&gt; u32 {
+    let tally = move |arg0: u8| unsafe {
+        let _ = &amp;tally;
+        std::mem::transmute::&lt;
+            unsafe extern "C" fn(*mut c_void, ...) -&gt; (),
+            unsafe extern "C" fn(*MUT c_void, u8) -&gt; (),  // ← *mut, not *const
+        &gt;(tally.run_callback)(tally.data, arg0)
+    };
+    Pixels::count_above(self_, threshold, tally)
+}</code></pre>
+</div>
+
+<div class="note">
+  <strong>The mutability is a documentation thing at the ABI level.</strong>
+  The first param of <code class="inline">run_callback</code> becomes
+  <code class="inline">*mut c_void</code> instead of
+  <code class="inline">*const c_void</code>, but binary calling convention
+  doesn't distinguish. It exists so Rust's type system holds together; the
+  C# side doesn't see a difference.
+</div>
+
+<h3>Layers C–F</h3>
+<p>
+  Layer C, D, E, F are <strong>byte-for-byte identical to Flavor 1</strong>.
+  The wire struct is the same. C# delegates close over mutable state without
+  syntactic ceremony.
+</p>
+
+<div class="panel">
+  <div class="panel-header"><span>user C# — looks just like Flavor 1</span><span class="layer-tag layer-user">F · user-C#</span></div>
+  <pre><code class="language-csharp">var hits = new List&lt;byte&gt;();
+uint n = px.CountAbove(threshold: 200,
+    tally: b =&gt; hits.Add(b));      // mutates `hits` — fine
+Console.WriteLine($"{n} pixels &gt; 200; sample: [{string.Join(',', hits.Take(5))}]");</code></pre>
+</div>
+
+<div class="warn">
+  <strong>Implication for our codegen:</strong> we can collapse Flavors 1 and 2
+  into the same C# code path. The .NET surface doesn't need to distinguish
+  <code class="inline">Action&lt;byte&gt;</code> from
+  "<code class="inline">Action&lt;byte&gt;</code> that mutates" — that's not a
+  C# concept. <em>One</em> codegen path covers both Rust signatures.
+</div>
+
+</div> <!-- end flavor-section f2 -->
+
+<h2 style="border-bottom: 2px solid #f85149;">Flavor 3 — <code class="inline">impl SomeTrait</code> (multi-method interface)</h2>
+
+<div class="flavor-section f3">
+
+<div class="flavor-title">The "C# interface" experience.</div>
+<div class="flavor-subtitle">
+  When Rust needs <em>multiple</em> related operations from the caller — not
+  one function, a coherent object. Rust declares
+  <code class="inline">pub trait X { fn a(&amp;self, …); fn b(&amp;self, …); }</code>
+  inside the bridge. C# users implement an interface.
+</div>
+
+<h3>Layer A — user Rust</h3>
+<div class="panel">
+  <div class="panel-header"><span>what users write</span><span class="layer-tag layer-rust">A · user-Rust</span></div>
+  <pre><code class="language-rust">#[diplomat::bridge]
+pub mod ffi {
+    #[diplomat::opaque]
+    pub struct Pixels(Vec&lt;u8&gt;);
+
+    // Declare a trait inside the bridge — Diplomat picks it up.
+    pub trait PixelSink: std::marker::Send {
+        fn on_start(&amp;self);
+        fn on_pixel(&amp;self, p: u8);
+        fn on_end(&amp;self, total: u32);
+    }
+
+    impl Pixels {
+        // Take any implementor.
+        pub fn stream_to(&amp;self, sink: impl PixelSink) {
+            sink.on_start();
+            for &amp;p in &amp;self.0 { sink.on_pixel(p); }
+            sink.on_end(self.0.len() as u32);
+        }
+    }
+}</code></pre>
+</div>
+
+<h3>Layer B — Rust shim (vtable, not <code class="inline">DiplomatCallback</code>)</h3>
+<div class="panel">
+  <div class="panel-header"><span>macro output, abridged from traits.snap</span><span class="layer-tag layer-rust-shim">B · shim</span></div>
+  <pre><code class="language-rust">// Diplomat generates a vtable struct (NOT a DiplomatCallback&lt;_&gt;):
+#[repr(C)]
+pub struct PixelSink_VTable {
+    pub destructor: Option&lt;unsafe extern "C" fn(*const c_void)&gt;,
+    pub size: usize,
+    pub alignment: usize,
+    pub run_on_start_callback: unsafe extern "C" fn(*const c_void),
+    pub run_on_pixel_callback: unsafe extern "C" fn(*const c_void, u8),
+    pub run_on_end_callback:   unsafe extern "C" fn(*const c_void, u32),
+}
+
+// And a struct pairing the foreign object pointer with its vtable:
+#[repr(C)]
+pub struct DiplomatTraitStruct_PixelSink {
+    data: *const c_void,
+    pub vtable: PixelSink_VTable,
+}
+unsafe impl std::marker::Send for DiplomatTraitStruct_PixelSink {}
+
+// Rust gets a blanket impl that satisfies the user's `impl PixelSink` bound:
+impl PixelSink for DiplomatTraitStruct_PixelSink {
+    fn on_start(&amp;self) {
+        unsafe { ((self.vtable).run_on_start_callback)(self.data); }
+    }
+    fn on_pixel(&amp;self, p: u8) {
+        unsafe { ((self.vtable).run_on_pixel_callback)(self.data, p); }
+    }
+    fn on_end(&amp;self, total: u32) {
+        unsafe { ((self.vtable).run_on_end_callback)(self.data, total); }
+    }
+}
+
+// Plus a Drop impl that fires the destructor when the trait struct drops:
+impl Drop for DiplomatTraitStruct_PixelSink {
+    fn drop(&amp;mut self) {
+        if let Some(destructor) = self.vtable.destructor {
+            unsafe { (destructor)(self.data); }
+        }
+    }
+}
+
+#[no_mangle]
+extern "C" fn Pixels_stream_to(
+    self_: &amp;Pixels, sink: DiplomatTraitStruct_PixelSink,
+) {
+    Pixels::stream_to(self_, sink)
+}</code></pre>
+</div>
+
+<h3>Layer C — C ABI / wire form (bigger struct)</h3>
+<div class="panel">
+  <div class="panel-header"><span>what crosses the boundary</span><span class="layer-tag layer-abi">C · wire</span></div>
+  <pre><code class="language-rust">// Total size: 8 bytes (data) + sizeof(VTable):
+//   destructor(8) + size(8) + alignment(8) + 3 × fn ptr (24) = 48
+// → DiplomatTraitStruct_PixelSink is 56 bytes, passed BY VALUE.
+
+struct PixelSink_VTable {
+    void*  destructor;       // 0,  may be null
+    size_t size;             // 8,  size of the foreign object (informational)
+    size_t alignment;        // 16, alignment of the foreign object
+    void*  run_on_start;     // 24
+    void*  run_on_pixel;     // 32
+    void*  run_on_end;       // 40
+};
+
+struct DiplomatTraitStruct_PixelSink {
+    const void*       data;
+    PixelSink_VTable  vtable;   // inlined, not pointer-to
+};</code></pre>
+</div>
+
+<div class="warn">
+  <strong>Why inline the vtable instead of pointer-to-vtable (like C++)?</strong>
+  Because the vtable comes from C# at call time — there's no static "class
+  vtable" the way C++ has. Each <em>instance</em> of the trait object carries
+  its own vtable inline, populated by C# when constructing the wire struct.
+  Costs more bytes per call (56 vs ~16), saves a pointer chase.
+</div>
+
+<h3>Layer D — C# raw P/Invoke (we generate this)</h3>
+<div class="panel">
+  <div class="panel-header"><span>RawPixels.cs / RawPixelSink.cs (auto-generated)</span><span class="layer-tag layer-csharp-raw">D · raw</span></div>
+  <pre><code class="language-csharp">using System;
+using System.Runtime.InteropServices;
+
+namespace MyLib.Diplomat
+{
+
+// One delegate per trait method, plus the destructor.
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+internal delegate void PixelSink_RunOnStart(IntPtr data);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+internal delegate void PixelSink_RunOnPixel(IntPtr data, byte p);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+internal delegate void PixelSink_RunOnEnd(IntPtr data, uint total);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+internal delegate void PixelSink_Destructor(IntPtr data);
+
+// Mirror the Rust vtable, byte-for-byte.
+[StructLayout(LayoutKind.Sequential)]
+public struct PixelSink_VTable
+{
+    public IntPtr Destructor;       // function pointer or IntPtr.Zero
+    public nuint  Size;
+    public nuint  Alignment;
+    public IntPtr RunOnStart;
+    public IntPtr RunOnPixel;
+    public IntPtr RunOnEnd;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct DiplomatTraitStruct_PixelSink
+{
+    public IntPtr            Data;
+    public PixelSink_VTable  VTable;
+}
+
+}
+
+namespace MyLib.Raw
+{
+using MyLib.Diplomat;
+
+[StructLayout(LayoutKind.Sequential)]
+public partial struct Pixels
+{
+    private const string NativeLib = "MyLibNative";
+
+    [DllImport(NativeLib, EntryPoint = "Pixels_stream_to",
+               CallingConvention = CallingConvention.Cdecl)]
+    public static unsafe extern void StreamTo(
+        Pixels* handle, DiplomatTraitStruct_PixelSink sink);
+}
+}</code></pre>
+</div>
+
+<h3>Layer E — C# idiomatic surface (interface + adapter)</h3>
+
+<p>The interesting thing about Flavor 3: the idiomatic surface is a <strong>C# interface</strong> users implement, plus an internal adapter that wires it to the vtable. This is the most "object-oriented" of the three.</p>
+
+<div class="panel">
+  <div class="panel-header"><span>Pixels.cs + IPixelSink.cs (auto-generated)</span><span class="layer-tag layer-csharp-impl">E · idiomatic</span></div>
+  <pre><code class="language-csharp">// Generated as the user-facing interface:
+public interface IPixelSink
+{
+    void OnStart();
+    void OnPixel(byte p);
+    void OnEnd(uint total);
+}
+
+// Generated wrapper method on the consumer opaque:
+public unsafe partial class Pixels
+{
+    private sealed class PixelSinkAdapter
+    {
+        public required IPixelSink Sink;
+        public PixelSink_RunOnStart OnStart = null!;
+        public PixelSink_RunOnPixel OnPixel = null!;
+        public PixelSink_RunOnEnd OnEnd = null!;
+        public PixelSink_Destructor Destructor = null!;
+        public Exception? Caught;
+    }
+
+    public void StreamTo(IPixelSink sink)
+    {
+        if (sink is null) throw new ArgumentNullException(nameof(sink));
+        if (_inner is null) throw new ObjectDisposedException(nameof(Pixels));
+
+        // 1. Root one adapter object. It owns the user's sink and all
+        //    trampoline delegates. This is lifetime rooting, not pinning.
+        var adapter = new PixelSinkAdapter { Sink = sink };
+
+        // 2. Build the trampolines — each one recovers `sink` from the
+        //    adapter GCHandle and forwards to the interface method.
+        adapter.OnStart = (IntPtr d) =&gt; {
+            var a = (PixelSinkAdapter)GCHandle.FromIntPtr(d).Target!;
+            if (a.Caught is not null) return;
+            try { a.Sink.OnStart(); }
+            catch (Exception e) { a.Caught = e; }
+        };
+        adapter.OnPixel = (IntPtr d, byte p) =&gt; {
+            var a = (PixelSinkAdapter)GCHandle.FromIntPtr(d).Target!;
+            if (a.Caught is not null) return;
+            try { a.Sink.OnPixel(p); }
+            catch (Exception e) { a.Caught = e; }
+        };
+        adapter.OnEnd = (IntPtr d, uint t) =&gt; {
+            var a = (PixelSinkAdapter)GCHandle.FromIntPtr(d).Target!;
+            if (a.Caught is not null) return;
+            try { a.Sink.OnEnd(t); }
+            catch (Exception e) { a.Caught = e; }
+        };
+        adapter.Destructor = (IntPtr d) =&gt; GCHandle.FromIntPtr(d).Free();
+
+        GCHandle adapterHandle = GCHandle.Alloc(adapter);
+
+        // 3. Fill the wire struct.
+        var wire = new DiplomatTraitStruct_PixelSink {
+            Data = GCHandle.ToIntPtr(adapterHandle),
+            VTable = new PixelSink_VTable {
+                Destructor  = Marshal.GetFunctionPointerForDelegate(adapter.Destructor),
+                Size        = 0,     // informational; we don't expose Rust-side size
+                Alignment   = 0,
+                RunOnStart  = Marshal.GetFunctionPointerForDelegate(adapter.OnStart),
+                RunOnPixel  = Marshal.GetFunctionPointerForDelegate(adapter.OnPixel),
+                RunOnEnd    = Marshal.GetFunctionPointerForDelegate(adapter.OnEnd),
+            }
+        };
+
+        // 4. NOTE: NO `adapterHandle.Free()` here — the Rust side will call our
+        //    Destructor when the trait struct drops, which calls Free().
+        //    Because the adapter owns every trampoline delegate, rooting the
+        //    adapter roots every function pointer too.
+        try
+        {
+            Raw.Pixels.StreamTo(_inner, wire);
+        }
+        finally
+        {
+            GC.KeepAlive(adapter);
+        }
+
+        if (adapter.Caught is not null) throw new TargetInvocationException(adapter.Caught);
+    }
+}</code></pre>
+</div>
+
+<div class="err-note">
+  <strong>Subtle: who frees the adapter handle?</strong> Look carefully — there's
+  no <code class="inline">adapterHandle.Free()</code> in <code class="inline">finally</code>.
+  Instead, the <code class="inline">Destructor</code> trampoline calls
+  <code class="inline">GCHandle.FromIntPtr(d).Free()</code>. The handle points
+  to an adapter object that owns the user <code class="inline">IPixelSink</code>
+  and every trampoline delegate. This is what makes escaping callbacks safe:
+  Rust signals "done with this object" by calling the destructor, which releases
+  the C# GCHandle, which then allows the adapter, sink, and delegates to be
+  collected. For a synchronous
+  <code class="inline">StreamTo</code> this fires immediately on return; for
+  an opaque that <em>stores</em> the sink, it fires whenever Rust drops it.
+  <strong>One bug here = a leak or a use-after-free.</strong>
+</div>
+
+<h3>Layer F — user C#</h3>
+<div class="panel">
+  <div class="panel-header"><span>what users write</span><span class="layer-tag layer-user">F · user-C#</span></div>
+  <pre><code class="language-csharp">// Implement the generated interface — feels like any C# observer pattern.
+sealed class PrintingSink : IPixelSink
+{
+    public void OnStart()              =&gt; Console.WriteLine("--- start ---");
+    public void OnPixel(byte p)        =&gt; Console.WriteLine($"  pixel 0x{p:X2}");
+    public void OnEnd(uint total)      =&gt; Console.WriteLine($"--- {total} ---");
+}
+
+using var px = Pixels.New(/* ... */);
+px.StreamTo(new PrintingSink());</code></pre>
+</div>
+
+</div> <!-- end flavor-section f3 -->
+
+<h2>Cross-flavor comparison</h2>
+
+<table class="layout">
+  <tr>
+    <th>Aspect</th>
+    <th><code class="inline">impl Fn</code></th>
+    <th><code class="inline">impl FnMut</code></th>
+    <th><code class="inline">impl SomeTrait</code></th>
+  </tr>
+  <tr>
+    <td>Rust signature surface</td>
+    <td><code class="inline">impl Fn(args)→R</code></td>
+    <td><code class="inline">impl FnMut(args)→R</code></td>
+    <td><code class="inline">impl TraitName</code> + <code class="inline">pub trait TraitName</code> declaration</td>
+  </tr>
+  <tr>
+    <td>Wire struct</td>
+    <td><code class="inline">DiplomatCallback&lt;R&gt;</code> (24 bytes)</td>
+    <td><code class="inline">DiplomatCallback&lt;R&gt;</code> (24 bytes)</td>
+    <td><code class="inline">DiplomatTraitStruct_X</code> (8 + vtable bytes)</td>
+  </tr>
+  <tr>
+    <td>Function pointers per param</td>
+    <td>1 (+ destructor)</td>
+    <td>1 (+ destructor)</td>
+    <td>N (one per trait method) + destructor</td>
+  </tr>
+  <tr>
+    <td>C# user surface</td>
+    <td><code class="inline">Action&lt;…&gt;</code> / <code class="inline">Func&lt;…&gt;</code></td>
+    <td><code class="inline">Action&lt;…&gt;</code> / <code class="inline">Func&lt;…&gt;</code></td>
+    <td>Custom interface <code class="inline">IName</code></td>
+  </tr>
+  <tr>
+    <td>Where the managed root gets freed</td>
+    <td>C# <code class="inline">finally</code> (sync) <em>or</em> destructor (escaping)</td>
+    <td>same</td>
+    <td>destructor only — escaping by default</td>
+  </tr>
+  <tr>
+    <td>Codegen complexity</td>
+    <td><span class="pill pill-good">low</span></td>
+    <td><span class="pill pill-good">low (same as Fn)</span></td>
+    <td><span class="pill pill-mid">medium — emit interface + adapter</span></td>
+  </tr>
+  <tr>
+    <td>Recommended order</td>
+    <td>1st</td>
+    <td>folded with 1st</td>
+    <td>2nd, after Fn/FnMut land</td>
+  </tr>
+</table>
+
+<h2>What we actually need to build (.NET backend only)</h2>
+
+<table class="layout">
+  <tr>
+    <th>Component</th>
+    <th>Flavor it serves</th>
+    <th>Notes</th>
+    <th>Approx lines</th>
+  </tr>
+  <tr>
+    <td>HIR consumption: detect <code class="inline">Type::Callback</code> / <code class="inline">Type::ImplTrait</code> in inputs</td>
+    <td>all</td>
+    <td>HIR already classifies these; after codegen lands, flip backend support flags for callbacks/traits</td>
+    <td>~20</td>
+  </tr>
+  <tr>
+    <td>Signature deduplication / naming</td>
+    <td>1, 2</td>
+    <td>Per-signature delegate name, e.g. <code class="inline">DiplomatCallback_void_u8_Run</code></td>
+    <td>~30</td>
+  </tr>
+  <tr>
+    <td>Runtime template: <code class="inline">DiplomatCallback.cs.jinja</code></td>
+    <td>1, 2</td>
+    <td>One file emitted with all unique callback structs/delegates</td>
+    <td>~60</td>
+  </tr>
+  <tr>
+    <td>Codegen: idiomatic wrapper for Fn/FnMut params</td>
+    <td>1, 2</td>
+    <td>Trampoline, GCHandle rooting, try/finally, exception capture</td>
+    <td>~80</td>
+  </tr>
+  <tr>
+    <td>Codegen: trait declaration → C# interface</td>
+    <td>3</td>
+    <td>Walk every <code class="inline">pub trait</code> in the bridge, emit <code class="inline">IName</code></td>
+    <td>~40</td>
+  </tr>
+  <tr>
+    <td>Codegen: trait param → vtable construction</td>
+    <td>3</td>
+    <td>One trampoline per method, destructor trampoline, wire struct fill</td>
+    <td>~120</td>
+  </tr>
+  <tr>
+    <td>Smoke test cases</td>
+    <td>all</td>
+    <td>One method each for Fn, FnMut, Trait — confirms ABI roundtrips</td>
+    <td>~70</td>
+  </tr>
+  <tr>
+    <td>Total</td>
+    <td></td>
+    <td></td>
+    <td><strong>~420 lines</strong></td>
+  </tr>
+</table>
+
+<div class="note">
+  <strong>Bigger than DiplomatWrite</strong> (which was ~250 lines), because
+  Flavor 3 adds the interface-codegen surface. If we ship Flavors 1+2 only
+  first, the cost is ~270 lines and unlocks the push-style use cases. Flavor 3
+  is a clean second milestone.
+</div>
+
+<h2>Phasing</h2>
+
+<ol>
+  <li>
+    <strong>Phase 1 (~1 week):</strong>
+    <code class="inline">impl Fn</code> + <code class="inline">impl FnMut</code>
+    (sync only — no escaping). Smoke crate gets
+    <code class="inline">Pixels::visit</code> and
+    <code class="inline">Pixels::count_above</code>; ~6 C# test cases.
+  </li>
+  <li>
+    <strong>Phase 2 (~1 week):</strong>
+    <code class="inline">impl Trait</code> with destructor-driven lifetime.
+    Smoke crate gets <code class="inline">pub trait PixelSink</code> +
+    <code class="inline">Pixels::stream_to</code>; C# interface generation.
+  </li>
+  <li>
+    <strong>Phase 3 (required for IronRDP-style stored callbacks):</strong> Escaping callbacks via opaques
+    that <em>store</em> a <code class="inline">DiplomatCallback</code> — the
+    wire's already capable, but C# needs a rooted adapter object whose
+    destructor releases both the user target and trampoline delegates. This is
+    not just surface polish if a consumer stores callbacks and invokes them
+    after the original P/Invoke call returns.
+  </li>
+</ol>
+
+<div class="win">
+  <strong>Bottom line.</strong> Phases 1+2 together are ~2 weeks for the full
+  synchronous callback/interface story. No diplomat-core changes, no macro
+  changes are expected for these shapes — the upstream sides are already done.
+  IronRDP-style stored callbacks should be treated as Phase 3 work, not an
+  optional nice-to-have.
+</div>
+
+<script>hljs.highlightAll();</script>
+</body>
+</html>

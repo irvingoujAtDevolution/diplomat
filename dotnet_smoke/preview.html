@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Diplomat .NET — Opaque struct, side by side</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/csharp.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  h1 {
+    margin: 0 0 4px 0;
+    font-size: 20px;
+    font-weight: 600;
+  }
+  .subtitle {
+    color: #8b949e;
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .panel {
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .panel-header {
+    background: #161b22;
+    color: #8b949e;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-family: "SF Mono", Consolas, monospace;
+    border-bottom: 1px solid #30363d;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .panel-header .filename { color: #58a6ff; }
+  .panel-header .lang { color: #d2a8ff; }
+  pre {
+    margin: 0;
+    background: #0d1117 !important;
+  }
+  pre code {
+    padding: 14px !important;
+    font-size: 13px;
+    line-height: 1.5;
+    font-family: "SF Mono", Consolas, "Cascadia Code", monospace;
+  }
+  .stage-note {
+    background: #1c2128;
+    border: 1px solid #30363d;
+    border-left: 3px solid #d29922;
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    color: #c9d1d9;
+    font-size: 13px;
+  }
+  .stage-note strong { color: #d29922; }
+</style>
+</head>
+<body>
+
+<h1>Diplomat .NET backend — Opaque struct mapping</h1>
+<div class="subtitle">Stage 2: <code>dotnet_smoke/src/lib.rs</code> &rarr; <code>dotnet_smoke/out/Color.cs</code> + <code>RawColor.cs</code></div>
+
+<div class="stage-note">
+  <strong>What this exercises:</strong> opaque type with state, static factory (<code>new</code>), <code>&amp;self</code> reader (<code>brightness</code>), <code>&amp;mut self</code> writer (<code>set_brightness</code>). All three method shapes you'll encounter everywhere.
+</div>
+
+<div class="grid">
+
+  <div class="col">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="filename">dotnet_smoke/src/lib.rs</span>
+        <span class="lang">Rust (input)</span>
+      </div>
+<pre><code class="language-rust">#[diplomat::bridge]
+pub mod ffi {
+    #[diplomat::opaque_mut]
+    pub struct Color {
+        brightness: u8,
+    }
+
+    impl Color {
+        pub fn new() -&gt; Box&lt;Color&gt; {
+            Box::new(Color { brightness: 0 })
+        }
+
+        pub fn brightness(&amp;self) -&gt; u8 {
+            self.brightness
+        }
+
+        pub fn set_brightness(&amp;mut self, value: u8) {
+            self.brightness = value;
+        }
+    }
+}
+</code></pre>
+    </div>
+  </div>
+
+  <div class="col">
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="filename">dotnet_smoke/out/Color.cs</span>
+        <span class="lang">C# (idiomatic layer)</span>
+      </div>
+<pre><code class="language-csharp">// &lt;auto-generated/&gt; by Diplomat
+using System;
+
+namespace DotnetSmoke;
+
+public sealed partial class Color : IDisposable
+{
+    private unsafe Raw.Color* _inner;
+
+    internal unsafe Color(Raw.Color* handle)
+    {
+        _inner = handle;
+    }
+
+    // Rust: pub fn new() -&gt; Box&lt;Color&gt;
+    public static Color New()
+    {
+        unsafe
+        {
+            Raw.Color* h = Raw.Color.New();
+            return new Color(h);
+        }
+    }
+
+    // Rust: pub fn brightness(&amp;self) -&gt; u8
+    public byte Brightness()
+    {
+        unsafe
+        {
+            if (_inner == null)
+                throw new ObjectDisposedException(nameof(Color));
+            return Raw.Color.Brightness(_inner);
+        }
+    }
+
+    // Rust: pub fn set_brightness(&amp;mut self, u8)
+    public void SetBrightness(byte value)
+    {
+        unsafe
+        {
+            if (_inner == null)
+                throw new ObjectDisposedException(nameof(Color));
+            Raw.Color.SetBrightness(_inner, value);
+        }
+    }
+
+    internal unsafe Raw.Color* AsFFI() =&gt; _inner;
+
+    public void Dispose()
+    {
+        unsafe
+        {
+            if (_inner == null) return;
+            Raw.Color.Destroy(_inner);
+            _inner = null;
+            GC.SuppressFinalize(this);
+        }
+    }
+
+    ~Color() =&gt; Dispose();
+}
+</code></pre>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="filename">dotnet_smoke/out/RawColor.cs</span>
+        <span class="lang">C# (raw [DllImport] layer)</span>
+      </div>
+<pre><code class="language-csharp">// &lt;auto-generated/&gt; by Diplomat
+using System;
+using System.Runtime.InteropServices;
+
+namespace DotnetSmoke;
+
+internal static unsafe partial class Raw
+{
+    [StructLayout(LayoutKind.Sequential)]
+    public partial struct Color
+    {
+        private const string NativeLib = "dotnet_smoke";
+
+        [DllImport(NativeLib, EntryPoint = "Color_new",
+                   CallingConvention = CallingConvention.Cdecl)]
+        public static extern Color* New();
+
+        [DllImport(NativeLib, EntryPoint = "Color_brightness",
+                   CallingConvention = CallingConvention.Cdecl)]
+        public static extern byte Brightness(Color* self);
+
+        [DllImport(NativeLib, EntryPoint = "Color_set_brightness",
+                   CallingConvention = CallingConvention.Cdecl)]
+        public static extern void SetBrightness(Color* self, byte value);
+
+        [DllImport(NativeLib, EntryPoint = "Color_destroy",
+                   CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Destroy(Color* self);
+    }
+}
+</code></pre>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  hljs.highlightAll();
+</script>
+
+</body>
+</html>

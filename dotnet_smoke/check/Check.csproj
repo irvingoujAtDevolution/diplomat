@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Syntax-check project for the generated C# bindings.
+
+    This project doesn't ship — it exists only so `dotnet build` can verify
+    that the files written into `dotnet_smoke/out/` are valid C#. Run via:
+
+        just dotnet         # regenerate + check
+        just dotnet-check   # check only
+
+    No NuGet packages, no project references — just the SDK and the
+    generated sources.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+
+    <!-- Quiet noisy warnings unrelated to syntax: unused usings/fields, -->
+    <!-- unsafe-on-managed-pointer (CS8500), pointer-of-managed-type.    -->
+    <NoWarn>CS8019;CS0169;CS0414;CS0649;CS8500;CS0162</NoWarn>
+
+    <!-- Don't write build artifacts to the source tree's root. -->
+    <BaseIntermediateOutputPath>obj\</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin\</BaseOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Drop the SDK's default glob (which would scan this directory) -->
+    <!-- and only compile what the generator wrote into ../out.        -->
+    <Compile Remove="**\*.cs" />
+    <Compile Include="..\out\**\*.cs" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,13 @@
+[package]
+name = "dotnet-smoke"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Tiny crate for iterating on the .NET Diplomat backend. Not a real example."
+
+[lib]
+crate-type = ["staticlib", "rlib", "cdylib"]
+
+[dependencies]
+diplomat.workspace = true
+diplomat-runtime.workspace = true

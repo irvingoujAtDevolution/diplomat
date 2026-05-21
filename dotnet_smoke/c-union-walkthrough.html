@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>C unions — precise mechanics</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/c.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/csharp.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto;
+    padding: 28px 32px 80px;
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    line-height: 1.55;
+    max-width: 1200px;
+  }
+  h1 { margin: 0 0 4px 0; font-size: 24px; font-weight: 600; color: #f0f6fc; }
+  h2 { margin: 40px 0 8px 0; font-size: 18px; font-weight: 600; color: #f0f6fc; border-bottom: 1px solid #21262d; padding-bottom: 6px; }
+  h3 { margin: 24px 0 6px 0; font-size: 14px; font-weight: 600; color: #c9d1d9; text-transform: uppercase; letter-spacing: 0.05em; }
+  .subtitle { color: #8b949e; font-size: 14px; margin-bottom: 28px; }
+  p { color: #c9d1d9; }
+  .panel { border: 1px solid #30363d; border-radius: 8px; overflow: hidden; margin: 12px 0; background: #0d1117; }
+  .panel-header { background: #161b22; color: #8b949e; padding: 9px 14px; font-size: 12px; font-family: "SF Mono", Consolas, monospace; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; }
+  .panel-header .layer-tag { background: #21262d; color: #c9d1d9; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+  .tag-c       { background: #1f3a4d; color: #79c0ff; }
+  .tag-csharp  { background: #033a16; color: #7ee787; }
+  .tag-rust    { background: #4d1f00; color: #ffa657; }
+  .tag-memory  { background: #2d2d00; color: #d1d100; }
+  .tag-danger  { background: #5d1d1d; color: #f85149; }
+  pre { margin: 0; }
+  pre code { padding: 14px 16px !important; font-size: 13px; line-height: 1.5; font-family: "SF Mono", Consolas, "Liberation Mono", monospace; }
+  .note { background: #161b22; border-left: 3px solid #58a6ff; padding: 10px 14px; margin: 12px 0; border-radius: 0 6px 6px 0; font-size: 13px; color: #c9d1d9; }
+  .note strong { color: #58a6ff; }
+  .warn { background: #2d1b00; border-left-color: #d29922; }
+  .warn strong { color: #d29922; }
+  .err-note { background: #2d0d0d; border-left-color: #f85149; }
+  .err-note strong { color: #f85149; }
+  .win { background: #07260f; border-left-color: #56d364; }
+  .win strong { color: #56d364; }
+  code.inline { background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Consolas, monospace; font-size: 12px; color: #79c0ff; }
+
+  /* Byte grid */
+  .bytegrid {
+    margin: 16px 0;
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 12px;
+  }
+  .bytegrid-label {
+    color: #8b949e;
+    font-size: 11px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .byte-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin-bottom: 4px;
+  }
+  .byte-cell {
+    width: 56px;
+    height: 56px;
+    border: 1px solid #30363d;
+    border-right: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 2px;
+    text-align: center;
+    line-height: 1.1;
+  }
+  .byte-cell:last-child { border-right: 1px solid #30363d; }
+  .byte-cell .addr {
+    color: #6e7681;
+    font-size: 10px;
+  }
+  .byte-cell .value {
+    color: #c9d1d9;
+    font-size: 13px;
+    font-weight: 500;
+    margin-top: 2px;
+  }
+  .byte-cell .annot {
+    color: #8b949e;
+    font-size: 9px;
+    margin-top: 2px;
+  }
+  .byte-cell.active   { background: #07260f; }
+  .byte-cell.active .value { color: #7ee787; }
+  .byte-cell.inactive { background: #2d0d0d; }
+  .byte-cell.inactive .value { color: #f85149; }
+  .byte-cell.tag      { background: #2d1d3a; }
+  .byte-cell.tag .value { color: #d2a8ff; }
+  .byte-cell.pad      { background: #21262d; }
+  .byte-cell.pad .value { color: #6e7681; }
+  .byte-cell.unset .value { color: #6e7681; }
+
+  .legend-bytes {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin: 10px 0;
+    font-size: 12px;
+  }
+  .legend-bytes span {
+    padding: 3px 10px;
+    border-radius: 4px;
+    color: #c9d1d9;
+  }
+  .lg-active   { background: #07260f; color: #7ee787; }
+  .lg-inactive { background: #2d0d0d; color: #f85149; }
+  .lg-tag      { background: #2d1d3a; color: #d2a8ff; }
+  .lg-pad      { background: #21262d; color: #6e7681; }
+
+  .interp {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 10px 0;
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 12px;
+  }
+  .interp .row { margin: 4px 0; }
+  .interp .label { color: #8b949e; display: inline-block; width: 220px; }
+  .interp .value.ok    { color: #7ee787; }
+  .interp .value.bad   { color: #f85149; }
+  .interp .value.tag   { color: #d2a8ff; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+</style>
+</head>
+<body>
+
+<h1>C unions — precise mechanics</h1>
+<div class="subtitle">
+  The byte-level story of how unions work, how they sit in memory, and why
+  <code class="inline">DiplomatResult&lt;T, E&gt;</code> is a tagged union under
+  the hood. With actual hex dumps you could verify with
+  <code class="inline">printf("%02X")</code>.
+</div>
+
+<h2>The one-line definition</h2>
+
+<div class="note">
+  <strong>A union is one piece of memory you can read as any one of several types.</strong>
+  All members start at the same address and share the same storage. Writing
+  one member overwrites whatever bytes overlap with it.
+</div>
+
+<p>
+  Compare to a struct:
+</p>
+
+<ul>
+  <li><code class="inline">struct</code>: members are <strong>side by side</strong> — total size is sum of members</li>
+  <li><code class="inline">union</code>: members are <strong>on top of each other</strong> — total size is max of members</li>
+</ul>
+
+<h2>The sizing rules</h2>
+
+<p>For <code class="inline">union U { T1 a; T2 b; ... Tn z; };</code>:</p>
+
+<div class="panel">
+  <div class="panel-header"><span>sizing formula</span><span class="layer-tag tag-memory">memory</span></div>
+  <pre><code class="language-c">sizeof(U)  = max(sizeof(T1), sizeof(T2), ..., sizeof(Tn))
+             rounded up to alignof(U)
+
+alignof(U) = max(alignof(T1), alignof(T2), ..., alignof(Tn))</code></pre>
+</div>
+
+<p>
+  Union is as big as its largest member, aligned for its strictest member.
+  That's it — three rules.
+</p>
+
+<h2>Example 1 — same-size members</h2>
+
+<div class="panel">
+  <div class="panel-header"><span>same-size union</span><span class="layer-tag tag-c">C</span></div>
+  <pre><code class="language-c">#include &lt;stdio.h&gt;
+
+union Same4 {
+    int    as_int;        // 4 bytes
+    float  as_float;      // 4 bytes
+    char   as_chars[4];   // 4 bytes
+};
+
+int main() {
+    union Same4 u;
+    u.as_int = 0x41424344;
+    // size = 4
+    // bytes (little-endian): 44 43 42 41
+}</code></pre>
+</div>
+
+<div class="bytegrid">
+  <div class="bytegrid-label">memory after <code>u.as_int = 0x41424344</code> (little-endian)</div>
+  <div class="byte-row">
+    <div class="byte-cell active">
+      <div class="addr">+0</div>
+      <div class="value">44</div>
+      <div class="annot">'D'</div>
+    </div>
+    <div class="byte-cell active">
+      <div class="addr">+1</div>
+      <div class="value">43</div>
+      <div class="annot">'C'</div>
+    </div>
+    <div class="byte-cell active">
+      <div class="addr">+2</div>
+      <div class="value">42</div>
+      <div class="annot">'B'</div>
+    </div>
+    <div class="byte-cell active">
+      <div class="addr">+3</div>
+      <div class="value">41</div>
+      <div class="annot">'A'</div>
+    </div>
+  </div>
+</div>
+
+<div class="interp">
+  <div class="row"><span class="label">as_int (int):</span><span class="value ok">0x41424344 = 1094861636</span></div>
+  <div class="row"><span class="label">as_float (float):</span><span class="value ok">~12.141422f (bit pattern as IEEE 754)</span></div>
+  <div class="row"><span class="label">as_chars (char[4]):</span><span class="value ok">{'D', 'C', 'B', 'A'}</span></div>
+</div>
+
+<div class="note">
+  <strong>All three views are valid simultaneously.</strong> They're literally
+  reading the same 4 bytes through different lenses. Writing through
+  <code class="inline">as_int</code> changed what
+  <code class="inline">as_float</code> and <code class="inline">as_chars</code> "see" —
+  not because the union tracked the change, but because they all alias the
+  same memory. This is called <em>type punning</em>.
+</div>
+
+<h2>Example 2 — mixed-size members (this is where unions get spicy)</h2>
+
+<div class="panel">
+  <div class="panel-header"><span>different-size union</span><span class="layer-tag tag-c">C</span></div>
+  <pre><code class="language-c">union Mixed {
+    char  small;     // 1 byte
+    long  big;       // 8 bytes
+};
+
+union Mixed m;
+m.small = 0xAB;
+// size = 8 (max of 1 and 8)
+// alignment = 8
+// only byte 0 is initialized; bytes 1..7 are GARBAGE</code></pre>
+</div>
+
+<div class="bytegrid">
+  <div class="bytegrid-label">memory after <code>m.small = 0xAB</code> — 1 byte written, 7 bytes uninitialized</div>
+  <div class="byte-row">
+    <div class="byte-cell active">
+      <div class="addr">+0</div>
+      <div class="value">AB</div>
+      <div class="annot">small</div>
+    </div>
+    <div class="byte-cell inactive">
+      <div class="addr">+1</div>
+      <div class="value">??</div>
+      <div class="annot">slack</div>
+    </div>
+    <div class="byte-cell inactive">
+      <div class="addr">+2</div>
+      <div class="value">??</div>
+      <div class="annot">slack</div>
+    </div>
+    <div class="byte-cell inactive">
+      <div class="addr">+3</div>
+      <div class="value">??</div>
+      <div class="annot">slack</div>
+    </div>
+    <div class="byte-cell inactive">
+      <div class="addr">+4</div>
+      <div class="value">??</div>
+      <div class="annot">slack</div>
+    </div>
+    <div class="byte-cell inactive">
+      <div class="addr">+5</div>
+      <div class="value">??</div>
+      <div class="annot">slack</div>
+    </div>
+    <div class="byte-cell inactive">
+      <div class="addr">+6</div>
+      <div class="value">??</div>
+      <div class="annot">slack</div>
+    </div>
+    <div class="byte-cell inactive">
+      <div class="addr">+7</div>
+      <div class="value">??</div>
+      <div class="annot">slack</div>
+    </div>
+  </div>
+</div>
+
+<div class="legend-bytes">
+  <span class="lg-active">written by active member</span>
+  <span class="lg-inactive">slack — uninitialized, holds whatever was there</span>
+</div>
+
+<div class="interp">
+  <div class="row"><span class="label">m.small (char):</span><span class="value ok">0xAB ✓ valid</span></div>
+  <div class="row"><span class="label">m.big (long):</span><span class="value bad">0x????????????????AB — 7 bytes of stack garbage = UNDEFINED BEHAVIOR</span></div>
+</div>
+
+<div class="note err-note">
+  <strong>This is the "union slack" problem.</strong> When the active member
+  is smaller than the union, the unused bytes hold whatever was in that
+  memory before — stack noise, leftover from a previous union value, a
+  zero from <code class="inline">calloc</code>, anything. Reading the
+  larger member is <strong>undefined behavior</strong>. The compiler will
+  not warn you; the runtime won't catch it.
+</div>
+
+<h2>Example 3 — pointer + small int (DiplomatResult's payload shape)</h2>
+
+<div class="panel">
+  <div class="panel-header"><span>pointer-or-enum union</span><span class="layer-tag tag-c">C (x64)</span></div>
+  <pre><code class="language-c">typedef enum { Unknown = 0, BadFormat = 1 } ColorError;
+
+union ColorPayload {
+    Color*     ok;     // 8 bytes (x64 pointer)
+    ColorError err;    // 4 bytes (int-sized enum)
+};
+
+// sizeof = max(8, 4) = 8
+// alignof = max(8, 4) = 8</code></pre>
+</div>
+
+<h3>Active member: <code class="inline">ok</code> (a pointer)</h3>
+
+<div class="bytegrid">
+  <div class="bytegrid-label">after <code>p.ok = (Color*)0x000001B45F2C8010</code> — all 8 bytes used</div>
+  <div class="byte-row">
+    <div class="byte-cell active">
+      <div class="addr">+0</div>
+      <div class="value">10</div>
+      <div class="annot">ptr LSB</div>
+    </div>
+    <div class="byte-cell active">
+      <div class="addr">+1</div>
+      <div class="value">80</div>
+      <div class="annot">ptr</div>
+    </div>
+    <div class="byte-cell active">
+      <div class="addr">+2</div>
+      <div class="value">2C</div>
+      <div class="annot">ptr</div>
+    </div>
+    <div class="byte-cell active">
+      <div class="addr">+3</div>
+      <div class="value">5F</div>
+      <div class="annot">ptr</div>
+    </div>
+    <div class="byte-cell active">
+      <div class="addr">+4</div>
+      <div class="value">B4</div>
+      <div class="annot">ptr</div>
+    </div>
+    <div class="byte-cell active">
+      <div class="addr">+5</div>
+      <div class="value">01</div>
+      <div class="annot">ptr</div>
+    </div>
+    <div class="byte-cell active">
+      <div class="addr">+6</div>
+      <div class="value">00</div>
+      <div class="annot">ptr</div>
+    </div>
+    <div class="byte-cell active">
+      <div class="addr">+7</div>
+      <div class="value">00</div>
+      <div class="annot">ptr MSB</div>
+    </div>
+  </div>
+</div>
+
+<div class="interp">
+  <div class="row"><span class="label">p.ok (Color*):</span><span class="value ok">0x000001B45F2C8010 ✓ valid pointer</span></div>
+  <div class="row"><span class="label">p.err (ColorError):</span><span class="value bad">0x5F2C8010 = 1,596,948,496 — out-of-range enum, looks "unknown" but is garbage</span></div>
+</div>
+
+<h3>Active member: <code class="inline">err</code> (a 4-byte enum)</h3>
+
+<div class="bytegrid">
+  <div class="bytegrid-label">after <code>p.err = Unknown</code> — only 4 bytes used, 4 bytes slack</div>
+  <div class="byte-row">
+    <div class="byte-cell active">
+      <div class="addr">+0</div>
+      <div class="value">00</div>
+      <div class="annot">err</div>
+    </div>
+    <div class="byte-cell active">
+      <div class="addr">+1</div>
+      <div class="value">00</div>
+      <div class="annot">err</div>
+    </div>
+    <div class="byte-cell active">
+      <div class="addr">+2</div>
+      <div class="value">00</div>
+      <div class="annot">err</div>
+    </div>
+    <div class="byte-cell active">
+      <div class="addr">+3</div>
+      <div class="value">00</div>
+      <div class="annot">err</div>
+    </div>
+    <div class="byte-cell inactive">
+      <div class="addr">+4</div>
+      <div class="value">??</div>
+      <div class="annot">slack</div>
+    </div>
+    <div class="byte-cell inactive">
+      <div class="addr">+5</div>
+      <div class="value">??</div>
+      <div class="annot">slack</div>
+    </div>
+    <div class="byte-cell inactive">
+      <div class="addr">+6</div>
+      <div class="value">??</div>
+      <div class="annot">slack</div>
+    </div>
+    <div class="byte-cell inactive">
+      <div class="addr">+7</div>
+      <div class="value">??</div>
+      <div class="annot">slack</div>
+    </div>
+  </div>
+</div>
+
+<div class="interp">
+  <div class="row"><span class="label">p.err (ColorError):</span><span class="value ok">0 (Unknown) ✓ valid</span></div>
+  <div class="row"><span class="label">p.ok (Color*):</span><span class="value bad">0x????????00000000 — top half is GARBAGE; dereferencing crashes or worse</span></div>
+</div>
+
+<div class="note err-note">
+  <strong>This is why <code class="inline">Result&lt;T, E&gt;</code> needs an external tag.</strong>
+  Just looking at the 8 bytes can't tell you which member is "live" —
+  both readings would produce <em>some</em> value, but only one is real.
+  You need a separate bit somewhere that says "I last wrote to err" or
+  "I last wrote to ok." The C language won't track this for you.
+</div>
+
+<h2>The tagged-union pattern (this is what <code class="inline">DiplomatResult</code> is)</h2>
+
+<div class="panel">
+  <div class="panel-header"><span>tagged union — DiplomatResult shape</span><span class="layer-tag tag-c">C</span></div>
+  <pre><code class="language-c">typedef struct {
+    union {
+        Color*     ok;     // valid when is_ok == true
+        ColorError err;    // valid when is_ok == false
+    } payload;             // 8 bytes
+    bool is_ok;            // 1 byte tag
+    // -- compiler inserts padding to align to 8 --
+} DiplomatResult_Color_ColorError;
+
+// sizeof = 16 (8 + 1 padded to 8-byte alignment)</code></pre>
+</div>
+
+<h3>The Ok case</h3>
+
+<div class="bytegrid">
+  <div class="bytegrid-label">DiplomatResult with ok pointer + is_ok = true — full 16-byte struct</div>
+  <div class="byte-row">
+    <div class="byte-cell active"><div class="addr">+0</div><div class="value">10</div><div class="annot">ok</div></div>
+    <div class="byte-cell active"><div class="addr">+1</div><div class="value">80</div><div class="annot">ok</div></div>
+    <div class="byte-cell active"><div class="addr">+2</div><div class="value">2C</div><div class="annot">ok</div></div>
+    <div class="byte-cell active"><div class="addr">+3</div><div class="value">5F</div><div class="annot">ok</div></div>
+    <div class="byte-cell active"><div class="addr">+4</div><div class="value">B4</div><div class="annot">ok</div></div>
+    <div class="byte-cell active"><div class="addr">+5</div><div class="value">01</div><div class="annot">ok</div></div>
+    <div class="byte-cell active"><div class="addr">+6</div><div class="value">00</div><div class="annot">ok</div></div>
+    <div class="byte-cell active"><div class="addr">+7</div><div class="value">00</div><div class="annot">ok</div></div>
+    <div class="byte-cell tag"><div class="addr">+8</div><div class="value">01</div><div class="annot">is_ok</div></div>
+    <div class="byte-cell pad"><div class="addr">+9</div><div class="value">--</div><div class="annot">pad</div></div>
+    <div class="byte-cell pad"><div class="addr">+10</div><div class="value">--</div><div class="annot">pad</div></div>
+    <div class="byte-cell pad"><div class="addr">+11</div><div class="value">--</div><div class="annot">pad</div></div>
+    <div class="byte-cell pad"><div class="addr">+12</div><div class="value">--</div><div class="annot">pad</div></div>
+    <div class="byte-cell pad"><div class="addr">+13</div><div class="value">--</div><div class="annot">pad</div></div>
+    <div class="byte-cell pad"><div class="addr">+14</div><div class="value">--</div><div class="annot">pad</div></div>
+    <div class="byte-cell pad"><div class="addr">+15</div><div class="value">--</div><div class="annot">pad</div></div>
+  </div>
+</div>
+
+<h3>The Err case</h3>
+
+<div class="bytegrid">
+  <div class="bytegrid-label">DiplomatResult with err = Unknown + is_ok = false — same 16 bytes, different content</div>
+  <div class="byte-row">
+    <div class="byte-cell active"><div class="addr">+0</div><div class="value">00</div><div class="annot">err</div></div>
+    <div class="byte-cell active"><div class="addr">+1</div><div class="value">00</div><div class="annot">err</div></div>
+    <div class="byte-cell active"><div class="addr">+2</div><div class="value">00</div><div class="annot">err</div></div>
+    <div class="byte-cell active"><div class="addr">+3</div><div class="value">00</div><div class="annot">err</div></div>
+    <div class="byte-cell inactive"><div class="addr">+4</div><div class="value">??</div><div class="annot">slack</div></div>
+    <div class="byte-cell inactive"><div class="addr">+5</div><div class="value">??</div><div class="annot">slack</div></div>
+    <div class="byte-cell inactive"><div class="addr">+6</div><div class="value">??</div><div class="annot">slack</div></div>
+    <div class="byte-cell inactive"><div class="addr">+7</div><div class="value">??</div><div class="annot">slack</div></div>
+    <div class="byte-cell tag"><div class="addr">+8</div><div class="value">00</div><div class="annot">is_ok</div></div>
+    <div class="byte-cell pad"><div class="addr">+9</div><div class="value">--</div><div class="annot">pad</div></div>
+    <div class="byte-cell pad"><div class="addr">+10</div><div class="value">--</div><div class="annot">pad</div></div>
+    <div class="byte-cell pad"><div class="addr">+11</div><div class="value">--</div><div class="annot">pad</div></div>
+    <div class="byte-cell pad"><div class="addr">+12</div><div class="value">--</div><div class="annot">pad</div></div>
+    <div class="byte-cell pad"><div class="addr">+13</div><div class="value">--</div><div class="annot">pad</div></div>
+    <div class="byte-cell pad"><div class="addr">+14</div><div class="value">--</div><div class="annot">pad</div></div>
+    <div class="byte-cell pad"><div class="addr">+15</div><div class="value">--</div><div class="annot">pad</div></div>
+  </div>
+</div>
+
+<div class="legend-bytes">
+  <span class="lg-active">union active bytes</span>
+  <span class="lg-inactive">union slack (uninitialized)</span>
+  <span class="lg-tag">is_ok tag</span>
+  <span class="lg-pad">struct padding for alignment</span>
+</div>
+
+<div class="note">
+  <strong>Same struct, same size, different bytes.</strong> The byte at
+  offset 8 (<code class="inline">is_ok</code>) is the only thing telling
+  the caller which interpretation of bytes 0-7 is valid. Padding bytes
+  9-15 are inserted by the compiler to keep the struct aligned for arrays
+  of these structs — they hold nothing useful.
+</div>
+
+<h2>How C# models this — <code class="inline">[StructLayout(Explicit)]</code></h2>
+
+<p>
+  C# can't say "union" directly. The managed type system doesn't allow
+  arbitrary aliasing. But there's an escape hatch:
+  <code class="inline">[StructLayout(LayoutKind.Explicit)]</code> +
+  <code class="inline">[FieldOffset(N)]</code> lets you manually place
+  fields at specific byte offsets, <em>including overlapping ones</em>.
+</p>
+
+<div class="grid2">
+  <div class="panel">
+    <div class="panel-header"><span>C — the union we're modeling</span><span class="layer-tag tag-c">C</span></div>
+    <pre><code class="language-c">struct DiplomatResult {
+    union {
+        Color*     ok;
+        ColorError err;
+    } payload;
+    bool is_ok;
+};</code></pre>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><span>C# — explicit-layout struct</span><span class="layer-tag tag-csharp">C#</span></div>
+    <pre><code class="language-csharp">[StructLayout(LayoutKind.Explicit)]
+internal unsafe struct DiplomatResult_Color_ColorError
+{
+    [FieldOffset(0)] public Raw.Color* Ok;
+    [FieldOffset(0)] public ColorError Err;
+    [FieldOffset(8)] public byte       IsOk;
+}</code></pre>
+  </div>
+</div>
+
+<p>
+  The two <code class="inline">[FieldOffset(0)]</code> declarations tell
+  the CLR: <strong>these two fields live at the same byte offset</strong>.
+  Reading <code class="inline">Ok</code> and reading
+  <code class="inline">Err</code> reads the same 8 bytes, interpreted
+  differently. That's exactly the C union semantic.
+</p>
+
+<div class="note warn">
+  <strong>Two C# gotchas:</strong>
+  <ol style="margin: 6px 0;">
+    <li><strong>Use <code class="inline">byte IsOk</code>, not <code class="inline">bool IsOk</code>.</strong> Rust's <code class="inline">bool</code> is 1 byte; C#'s default marshaling treats <code class="inline">bool</code> as 4-byte BOOL. <code class="inline">byte</code> avoids the mismatch. Read it as <code class="inline">IsOk != 0</code>.</li>
+    <li><strong>Padding is inserted automatically.</strong> You don't declare the 7 bytes of trailing pad — the runtime adds them to round to 16-byte alignment. The struct is still 16 bytes even though you only declared fields at offsets 0 and 8.</li>
+  </ol>
+</div>
+
+<h2>"What if I read the wrong arm?" — the danger zone</h2>
+
+<div class="panel">
+  <div class="panel-header"><span>danger</span><span class="layer-tag tag-danger">UB</span></div>
+  <pre><code class="language-csharp">var result = Raw.Color.Parse(...);
+
+// Result came back as Err — IsOk == 0
+// But we forgot to check the tag:
+Color* ptr = result.Ok;
+// ptr now points at: lower 4 bytes are 0x00000000 (the err value)
+//                    upper 4 bytes are STACK GARBAGE (slack)
+//                    full pointer: 0x????????00000000
+
+// Dereferencing:
+ptr-&gt;something;
+// → AccessViolation, or worse: reads from some unrelated memory
+//   that happens to look readable. Bug is non-deterministic and
+//   may not surface in tests.</code></pre>
+</div>
+
+<div class="note err-note">
+  <strong>The check is non-negotiable.</strong>
+  <code class="inline">if (result.IsOk == 0) throw ...</code> isn't a
+  stylistic choice — it's the difference between a working binding and a
+  security hole. The codegen always emits this check; the user can never
+  bypass it by accident because the raw struct is internal and the
+  idiomatic wrapper is the only way to call the FFI.
+</div>
+
+<h2>A complete worked program you can run</h2>
+
+<div class="panel">
+  <div class="panel-header"><span>union_demo.c — self-contained, ~30 lines</span><span class="layer-tag tag-c">C</span></div>
+  <pre><code class="language-c">#include &lt;stdio.h&gt;
+#include &lt;stdint.h&gt;
+#include &lt;stdbool.h&gt;
+
+typedef enum { Unknown = 0, BadFormat = 1 } ColorError;
+typedef struct Color Color;  // opaque
+
+typedef struct {
+    union {
+        Color*     ok;
+        ColorError err;
+    } payload;
+    bool is_ok;
+} DiplomatResult_Color_ColorError;
+
+void print_bytes(const char* label, const void* p, size_t n) {
+    printf("%s (%zu bytes): ", label, n);
+    const uint8_t* b = p;
+    for (size_t i = 0; i &lt; n; i++) printf("%02X ", b[i]);
+    printf("\n");
+}
+
+int main() {
+    DiplomatResult_Color_ColorError ok_result;
+    ok_result.payload.ok = (Color*)0x000001B45F2C8010ULL;
+    ok_result.is_ok = true;
+
+    // Zero-init err struct to make slack bytes deterministic
+    // (in real Rust returns, slack is whatever the stack had).
+    DiplomatResult_Color_ColorError err_result = {0};
+    err_result.payload.err = Unknown;
+    err_result.is_ok = false;
+
+    printf("sizeof = %zu\n", sizeof(DiplomatResult_Color_ColorError));
+    print_bytes("Ok ",  &amp;ok_result,  sizeof(ok_result));
+    print_bytes("Err",  &amp;err_result, sizeof(err_result));
+}</code></pre>
+</div>
+
+<div class="panel">
+  <div class="panel-header"><span>expected output (x64 little-endian)</span><span class="layer-tag tag-memory">memory</span></div>
+  <pre><code>sizeof = 16
+Ok  (16 bytes): 10 80 2C 5F B4 01 00 00 01 00 00 00 00 00 00 00
+Err (16 bytes): 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ ^^ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                payload (8 bytes union)           |  struct padding (7 bytes)
+                                                  is_ok (1 byte tag)</code></pre>
+</div>
+
+<div class="note win">
+  <strong>Verify this for yourself.</strong> Compile with
+  <code class="inline">gcc union_demo.c -o demo &amp;&amp; ./demo</code>
+  (or <code class="inline">cl union_demo.c</code> on MSVC). The byte
+  patterns will match exactly. <strong>This is the exact same byte stream
+  that crosses our FFI boundary</strong> — Rust writes it, the OS pushes
+  it onto the native return stack, C# reads it as
+  <code class="inline">DiplomatResult_Color_ColorError</code>.
+</div>
+
+<h2>The endianness footnote</h2>
+
+<p>
+  Notice the pointer <code class="inline">0x000001B45F2C8010</code> shows
+  up as <code class="inline">10 80 2C 5F B4 01 00 00</code> in memory —
+  byte order reversed. That's <strong>little-endian</strong>: the least
+  significant byte comes first. x86 / x64 / ARM (in standard config) /
+  RISC-V are all little-endian. PowerPC and SPARC are big-endian (the
+  pointer would be <code class="inline">00 00 01 B4 5F 2C 80 10</code>).
+</p>
+
+<p>
+  Doesn't matter for us in practice — Diplomat is built for x64 / ARM64,
+  both little-endian. But if a tagged union ever crossed between machines
+  of different endianness, the bytes would need swapping. (They don't,
+  because FFI is in-process.)
+</p>
+
+<h2>TL;DR</h2>
+
+<ol style="font-size: 14px;">
+  <li><strong>Union</strong> = shared storage. Members overlap at offset 0; size = max of members; alignment = max of members.</li>
+  <li><strong>Inactive members are uninitialized garbage.</strong> Reading them is undefined behavior. The compiler will not stop you.</li>
+  <li><strong>Tagged union</strong> = <code class="inline">struct { union { ... } payload; tag; }</code>. The tag tells the reader which arm is live.</li>
+  <li><strong><code class="inline">DiplomatResult&lt;T, E&gt;</code></strong> is a tagged union: 8-byte payload (Color* or 4-byte enum + slack) + 1-byte <code class="inline">is_ok</code> + 7 bytes padding = <strong>16 bytes total</strong>.</li>
+  <li><strong>C# models unions</strong> with <code class="inline">[StructLayout(Explicit)]</code> + overlapping <code class="inline">[FieldOffset]</code> declarations. Same memory, two views.</li>
+  <li><strong>Always check the tag first.</strong> Always. No exceptions.</li>
+</ol>
+
+<script>
+  hljs.highlightAll();
+</script>
+
+</body>
+</html>

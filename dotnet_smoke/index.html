@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Diplomat .NET — Docs</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto;
+    padding: 40px 32px 80px;
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    line-height: 1.55;
+    max-width: 1100px;
+  }
+  h1 {
+    margin: 0 0 8px 0;
+    font-size: 28px;
+    font-weight: 600;
+    color: #f0f6fc;
+  }
+  .lede {
+    color: #8b949e;
+    font-size: 15px;
+    margin-bottom: 32px;
+  }
+  h2 {
+    margin: 40px 0 14px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #8b949e;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid #21262d;
+    padding-bottom: 10px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 14px;
+  }
+  a.card {
+    display: block;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 18px 20px;
+    background: #161b22;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s, transform 0.15s, background 0.15s;
+  }
+  a.card:hover {
+    border-color: #58a6ff;
+    background: #1a2030;
+    transform: translateY(-1px);
+  }
+  a.card h3 {
+    margin: 0 0 6px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #f0f6fc;
+  }
+  a.card .tag {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 500;
+    font-family: "SF Mono", Consolas, monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+  }
+  .tag-slice    { background: #033a16; color: #7ee787; }
+  .tag-result   { background: #4d1f00; color: #ffa657; }
+  .tag-mem      { background: #2d2d00; color: #d1d100; }
+  .tag-preview  { background: #003a4d; color: #79c0ff; }
+  a.card p {
+    margin: 0;
+    font-size: 13px;
+    color: #c9d1d9;
+    line-height: 1.55;
+  }
+  a.card .meta {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #6e7681;
+    font-family: "SF Mono", Consolas, monospace;
+  }
+  .footer {
+    margin-top: 60px;
+    padding-top: 16px;
+    border-top: 1px solid #21262d;
+    color: #6e7681;
+    font-size: 12px;
+    font-family: "SF Mono", Consolas, monospace;
+  }
+</style>
+</head>
+<body>
+
+<h1>Diplomat .NET — Docs</h1>
+<div class="lede">
+  Layered walkthroughs of how each Diplomat feature crosses the FFI boundary
+  end-to-end. Each page traces a Rust source through the macro shim, the C
+  ABI, the auto-generated raw P/Invoke, and the idiomatic C# wrapper — with
+  byte-level memory diagrams where it matters.
+</div>
+
+<h2>Layered walkthroughs</h2>
+
+<div class="grid">
+
+  <a class="card" href="diplomat-str-walkthrough.html">
+    <h3>&amp;DiplomatStr <span class="tag tag-slice">slice</span></h3>
+    <p>
+      UTF-8 string input. The encode-and-pin pipeline: caller's
+      <code>string</code> → <code>byte[]</code> via
+      <code>Encoding.UTF8.GetBytes</code> → <code>fixed</code> block → fat
+      pointer struct → Rust <code>&amp;[u8]</code>. The first slice case;
+      establishes the encode + pin pattern.
+    </p>
+    <div class="meta">diplomat-str-walkthrough.html · 6 layers · ✓ shipped</div>
+  </a>
+
+  <a class="card" href="byte-slice-walkthrough.html">
+    <h3>&amp;[u8] and &amp;mut [u8] <span class="tag tag-slice">slice</span></h3>
+    <p>
+      Primitive byte slices. <strong>The IronRDP unblock.</strong> Read-only
+      and mutable variants side by side, with the &amp;mut case's
+      write-through semantics emphasized — caller-owned buffer, Rust writes
+      in place, caller observes after the call returns.
+    </p>
+    <div class="meta">byte-slice-walkthrough.html · 6 layers · ✓ shipped</div>
+  </a>
+
+  <a class="card" href="result-walkthrough.html">
+    <h3>Result&lt;T, E&gt; <span class="tag tag-result">errors</span></h3>
+    <p>
+      The impedance mismatch. Rust's errors-as-values mapped to C#'s
+      throw-on-failure. Tagged-union <code>DiplomatResult</code> crosses the
+      wire by value; binding checks the tag, throws on Err with the error
+      payload, unwraps on Ok.
+    </p>
+    <div class="meta">result-walkthrough.html · 6 layers · ✓ shipped</div>
+  </a>
+
+  <a class="card" href="option-walkthrough.html">
+    <h3>Option&lt;T&gt; <span class="tag tag-result">nullable</span></h3>
+    <p>
+      Rust's absence type mapped to C# nullables. Two code paths: pointers
+      carry null natively (<code>Option&lt;Box&lt;T&gt;&gt;</code> → bare
+      <code>T*</code>, no extra bytes), value types need a tagged
+      <code>DiplomatOption&lt;T&gt;</code> struct (same machinery as Result,
+      unit error). Caller-side: <code>?.</code>, <code>??</code>, pattern
+      matching — no exception machinery.
+    </p>
+    <div class="meta">option-walkthrough.html · 2 paths · ✓ shipped</div>
+  </a>
+
+  <a class="card" href="diplomat-write-walkthrough.html">
+    <h3>DiplomatWrite <span class="tag tag-slice">writer</span></h3>
+    <p>
+      Rust can't return <code>String</code> across FFI — its heap is its
+      own. Instead, the caller (C#) provides a writer buffer; Rust appends
+      UTF-8 bytes into it; if the buffer fills, Rust calls back into C# via
+      a function pointer to grow it. Bidirectional FFI in one call.
+      <strong>The #1 missing feature for binding real Rust libraries</strong>
+      (16/22 picky-rs modules use it).
+    </p>
+    <div class="meta">diplomat-write-walkthrough.html · 6 layers · ⚙ codegen pending</div>
+  </a>
+
+  <a class="card" href="c-union-walkthrough.html">
+    <h3>C unions — precise mechanics <span class="tag tag-mem">memory</span></h3>
+    <p>
+      Foundation reading for <code>Result&lt;T, E&gt;</code>. Byte-level grids
+      of what unions look like in memory, how slack bytes work, why the tag
+      goes at the end, and how C# models the same shape via
+      <code>[StructLayout(Explicit)]</code> + overlapping
+      <code>[FieldOffset]</code>.
+    </p>
+    <div class="meta">c-union-walkthrough.html · memory layout · 📖 reference</div>
+  </a>
+
+</div>
+
+<h2>Early side-by-side previews</h2>
+
+<div class="grid">
+
+  <a class="card" href="preview.html">
+    <h3>Opaque type, side by side <span class="tag tag-preview">preview</span></h3>
+    <p>
+      Pre-walkthrough sketch: Rust opaque source and the equivalent C#
+      wrapper rendered next to each other. Useful as a quick overview of
+      the IDisposable shape but lighter than the full walkthroughs.
+    </p>
+    <div class="meta">preview.html · early sketch</div>
+  </a>
+
+  <a class="card" href="preview_struct.html">
+    <h3>Struct, side by side <span class="tag tag-preview">preview</span></h3>
+    <p>
+      Pre-walkthrough sketch for struct codegen: the
+      <code>[StructLayout(Sequential)]</code> + <code>AsFFI</code> /
+      <code>FromFFI</code> bridge pattern.
+    </p>
+    <div class="meta">preview_struct.html · early sketch</div>
+  </a>
+
+</div>
+
+<div class="footer">
+  served from dotnet_smoke/ · refresh after `just dotnet` to see updated
+  walkthroughs · generated <code>.cs</code> output lives in
+  <code>dotnet_smoke/out/</code> (separate concern)
+</div>
+
+</body>
+</html>

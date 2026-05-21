@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DiplomatStr — a layered walkthrough</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/csharp.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 28px 32px 80px;
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    line-height: 1.55;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  h1 {
+    margin: 0 0 4px 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #f0f6fc;
+  }
+  h2 {
+    margin: 40px 0 8px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #f0f6fc;
+    border-bottom: 1px solid #21262d;
+    padding-bottom: 6px;
+  }
+  h3 {
+    margin: 24px 0 6px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #c9d1d9;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .subtitle {
+    color: #8b949e;
+    font-size: 14px;
+    margin-bottom: 28px;
+  }
+  p { color: #c9d1d9; }
+  .panel {
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 12px 0;
+    background: #0d1117;
+  }
+  .panel-header {
+    background: #161b22;
+    color: #8b949e;
+    padding: 9px 14px;
+    font-size: 12px;
+    font-family: "SF Mono", Consolas, monospace;
+    border-bottom: 1px solid #30363d;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .panel-header .layer-tag {
+    background: #21262d;
+    color: #c9d1d9;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+  }
+  .panel-header .layer-rust    { background: #4d1f00; color: #ffa657; }
+  .panel-header .layer-abi     { background: #2d2d00; color: #d1d100; }
+  .panel-header .layer-csharp-raw  { background: #003a4d; color: #79c0ff; }
+  .panel-header .layer-csharp-impl { background: #033a16; color: #7ee787; }
+  .panel-header .layer-user    { background: #3a1d5d; color: #d2a8ff; }
+  pre { margin: 0; }
+  pre code {
+    padding: 14px 16px !important;
+    font-size: 13px;
+    line-height: 1.5;
+    font-family: "SF Mono", Consolas, "Liberation Mono", monospace;
+  }
+  .note {
+    background: #161b22;
+    border-left: 3px solid #58a6ff;
+    padding: 10px 14px;
+    margin: 12px 0;
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    color: #c9d1d9;
+  }
+  .note strong { color: #58a6ff; }
+  .warn {
+    background: #2d1b00;
+    border-left: 3px solid #d29922;
+  }
+  .warn strong { color: #d29922; }
+  table.bytes {
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 12px;
+  }
+  table.bytes th, table.bytes td {
+    border: 1px solid #30363d;
+    padding: 6px 10px;
+    text-align: center;
+  }
+  table.bytes th {
+    background: #161b22;
+    color: #8b949e;
+    font-weight: 500;
+  }
+  table.bytes td.ascii { color: #7ee787; }
+  table.bytes td.cont  { color: #ffa657; }
+  table.bytes td.lead  { color: #d2a8ff; }
+  .flow {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    margin: 20px 0;
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 13px;
+  }
+  .flow-step {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 10px 14px;
+  }
+  .flow-step .lbl {
+    color: #8b949e;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 2px;
+  }
+  .flow-arrow {
+    text-align: center;
+    color: #8b949e;
+    font-size: 16px;
+  }
+  .grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  code.inline {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 12px;
+    color: #79c0ff;
+  }
+  .legend {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin: 8px 0 20px 0;
+    font-size: 12px;
+  }
+  .legend span {
+    padding: 3px 10px;
+    border-radius: 4px;
+  }
+  .lg-rust    { background: #4d1f00; color: #ffa657; }
+  .lg-abi     { background: #2d2d00; color: #d1d100; }
+  .lg-raw     { background: #003a4d; color: #79c0ff; }
+  .lg-impl    { background: #033a16; color: #7ee787; }
+  .lg-user    { background: #3a1d5d; color: #d2a8ff; }
+</style>
+</head>
+<body>
+
+<h1>DiplomatStr — a layered walkthrough</h1>
+<div class="subtitle">
+  Tracing one string from a C# <code class="inline">string</code> down to a Rust
+  <code class="inline">&amp;[u8]</code> and back. The example below crosses five
+  layers; each layer is the auto-translation of the one above it, and the binary
+  contract sits in the middle.
+</div>
+
+<div class="legend">
+  <span class="lg-user">user code</span>
+  <span class="lg-impl">C# idiomatic (auto-gen)</span>
+  <span class="lg-raw">C# raw P/Invoke (auto-gen)</span>
+  <span class="lg-abi">C ABI contract (binary)</span>
+  <span class="lg-rust">Rust shim (macro-gen)</span>
+</div>
+
+<h2>The example</h2>
+<p>
+  We add one method to <code class="inline">Color</code> that counts how many
+  UTF-8 bytes its name has. We pick this shape on purpose:
+</p>
+<ul>
+  <li>one slice param, one primitive return — pure focus on the slice mechanics</li>
+  <li>no <code class="inline">Option</code>, no <code class="inline">Box</code> — those are different codegen problems</li>
+  <li>the test value <code class="inline">"héllo"</code> is 5 chars but 6 UTF-8 bytes — the boundary translation is visible</li>
+</ul>
+
+<h2>Layer 1 — Rust source (what the dev writes)</h2>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>dotnet_smoke/src/lib.rs</span>
+    <span class="layer-tag layer-rust">rust source</span>
+  </div>
+  <pre><code class="language-rust">#[diplomat::bridge]
+pub mod ffi {
+    use diplomat_runtime::DiplomatStr;
+
+    #[diplomat::opaque]
+    pub struct Color { pub brightness: u8 }
+
+    impl Color {
+        pub fn name_length(name: &amp;DiplomatStr) -&gt; u32 {
+            name.len() as u32
+        }
+    }
+}</code></pre>
+</div>
+
+<div class="note">
+  <strong>Why <code class="inline">&amp;DiplomatStr</code> and not <code class="inline">&amp;str</code>?</strong><br>
+  <code class="inline">DiplomatStr = [u8]</code> (a literal type alias in
+  <code class="inline">diplomat_runtime</code>). It is <em>unvalidated</em> UTF-8.
+  You can also write <code class="inline">&amp;str</code> and Diplomat accepts it,
+  but the HIR collapses both into the same node
+  (<code class="inline">Slice::Str(_, Utf8)</code>) because once you cross FFI,
+  "checked UTF-8" is only a convention. <code class="inline">&amp;DiplomatStr</code>
+  is the honest spelling.
+</div>
+
+<h2>Layer 2 — Macro-expanded extern (what diplomat::bridge emits)</h2>
+
+<p>
+  The <code class="inline">#[diplomat::bridge]</code> macro reads your source
+  and, for each method, emits an <code class="inline">extern "C"</code> shim with
+  every Rust-flavoured type rewritten into something <em>repr-stable</em>.
+</p>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>generated by the macro (you never write this)</span>
+    <span class="layer-tag layer-rust">rust shim</span>
+  </div>
+  <pre><code class="language-rust">#[no_mangle]
+pub unsafe extern "C" fn Color_name_length(
+    name: diplomat_runtime::DiplomatStrSlice,  // &lt;-- &amp;DiplomatStr became this
+) -&gt; u32 {
+    let name: &amp;[u8] = name.into();             // From&lt;DiplomatSlice&gt; for &amp;[u8]
+    Color::name_length(name)
+}</code></pre>
+</div>
+
+<p>
+  <code class="inline">DiplomatStrSlice</code> is just an alias defined in
+  <code class="inline">runtime/src/slices.rs</code>:
+</p>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>runtime/src/slices.rs</span>
+    <span class="layer-tag layer-rust">runtime</span>
+  </div>
+  <pre><code class="language-rust">pub type DiplomatStrSlice&lt;'a&gt; = DiplomatSlice&lt;'a, u8&gt;;
+
+#[repr(C)]
+pub struct DiplomatSlice&lt;'a, T&gt; {
+    ptr: *const T,
+    len: usize,
+    phantom: PhantomData&lt;&amp;'a [T]&gt;,
+}</code></pre>
+</div>
+
+<div class="note">
+  <strong>Key takeaway.</strong> The Rust signature
+  <code class="inline">fn(&amp;DiplomatStr) -&gt; u32</code> has been mechanically
+  rewritten into <code class="inline">fn(DiplomatSlice&lt;u8&gt;) -&gt; u32</code>.
+  That is the actual function that the OS loader sees in the
+  <code class="inline">.dll</code>'s export table.
+</div>
+
+<h2>Layer 3 — The C ABI contract (the binary truth)</h2>
+
+<p>
+  This layer has no source code in either language. It's the binary agreement
+  both sides have to honour. For our method:
+</p>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>Color_name_length — exported symbol</span>
+    <span class="layer-tag layer-abi">C ABI</span>
+  </div>
+  <pre><code class="language-c">// In C terms, the export looks like:
+struct DiplomatSliceU8 {
+    const uint8_t* ptr;   //  8 bytes on x64
+    size_t         len;   //  8 bytes on x64
+};                        // 16 bytes total, passed by value
+
+uint32_t Color_name_length(struct DiplomatSliceU8 name);</code></pre>
+</div>
+
+<div class="note warn">
+  <strong>Two-word fat pointer, by value.</strong> Every borrowed slice in
+  Diplomat — string or primitive, <code class="inline">&amp;[T]</code> or
+  <code class="inline">&amp;mut [T]</code> — boils down to
+  <code class="inline">{ T*, usize }</code> at the ABI level. The "mut" is a
+  Rust-side invariant; ABI-wise it's just <code class="inline">*mut T</code> vs
+  <code class="inline">*const T</code>.
+</div>
+
+<h2>Layer 4 — C# raw P/Invoke (what our codegen will emit)</h2>
+
+<p>
+  The .NET backend mirrors the ABI struct exactly with
+  <code class="inline">[StructLayout(Sequential)]</code>, then declares the
+  extern with that struct as the param type. This is the "raw" layer — direct,
+  unsafe, one-to-one with the ABI.
+</p>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>dotnet_smoke/out/Raw/DiplomatSliceU8.cs (codegen)</span>
+    <span class="layer-tag layer-csharp-raw">C# raw</span>
+  </div>
+  <pre><code class="language-csharp">namespace DotnetSmoke.Raw;
+
+[StructLayout(LayoutKind.Sequential)]
+internal unsafe struct DiplomatSliceU8
+{
+    public byte* Ptr;   // matches *const u8
+    public nuint Len;   // matches usize (nuint = native-sized uint)
+}</code></pre>
+</div>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>dotnet_smoke/out/Raw/Color.cs (codegen)</span>
+    <span class="layer-tag layer-csharp-raw">C# raw</span>
+  </div>
+  <pre><code class="language-csharp">namespace DotnetSmoke.Raw;
+
+internal static unsafe partial class Color
+{
+    [DllImport("dotnet_smoke", CallingConvention = CallingConvention.Cdecl,
+               EntryPoint = "Color_name_length")]
+    public static extern uint NameLength(DiplomatSliceU8 name);
+}</code></pre>
+</div>
+
+<div class="note">
+  <strong>Why <code class="inline">nuint</code>?</strong> Rust's
+  <code class="inline">usize</code> is "pointer-sized" — 4 bytes on x86, 8 on
+  x64. .NET's <code class="inline">nuint</code> is the same: a native-sized
+  unsigned integer. Using <code class="inline">uint</code> here would silently
+  truncate on 64-bit systems for any slice larger than 4 GiB.
+</div>
+
+<h2>Layer 5 — C# idiomatic wrapper (what the user actually calls)</h2>
+
+<p>
+  The user shouldn't have to think about fat pointers, encoding, or pinning.
+  The idiomatic layer takes a regular <code class="inline">string</code>,
+  encodes it to UTF-8, pins the byte array so the GC can't move it, and
+  constructs the raw struct.
+</p>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>dotnet_smoke/out/Color.cs (codegen)</span>
+    <span class="layer-tag layer-csharp-impl">C# idiomatic</span>
+  </div>
+  <pre><code class="language-csharp">namespace DotnetSmoke;
+
+public sealed partial class Color : IDisposable
+{
+    public static uint NameLength(string name)
+    {
+        unsafe
+        {
+            byte[] nameBytes = Encoding.UTF8.GetBytes(name);
+            fixed (byte* namePtr = nameBytes)
+            {
+                return Raw.Color.NameLength(new Raw.DiplomatSliceU8
+                {
+                    Ptr = namePtr,
+                    Len = (nuint)nameBytes.Length,
+                });
+            }
+        }
+    }
+}</code></pre>
+</div>
+
+<div class="note warn">
+  <strong>The <code class="inline">fixed</code> block is load-bearing.</strong>
+  Inside <code class="inline">fixed</code>, the GC promises not to move
+  <code class="inline">nameBytes</code>, so <code class="inline">namePtr</code>
+  stays valid. Outside the block, the pointer is dangling. This is why Rust must
+  not retain the slice past the call — and why Diplomat's HIR rejects any signature
+  that would let it.
+</div>
+
+<h2>Layer 6 — User call site</h2>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>dotnet_smoke/tests/Program.cs</span>
+    <span class="layer-tag layer-user">user code</span>
+  </div>
+  <pre><code class="language-csharp">uint len = Color.NameLength("héllo");
+// len == 6     (NOT 5 — "é" is two UTF-8 bytes)</code></pre>
+</div>
+
+<h2>End-to-end data flow for <code class="inline">"héllo"</code></h2>
+
+<div class="flow">
+  <div class="flow-step">
+    <div class="lbl">1. User code (C#)</div>
+    <code>Color.NameLength("héllo")</code> &mdash; a managed .NET
+    <code>string</code>, stored as UTF-16 internally:
+    <code>[0x0068, 0x00E9, 0x006C, 0x006C, 0x006F]</code> &mdash; 5 code units, 10 bytes.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step">
+    <div class="lbl">2. Idiomatic wrapper encodes</div>
+    <code>Encoding.UTF8.GetBytes("héllo")</code> allocates a managed
+    <code>byte[6]</code> on the heap with the bytes shown below.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step">
+    <div class="lbl">3. fixed block pins the array</div>
+    The GC marks the array as immovable. <code>namePtr</code> now points to
+    its first byte, with a guaranteed-valid lifetime for the duration of the
+    enclosing <code>fixed</code> block.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step">
+    <div class="lbl">4. Build raw fat pointer</div>
+    <code>new Raw.DiplomatSliceU8 { Ptr = namePtr, Len = 6 }</code> &mdash;
+    a 16-byte struct, passed by value on the stack.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step">
+    <div class="lbl">5. P/Invoke crosses the boundary</div>
+    The CLR marshals nothing &mdash; the struct is blittable, so it's a
+    raw memcpy onto the native stack. Control transfers to
+    <code>Color_name_length</code> in <code>dotnet_smoke.dll</code>.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step">
+    <div class="lbl">6. Rust shim rehydrates the slice</div>
+    <code>name.into()</code> calls
+    <code>From&lt;DiplomatSlice&lt;u8&gt;&gt; for &amp;[u8]</code> which does
+    <code>slice::from_raw_parts(ptr, len)</code>. <code>name</code> is now a
+    bonafide <code>&amp;[u8]</code> pointing into the C# heap.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step">
+    <div class="lbl">7. User Rust runs</div>
+    <code>name.len() as u32</code> &rarr; <code>6u32</code>.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step">
+    <div class="lbl">8. Return value crosses back</div>
+    A 4-byte <code>uint32_t</code> in <code>eax</code> &mdash; standard C ABI
+    primitive return. CLR sees a <code>uint</code>.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step">
+    <div class="lbl">9. fixed block ends, GC takes over again</div>
+    <code>namePtr</code> is now invalid. <code>nameBytes</code> can be
+    collected at the next GC cycle. The boundary is closed.
+  </div>
+</div>
+
+<h2>What's actually in memory</h2>
+
+<h3>The C# <code class="inline">string</code> (UTF-16, 10 bytes)</h3>
+
+<table class="bytes">
+  <tr><th>char</th><td>h</td><td>é</td><td>l</td><td>l</td><td>o</td></tr>
+  <tr><th>UTF-16 code unit</th>
+      <td>0x0068</td><td>0x00E9</td><td>0x006C</td><td>0x006C</td><td>0x006F</td></tr>
+  <tr><th>bytes (LE)</th>
+      <td>68 00</td><td>E9 00</td><td>6C 00</td><td>6C 00</td><td>6F 00</td></tr>
+</table>
+
+<h3>After <code class="inline">Encoding.UTF8.GetBytes(...)</code> (UTF-8, 6 bytes)</h3>
+
+<table class="bytes">
+  <tr><th>byte index</th><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td></tr>
+  <tr><th>hex</th>
+      <td class="ascii">68</td>
+      <td class="lead">C3</td>
+      <td class="cont">A9</td>
+      <td class="ascii">6C</td>
+      <td class="ascii">6C</td>
+      <td class="ascii">6F</td></tr>
+  <tr><th>meaning</th>
+      <td class="ascii">'h'</td>
+      <td class="lead">é lead</td>
+      <td class="cont">é cont</td>
+      <td class="ascii">'l'</td>
+      <td class="ascii">'l'</td>
+      <td class="ascii">'o'</td></tr>
+</table>
+
+<p style="font-size:13px; color:#8b949e;">
+  ASCII chars are one byte each; <code class="inline">é</code> (U+00E9) is two
+  bytes in UTF-8 (<code class="inline">C3 A9</code>). Total = 6, which is what
+  Rust's <code class="inline">name.len()</code> returns &mdash; not 5 (the char
+  count) and not 10 (the UTF-16 byte count).
+</p>
+
+<h3>The fat pointer on the wire (16 bytes, x64)</h3>
+
+<table class="bytes">
+  <tr><th>offset</th><td>0..8</td><td>8..16</td></tr>
+  <tr><th>field</th><td><code>ptr</code></td><td><code>len</code></td></tr>
+  <tr><th>value</th>
+      <td>0x000001B4_5F2C8010<br>(address of byte 0)</td>
+      <td>0x00000000_00000006<br>(= 6)</td></tr>
+</table>
+
+<h2>Reading the same picture in reverse — <code class="inline">&amp;mut [u8]</code></h2>
+
+<p>
+  The <code class="inline">&amp;mut [u8]</code> story is identical to
+  <code class="inline">&amp;DiplomatStr</code> with three substitutions:
+</p>
+
+<div class="grid2">
+  <div class="panel">
+    <div class="panel-header">
+      <span>delta vs DiplomatStr</span>
+      <span class="layer-tag layer-abi">comparison</span>
+    </div>
+    <pre><code class="language-csharp">// Idiomatic signature
+//   string                  -&gt; Span&lt;byte&gt;
+//
+// No encoding step needed
+//   Encoding.UTF8.GetBytes  -&gt; (none)
+//
+// Pin the caller's Span directly
+//   fixed (byte* p = bytes) -&gt; fixed (byte* p = span)
+//
+// Raw struct on the wire
+//   DiplomatSliceU8         -&gt; DiplomatSliceMutU8
+//   { *const u8, usize }    -&gt; { *mut u8, usize }</code></pre>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <span>example wrapper for &amp;mut [u8]</span>
+      <span class="layer-tag layer-csharp-impl">C# idiomatic</span>
+    </div>
+    <pre><code class="language-csharp">public void FillInto(Span&lt;byte&gt; buf)
+{
+    unsafe
+    {
+        fixed (byte* p = buf)
+        {
+            Raw.Frame.FillInto(_inner, new Raw.DiplomatSliceMutU8
+            {
+                Ptr = p,
+                Len = (nuint)buf.Length,
+            });
+        }
+    }
+}</code></pre>
+  </div>
+</div>
+
+<div class="note">
+  <strong>Why this matters for IronRDP.</strong> RDP frame decoding writes into
+  caller-owned buffers — that's exactly <code class="inline">&amp;mut [u8]</code>.
+  uniffi currently only supports immutable <code class="inline">&amp;[u8]</code>
+  (PR #2878), which means every frame would force an extra allocation +
+  copy-back. Diplomat handles <code class="inline">&amp;mut [u8]</code> natively
+  via the same machinery as above, just with <code class="inline">DiplomatSliceMut</code>
+  instead of <code class="inline">DiplomatSlice</code>. That's the entire
+  technical reason we're porting to Diplomat instead of using uniffi.
+</div>
+
+<h2>Layer invariants — the contract each layer enforces</h2>
+
+<div class="panel">
+  <div class="panel-header"><span>who guarantees what</span></div>
+  <pre><code class="language-csharp">/*
+  Layer 1 (Rust source)
+    - Lifetime of &amp;DiplomatStr does not outlive the call.
+      The borrow checker enforces this at compile time.
+
+  Layer 2 (Macro shim)
+    - From&lt;DiplomatSlice&lt;u8&gt;&gt; for &amp;[u8] handles null-ptr-as-empty
+      and reconstructs the slice via slice::from_raw_parts.
+    - The macro forbids signatures that would let &amp;DiplomatStr escape.
+
+  Layer 3 (C ABI)
+    - { ptr, len } is repr(C), 16 bytes on x64, blittable.
+    - No marshalling, no allocation, no validation.
+
+  Layer 4 (C# raw)
+    - [StructLayout(Sequential)] mirrors the Rust struct field-for-field.
+    - byte* and nuint match *const u8 and usize on every supported platform.
+
+  Layer 5 (C# idiomatic)
+    - Encoding.UTF8.GetBytes allocates a fresh managed byte[]
+      &mdash; the caller's string is never modified.
+    - fixed block guarantees the byte[] is pinned for the duration of
+      the call. The pointer is valid; Rust can dereference safely.
+
+  Layer 6 (User)
+    - Just calls a normal C# method. Doesn't think about any of this.
+*/</code></pre>
+</div>
+
+<h2>Summary &mdash; the one-line story per layer</h2>
+
+<ol style="font-size:14px;">
+  <li><strong>Rust source:</strong> <code class="inline">&amp;DiplomatStr</code> is a Rust slice; the borrow checker controls its lifetime.</li>
+  <li><strong>Macro shim:</strong> rewrites it to <code class="inline">DiplomatSlice&lt;u8&gt;</code>, a repr(C) <code class="inline">{ptr, len}</code> struct.</li>
+  <li><strong>C ABI:</strong> the function takes that 16-byte struct by value &mdash; nothing else crosses.</li>
+  <li><strong>C# raw:</strong> a sequential-layout <code class="inline">DiplomatSliceU8</code> mirrors the struct; the extern declares it as the param type.</li>
+  <li><strong>C# idiomatic:</strong> takes a <code class="inline">string</code>, encodes to UTF-8, pins with <code class="inline">fixed</code>, builds the struct, calls raw.</li>
+  <li><strong>User:</strong> writes <code class="inline">Color.NameLength("héllo")</code>. Done.</li>
+</ol>
+
+<script>
+  hljs.highlightAll();
+</script>
+
+</body>
+</html>

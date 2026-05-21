@@ -1,0 +1,16 @@
+# Diplomat-tool configuration for the .NET smoke crate.
+#
+# Shared fields (lib_name, etc.) live at the top level — `Config` uses
+# `#[serde(flatten)]` on `SharedConfig`. The `[dotnet]` section maps onto
+# `tool/src/dotnet/mod.rs::DotnetConfig`.
+
+lib_name = "dotnet_smoke"
+
+[dotnet]
+namespace  = "DotnetSmoke"
+# dylib_name = "dotnet_smoke"   # defaults to lib_name when omitted
+# scaffold   = "false"
+exception_trim_suffix = "Error"
+exception_message_method = "ToDisplay"
+getters_prefix = "get_"
+setters_prefix = "set_"

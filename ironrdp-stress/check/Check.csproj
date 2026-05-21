@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Syntax-check project for ironrdp-stress.
+    Compiles the generated bindings in ../../target/ironrdp_gen alongside
+    IronRDP's hand-written addons in
+    D:/IronRDP/ffi/dotnet/Devolutions.IronRdp/src.
+    Verifies that downstream consumers compile against our codegen output.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <!-- IronRDP addons use Task/Stream/etc — pull in System.* automatically. -->
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Devolutions.IronRdp</RootNamespace>
+    <NoWarn>CS8019;CS0169;CS0414;CS0649;CS8500;CS0162</NoWarn>
+    <BaseIntermediateOutputPath>obj\</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin\</BaseOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="**\*.cs" />
+    <Compile Include="..\..\target\ironrdp_gen\**\*.cs" />
+    <Compile Include="D:\IronRDP\ffi\dotnet\Devolutions.IronRdp\src\*.cs" />
+  </ItemGroup>
+
+</Project>

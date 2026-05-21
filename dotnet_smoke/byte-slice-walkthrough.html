@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>&amp;[u8] and &amp;mut [u8] — a layered walkthrough</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/csharp.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto;
+    padding: 28px 32px 80px;
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    line-height: 1.55;
+    max-width: 1200px;
+  }
+  h1 { margin: 0 0 4px 0; font-size: 24px; font-weight: 600; color: #f0f6fc; }
+  h2 { margin: 40px 0 8px 0; font-size: 18px; font-weight: 600; color: #f0f6fc; border-bottom: 1px solid #21262d; padding-bottom: 6px; }
+  h3 { margin: 24px 0 6px 0; font-size: 14px; font-weight: 600; color: #c9d1d9; text-transform: uppercase; letter-spacing: 0.05em; }
+  .subtitle { color: #8b949e; font-size: 14px; margin-bottom: 28px; }
+  p { color: #c9d1d9; }
+  .panel { border: 1px solid #30363d; border-radius: 8px; overflow: hidden; margin: 12px 0; background: #0d1117; }
+  .panel-header {
+    background: #161b22; color: #8b949e; padding: 9px 14px; font-size: 12px;
+    font-family: "SF Mono", Consolas, monospace; border-bottom: 1px solid #30363d;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .panel-header .layer-tag { background: #21262d; color: #c9d1d9; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+  .panel-header .layer-rust          { background: #4d1f00; color: #ffa657; }
+  .panel-header .layer-abi           { background: #2d2d00; color: #d1d100; }
+  .panel-header .layer-csharp-raw    { background: #003a4d; color: #79c0ff; }
+  .panel-header .layer-csharp-impl   { background: #033a16; color: #7ee787; }
+  .panel-header .layer-user          { background: #3a1d5d; color: #d2a8ff; }
+  .panel-header .layer-mut           { background: #5d1d1d; color: #f85149; }
+  pre { margin: 0; }
+  pre code { padding: 14px 16px !important; font-size: 13px; line-height: 1.5; font-family: "SF Mono", Consolas, "Liberation Mono", monospace; }
+  .note { background: #161b22; border-left: 3px solid #58a6ff; padding: 10px 14px; margin: 12px 0; border-radius: 0 6px 6px 0; font-size: 13px; color: #c9d1d9; }
+  .note strong { color: #58a6ff; }
+  .warn { background: #2d1b00; border-left-color: #d29922; }
+  .warn strong { color: #d29922; }
+  .mut-note { background: #2d0d0d; border-left-color: #f85149; }
+  .mut-note strong { color: #f85149; }
+  .win { background: #07260f; border-left-color: #56d364; }
+  .win strong { color: #56d364; }
+  table.bytes { border-collapse: collapse; margin: 14px 0; font-family: "SF Mono", Consolas, monospace; font-size: 12px; }
+  table.bytes th, table.bytes td { border: 1px solid #30363d; padding: 6px 10px; text-align: center; }
+  table.bytes th { background: #161b22; color: #8b949e; font-weight: 500; }
+  table.bytes td.zero  { color: #6e7681; }
+  table.bytes td.write { color: #f85149; }
+  table.bytes td.read  { color: #56d364; }
+  .flow { display: grid; grid-template-columns: 1fr; gap: 6px; margin: 20px 0; font-family: "SF Mono", Consolas, monospace; font-size: 13px; }
+  .flow-step { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 10px 14px; }
+  .flow-step .lbl { color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+  .flow-arrow { text-align: center; color: #8b949e; font-size: 16px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  code.inline { background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Consolas, monospace; font-size: 12px; color: #79c0ff; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 8px 0 20px 0; font-size: 12px; }
+  .legend span { padding: 3px 10px; border-radius: 4px; }
+  .lg-rust    { background: #4d1f00; color: #ffa657; }
+  .lg-abi     { background: #2d2d00; color: #d1d100; }
+  .lg-raw     { background: #003a4d; color: #79c0ff; }
+  .lg-impl    { background: #033a16; color: #7ee787; }
+  .lg-user    { background: #3a1d5d; color: #d2a8ff; }
+  .lg-mut     { background: #5d1d1d; color: #f85149; }
+</style>
+</head>
+<body>
+
+<h1>&amp;[u8] and &amp;mut [u8] — a layered walkthrough</h1>
+<div class="subtitle">
+  Primitive byte slices crossing FFI. <strong>This is the IronRDP unblock.</strong>
+  uniffi only supports the immutable side; <code class="inline">&amp;mut [u8]</code>
+  is exactly what RDP frame decoding needs — a caller-owned buffer that Rust
+  writes into and the caller reads back. Diplomat handles both natively.
+</div>
+
+<div class="legend">
+  <span class="lg-user">user code</span>
+  <span class="lg-impl">C# idiomatic (auto-gen)</span>
+  <span class="lg-raw">C# raw P/Invoke (auto-gen)</span>
+  <span class="lg-abi">C ABI contract (binary)</span>
+  <span class="lg-rust">Rust shim (macro-gen)</span>
+  <span class="lg-mut">mutation point</span>
+</div>
+
+<h2>The two examples</h2>
+<p>
+  Two methods on <code class="inline">Color</code> illustrate the immutable
+  vs mutable case. Each is the minimal shape that exercises its lowering
+  path end-to-end:
+</p>
+<ul>
+  <li><strong>Immutable</strong>: <code class="inline">checksum(bytes: &amp;[u8]) -&gt; u32</code> — bytes come in, primitive goes out, Rust reads only.</li>
+  <li><strong>Mutable</strong>: <code class="inline">fill_buffer(&amp;self, buf: &amp;mut [u8])</code> — caller's buffer goes in empty, comes back filled with <code class="inline">self.brightness</code>.</li>
+</ul>
+
+<h2>Layer 1 — Rust source (what the dev writes)</h2>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>dotnet_smoke/src/lib.rs</span>
+    <span class="layer-tag layer-rust">rust source</span>
+  </div>
+  <pre><code class="language-rust">impl Color {
+    /// Immutable byte slice — Rust reads, never writes.
+    pub fn checksum(bytes: &amp;[u8]) -&gt; u32 {
+        bytes.iter().map(|&amp;b| b as u32).sum()
+    }
+
+    /// Mutable byte slice — Rust writes through, caller sees the writes.
+    /// This is the shape IronRDP needs for frame decoding.
+    pub fn fill_buffer(&amp;self, buf: &amp;mut [u8]) {
+        for b in buf.iter_mut() {
+            *b = self.brightness;
+        }
+    }
+}</code></pre>
+</div>
+
+<div class="note">
+  <strong>The key distinction.</strong> <code class="inline">&amp;[u8]</code>
+  is a read-only borrow (no Rust-side mutation). <code class="inline">&amp;mut [u8]</code>
+  is an exclusive mutable borrow — Rust can write through, and the caller
+  observes the writes after the call returns. The borrow checker enforces
+  exclusivity on the Rust side; the C# binding has to honor it by hand.
+</div>
+
+<h2>Layer 2 — Macro-expanded extern (what diplomat::bridge emits)</h2>
+
+<p>
+  Both <code class="inline">&amp;[u8]</code> and <code class="inline">&amp;mut [u8]</code>
+  get rewritten to <code class="inline">DiplomatSlice</code> /
+  <code class="inline">DiplomatSliceMut</code> respectively — a repr(C) fat
+  pointer struct. Same shape; the only difference is the pointer's
+  mutability marker.
+</p>
+
+<div class="grid2">
+  <div class="panel">
+    <div class="panel-header">
+      <span>checksum — generated extern</span>
+      <span class="layer-tag layer-rust">rust shim</span>
+    </div>
+    <pre><code class="language-rust">#[no_mangle]
+pub unsafe extern "C" fn Color_checksum(
+    bytes: DiplomatSlice&lt;u8&gt;,
+) -&gt; u32 {
+    let bytes: &amp;[u8] = bytes.into();
+    Color::checksum(bytes)
+}</code></pre>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <span>fill_buffer — generated extern</span>
+      <span class="layer-tag layer-rust">rust shim</span>
+    </div>
+    <pre><code class="language-rust">#[no_mangle]
+pub unsafe extern "C" fn Color_fill_buffer(
+    handle: *const Color,
+    buf: DiplomatSliceMut&lt;u8&gt;,
+) {
+    let this: &amp;Color = &amp;*handle;
+    let buf: &amp;mut [u8] = buf.into();
+    this.fill_buffer(buf);
+}</code></pre>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>runtime/src/slices.rs — the two structs</span>
+    <span class="layer-tag layer-rust">runtime</span>
+  </div>
+  <pre><code class="language-rust">#[repr(C)]
+pub struct DiplomatSlice&lt;'a, T&gt; {
+    ptr: *const T,    // immutable pointer
+    len: usize,
+    phantom: PhantomData&lt;&amp;'a [T]&gt;,
+}
+
+#[repr(C)]
+pub struct DiplomatSliceMut&lt;'a, T&gt; {
+    ptr: *mut T,      // mutable pointer — same 16 bytes on the wire
+    len: usize,
+    phantom: PhantomData&lt;&amp;'a mut [T]&gt;,
+}</code></pre>
+</div>
+
+<div class="note">
+  <strong>ABI: identical 16 bytes.</strong> <code class="inline">*const T</code>
+  and <code class="inline">*mut T</code> have the same machine representation —
+  a pointer is a pointer. The mutability marker only affects what Rust /
+  the C# binding are <em>allowed</em> to do, not how the bytes line up.
+  This is why the two structs need <em>distinct C# types</em> (so the
+  binding tracks the intent) even though their layout is identical.
+</div>
+
+<h2>Layer 3 — The C ABI contract</h2>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>exported symbols</span>
+    <span class="layer-tag layer-abi">C ABI</span>
+  </div>
+  <pre><code class="language-c">struct DiplomatSliceU8     { const uint8_t* ptr; size_t len; };
+struct DiplomatSliceMutU8  { uint8_t*       ptr; size_t len; };
+
+uint32_t Color_checksum(struct DiplomatSliceU8 bytes);
+void     Color_fill_buffer(const Color* handle, struct DiplomatSliceMutU8 buf);</code></pre>
+</div>
+
+<p>
+  Both pass the fat pointer struct by value. 16 bytes on x64, blittable,
+  no marshalling.
+</p>
+
+<h2>Layer 4 — C# raw P/Invoke</h2>
+
+<p>
+  Two raw structs mirror the C ABI. The codegen emits both as runtime
+  helpers (sibling files like <code class="inline">DiplomatSliceU8.cs</code>
+  and <code class="inline">DiplomatSliceMutU8.cs</code>) once per element
+  type used.
+</p>
+
+<div class="grid2">
+  <div class="panel">
+    <div class="panel-header">
+      <span>DiplomatSliceU8.cs</span>
+      <span class="layer-tag layer-csharp-raw">C# raw</span>
+    </div>
+    <pre><code class="language-csharp">[StructLayout(LayoutKind.Sequential)]
+internal unsafe struct DiplomatSliceU8
+{
+    public byte* Ptr;     // const byte*
+    public nuint Len;
+}</code></pre>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <span>DiplomatSliceMutU8.cs</span>
+      <span class="layer-tag layer-csharp-raw">C# raw</span>
+    </div>
+    <pre><code class="language-csharp">[StructLayout(LayoutKind.Sequential)]
+internal unsafe struct DiplomatSliceMutU8
+{
+    public byte* Ptr;     // mut byte* — same C# type, different intent
+    public nuint Len;
+}</code></pre>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>RawColor.cs (codegen)</span>
+    <span class="layer-tag layer-csharp-raw">C# raw</span>
+  </div>
+  <pre><code class="language-csharp">[DllImport(NativeLib, EntryPoint = "Color_checksum",    CallingConvention = CallingConvention.Cdecl)]
+public static extern uint Checksum(DiplomatSliceU8 bytes);
+
+[DllImport(NativeLib, EntryPoint = "Color_fill_buffer", CallingConvention = CallingConvention.Cdecl)]
+public static extern void FillBuffer(Color* handle, DiplomatSliceMutU8 buf);</code></pre>
+</div>
+
+<h2>Layer 5 — C# idiomatic wrapper</h2>
+
+<p>
+  Here's where the two diverge. Immutable takes <code class="inline">ReadOnlySpan&lt;byte&gt;</code>;
+  mutable takes <code class="inline">Span&lt;byte&gt;</code>. Both pin via
+  <code class="inline">fixed</code> directly — <strong>no encoding step</strong>
+  (caller already has bytes), <strong>no allocation</strong> (no
+  intermediate <code class="inline">byte[]</code>). Zero-copy.
+</p>
+
+<div class="grid2">
+  <div class="panel">
+    <div class="panel-header">
+      <span>Color.cs — Checksum (immutable)</span>
+      <span class="layer-tag layer-csharp-impl">C# idiomatic</span>
+    </div>
+    <pre><code class="language-csharp">public static uint Checksum(ReadOnlySpan&lt;byte&gt; bytes)
+{
+    unsafe
+    {
+        fixed (byte* bytesPtr = bytes)
+        {
+            return Raw.Color.Checksum(new DiplomatSliceU8
+            {
+                Ptr = bytesPtr,
+                Len = (nuint)bytes.Length,
+            });
+        }
+    }
+}</code></pre>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <span>Color.cs — FillBuffer (mutable)</span>
+      <span class="layer-tag layer-mut">C# idiomatic + mut</span>
+    </div>
+    <pre><code class="language-csharp">public void FillBuffer(Span&lt;byte&gt; buf)
+{
+    unsafe
+    {
+        if (_inner == null) throw new ObjectDisposedException(nameof(Color));
+        fixed (byte* bufPtr = buf)
+        {
+            Raw.Color.FillBuffer(_inner, new DiplomatSliceMutU8
+            {
+                Ptr = bufPtr,
+                Len = (nuint)buf.Length,
+            });
+        }
+        // After this point, `buf` reflects Rust's writes.
+    }
+}</code></pre>
+  </div>
+</div>
+
+<div class="note warn">
+  <strong>Why <code class="inline">Span&lt;T&gt;</code> instead of <code class="inline">byte[]</code>?</strong><br>
+  <code class="inline">Span&lt;byte&gt;</code> accepts <code class="inline">byte[]</code>,
+  <code class="inline">stackalloc byte[N]</code>, slices of larger arrays
+  (<code class="inline">arr.AsSpan(start, length)</code>), and unmanaged
+  memory. <code class="inline">byte[]</code> only accepts a managed array.
+  For an FFI surface that's supposed to be flexible, <code class="inline">Span</code>
+  is the right choice. <code class="inline">fixed (byte* p = span)</code>
+  has worked on <code class="inline">Span&lt;T&gt;</code> since .NET 7.
+</div>
+
+<h2>Layer 6 — User call site</h2>
+
+<div class="grid2">
+  <div class="panel">
+    <div class="panel-header">
+      <span>checksum — read-only</span>
+      <span class="layer-tag layer-user">user code</span>
+    </div>
+    <pre><code class="language-csharp">byte[] payload = File.ReadAllBytes("frame.bin");
+uint sum = Color.Checksum(payload);
+// payload unchanged — Color::checksum doesn't write
+</code></pre>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <span>fill_buffer — Rust writes back</span>
+      <span class="layer-tag layer-mut">user code + mut</span>
+    </div>
+    <pre><code class="language-csharp">using var c = Color.New();
+c.SetBrightness(128);
+
+Span&lt;byte&gt; buf = stackalloc byte[4];
+// buf = [0, 0, 0, 0]
+
+c.FillBuffer(buf);
+// buf = [128, 128, 128, 128]   ← Rust wrote through
+</code></pre>
+  </div>
+</div>
+
+<h2>End-to-end data flow for <code class="inline">fill_buffer</code></h2>
+
+<p>
+  This is the IronRDP path — caller-owned buffer, Rust mutates in place. The
+  reverse direction (writes propagating back to C#) is the meaty step.
+</p>
+
+<div class="flow">
+  <div class="flow-step">
+    <div class="lbl">1. User allocates</div>
+    <code>Span&lt;byte&gt; buf = stackalloc byte[4];</code> — 4 bytes on the stack,
+    initialized to zero. <code>buf</code> points at it.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step">
+    <div class="lbl">2. Idiomatic wrapper enters</div>
+    Disposed check runs (instance method on Color). No allocation, no copy.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step">
+    <div class="lbl">3. fixed block pins the buffer</div>
+    <code>fixed (byte* bufPtr = buf)</code> tells the GC: don't move
+    <code>buf</code>'s backing storage until this block exits. Even
+    though stackalloc memory isn't subject to GC, the codegen emits
+    <code>fixed</code> uniformly so the Span source doesn't matter.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step">
+    <div class="lbl">4. Build the fat pointer struct</div>
+    <code>new DiplomatSliceMutU8 { Ptr = bufPtr, Len = 4 }</code> —
+    16 bytes by value on the native stack.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step">
+    <div class="lbl">5. P/Invoke crosses the boundary</div>
+    Blittable struct, raw memcpy onto native stack. Rust's
+    <code>Color_fill_buffer</code> receives <code>handle</code> and <code>buf</code>.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step">
+    <div class="lbl">6. Rust rehydrates &amp;mut [u8]</div>
+    <code>buf.into()</code> calls
+    <code>From&lt;DiplomatSliceMut&lt;u8&gt;&gt; for &amp;mut [u8]</code>:
+    <code>slice::from_raw_parts_mut(ptr, len)</code>. <code>buf</code> is
+    now an exclusive mutable reference into the C# caller's memory.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step">
+    <div class="lbl">7. Rust writes through</div>
+    <code>for b in buf.iter_mut() { *b = self.brightness; }</code> — each
+    <code>*b = 128</code> issues a store to the address pointed to by
+    <code>bufPtr</code>, which is the caller's stack-allocated buffer.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step">
+    <div class="lbl">8. Rust returns (no return value)</div>
+    <code>Color_fill_buffer</code> exits. Native stack unwound.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step">
+    <div class="lbl">9. fixed block ends, C# resumes</div>
+    <code>bufPtr</code> is now invalid. But <code>buf</code> (the Span)
+    is unchanged — it still points at the same 4 bytes, which now hold
+    <code>[128, 128, 128, 128]</code>. Caller observes the writes.
+  </div>
+</div>
+
+<h2>What's in memory during the call</h2>
+
+<h3>Before the FFI call (caller stack)</h3>
+
+<table class="bytes">
+  <tr><th>buf offset</th><td>0</td><td>1</td><td>2</td><td>3</td></tr>
+  <tr><th>value</th>
+      <td class="zero">00</td>
+      <td class="zero">00</td>
+      <td class="zero">00</td>
+      <td class="zero">00</td></tr>
+</table>
+
+<h3>The fat pointer struct on the wire (16 bytes)</h3>
+
+<table class="bytes">
+  <tr><th>offset</th><td>0..8</td><td>8..16</td></tr>
+  <tr><th>field</th><td><code>Ptr</code></td><td><code>Len</code></td></tr>
+  <tr><th>value</th>
+      <td>0x00007FFE_5F2C8010<br>(addr of buf[0])</td>
+      <td>0x00000000_00000004<br>(= 4)</td></tr>
+</table>
+
+<h3>After the FFI call (same memory, Rust wrote through)</h3>
+
+<table class="bytes">
+  <tr><th>buf offset</th><td>0</td><td>1</td><td>2</td><td>3</td></tr>
+  <tr><th>value</th>
+      <td class="write">80</td>
+      <td class="write">80</td>
+      <td class="write">80</td>
+      <td class="write">80</td></tr>
+</table>
+
+<p style="font-size:13px; color:#8b949e;">
+  Same address, same length. Bytes changed from <code class="inline">00</code>
+  to <code class="inline">0x80</code> (= 128) because Rust's
+  <code class="inline">*b = self.brightness</code> wrote through the
+  pointer. Zero copies, zero allocations — the buffer never left the
+  caller's stack.
+</p>
+
+<h2>The three slice flavors compared</h2>
+
+<div class="grid3">
+  <div class="panel">
+    <div class="panel-header">
+      <span>&amp;DiplomatStr</span>
+      <span class="layer-tag layer-csharp-impl">UTF-8</span>
+    </div>
+    <pre><code class="language-csharp">public static uint X(string name)
+{
+    unsafe
+    {
+        byte[] nameBytes =
+          Encoding.UTF8.GetBytes(name);
+        fixed (byte* p = nameBytes)
+        {
+            return Raw.X(new DiplomatSliceU8 {
+              Ptr = p, Len = (nuint)nameBytes.Length
+            });
+        }
+    }
+}</code></pre>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <span>&amp;[u8]</span>
+      <span class="layer-tag layer-csharp-impl">immutable</span>
+    </div>
+    <pre><code class="language-csharp">public static uint X(ReadOnlySpan&lt;byte&gt; b)
+{
+    unsafe
+    {
+        // no encoding step
+        fixed (byte* p = b)
+        {
+            return Raw.X(new DiplomatSliceU8 {
+              Ptr = p, Len = (nuint)b.Length
+            });
+        }
+    }
+}</code></pre>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <span>&amp;mut [u8]</span>
+      <span class="layer-tag layer-mut">mutable</span>
+    </div>
+    <pre><code class="language-csharp">public void X(Span&lt;byte&gt; b)
+{
+    unsafe
+    {
+        // no encoding, mut variant
+        fixed (byte* p = b)
+        {
+            Raw.X(_inner, new DiplomatSliceMutU8 {
+              Ptr = p, Len = (nuint)b.Length
+            });
+        }
+    }
+}</code></pre>
+  </div>
+</div>
+
+<h3>Delta summary</h3>
+
+<table class="bytes">
+  <tr>
+    <th></th>
+    <th>&amp;DiplomatStr</th>
+    <th>&amp;[u8]</th>
+    <th>&amp;mut [u8]</th>
+  </tr>
+  <tr><th>Idiomatic param</th>
+      <td><code>string</code></td>
+      <td><code>ReadOnlySpan&lt;byte&gt;</code></td>
+      <td><code>Span&lt;byte&gt;</code></td></tr>
+  <tr><th>Encoding step</th>
+      <td><code>Encoding.UTF8.GetBytes</code></td>
+      <td>none</td>
+      <td>none</td></tr>
+  <tr><th>Allocation</th>
+      <td>1 (byte[] for UTF-8 bytes)</td>
+      <td>0</td>
+      <td>0</td></tr>
+  <tr><th>Raw struct</th>
+      <td><code>DiplomatSliceU8</code></td>
+      <td><code>DiplomatSliceU8</code></td>
+      <td><code>DiplomatSliceMutU8</code></td></tr>
+  <tr><th>Rust sees</th>
+      <td><code>&amp;[u8]</code></td>
+      <td><code>&amp;[u8]</code></td>
+      <td><code>&amp;mut [u8]</code></td></tr>
+  <tr><th>Writes back?</th>
+      <td>no</td>
+      <td>no</td>
+      <td>YES</td></tr>
+</table>
+
+<h2>Why this matters — the IronRDP unblock</h2>
+
+<div class="note win">
+  <strong>uniffi can't do <code class="inline">&amp;mut [u8]</code>.</strong>
+  PR #2878 added immutable <code class="inline">&amp;[u8]</code> support to
+  uniffi, but mutable byte slices are still unsupported — every "fill this
+  buffer" API has to either (a) return a fresh <code class="inline">Vec&lt;u8&gt;</code>
+  (allocation + copy + free on every call) or (b) thread the buffer through
+  some custom binding code. For IronRDP's frame decoding — which happens
+  60 times per second with multi-megabyte buffers — option (a) is a
+  non-starter and option (b) defeats the purpose of having an FFI
+  generator.
+</div>
+
+<div class="note">
+  <strong>Diplomat handles <code class="inline">&amp;mut [u8]</code> natively.</strong>
+  The lowering machinery is identical to <code class="inline">&amp;[u8]</code>
+  modulo: (1) the idiomatic param is <code class="inline">Span&lt;byte&gt;</code>
+  not <code class="inline">ReadOnlySpan&lt;byte&gt;</code>, (2) the raw struct
+  is <code class="inline">DiplomatSliceMutU8</code> not
+  <code class="inline">DiplomatSliceU8</code>. The <code class="inline">fixed</code>
+  block, the call site, the byte-level data flow — all identical. The
+  abstraction we built for slices generalizes cleanly.
+</div>
+
+<h2>What the codegen needs to add</h2>
+
+<p>Concretely, three deltas vs <code class="inline">&amp;DiplomatStr</code>:</p>
+
+<div class="panel">
+  <div class="panel-header"><span>lower_input — new arms</span></div>
+  <pre><code class="language-rust">hir::Type::Slice(slice) =&gt; match slice {
+    hir::Slice::Str(_, StringEncoding::Utf8) =&gt; { /* existing */ }
+
+    // NEW: &amp;[u8] and &amp;mut [u8] — same shape, different mutability
+    hir::Slice::Primitive(MaybeOwn::Borrow(borrow), PrimitiveType::Byte) =&gt; {
+        let is_mut = matches!(borrow.mutability, Mutability::Mutable);
+        let raw_ty       = if is_mut { "DiplomatSliceMutU8" } else { "DiplomatSliceU8" };
+        let span_ty      = if is_mut { "Span&lt;byte&gt;"          } else { "ReadOnlySpan&lt;byte&gt;" };
+        let ptr_name     = format!("{arg_name}Ptr");
+
+        InputLowering {
+            raw_param:       format!("{raw_ty} {arg_name}"),
+            idiomatic_param: format!("{span_ty} {arg_name}"),
+            // No to_bytes_statement — caller already has bytes.
+            fix_statement:   Some(format!("fixed (byte* {ptr_name} = {arg_name})")),
+            raw_call_arg:    format!(
+                "new {raw_ty} {{ Ptr = {ptr_name}, Len = (nuint){arg_name}.Length }}"
+            ),
+            to_bytes_statement: None,
+        }
+    }
+    _ =&gt; todo!(),
+}</code></pre>
+</div>
+
+<div class="panel">
+  <div class="panel-header"><span>new runtime template — DiplomatSliceMutU8.cs.jinja</span></div>
+  <pre><code class="language-csharp">using System.Runtime.InteropServices;
+
+namespace {{ namespace }};
+
+[StructLayout(LayoutKind.Sequential)]
+internal unsafe struct DiplomatSliceMutU8
+{
+    public byte* Ptr;
+    public nuint Len;
+}</code></pre>
+</div>
+
+<div class="panel">
+  <div class="panel-header"><span>mod.rs — emit the new runtime helper</span></div>
+  <pre><code class="language-rust">// Alongside the existing DiplomatSliceU8 emission:
+files.add_file(
+    "DiplomatSliceMutU8.cs".to_string(),
+    DiplomatSliceMutU8Template { namespace: &amp;namespace }.render().unwrap(),
+);</code></pre>
+</div>
+
+<h2>Smoke tests to add</h2>
+
+<p>The runtime validation: every byte that enters and exits the boundary.</p>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>dotnet_smoke/tests/Program.cs</span>
+    <span class="layer-tag layer-user">user code</span>
+  </div>
+  <pre><code class="language-csharp">// &amp;[u8] — verify Rust reads our bytes correctly
+Test("Checksum(empty) == 0", () =&gt;
+    AssertEqual&lt;uint&gt;(0, Color.Checksum(ReadOnlySpan&lt;byte&gt;.Empty), "empty"));
+
+Test("Checksum([1,2,3,4]) == 10", () =&gt;
+    AssertEqual&lt;uint&gt;(10, Color.Checksum(new byte[] { 1, 2, 3, 4 }), "sum"));
+
+// &amp;mut [u8] — the IronRDP shape: caller owns buffer, Rust writes back
+Test("FillBuffer writes brightness to every byte", () =&gt;
+{
+    using var c = Color.New();
+    c.SetBrightness(128);
+
+    Span&lt;byte&gt; buf = stackalloc byte[4];
+    c.FillBuffer(buf);
+
+    AssertEqual&lt;byte&gt;(128, buf[0], "buf[0]");
+    AssertEqual&lt;byte&gt;(128, buf[1], "buf[1]");
+    AssertEqual&lt;byte&gt;(128, buf[2], "buf[2]");
+    AssertEqual&lt;byte&gt;(128, buf[3], "buf[3]");
+});
+
+Test("FillBuffer reads brightness mutation", () =&gt;
+{
+    using var c = Color.New();
+    Span&lt;byte&gt; buf = stackalloc byte[2];
+
+    c.SetBrightness(0xAB);  c.FillBuffer(buf);
+    AssertEqual&lt;byte&gt;(0xAB, buf[0], "first fill");
+
+    c.SetBrightness(0xCD);  c.FillBuffer(buf);
+    AssertEqual&lt;byte&gt;(0xCD, buf[0], "second fill overwrites");
+});</code></pre>
+</div>
+
+<h2>Pitfalls</h2>
+
+<div class="note mut-note">
+  <strong>1. Empty <code class="inline">Span&lt;byte&gt;</code> &amp; null pointer.</strong>
+  <code class="inline">fixed (byte* p = emptySpan)</code> may set <code class="inline">p</code>
+  to <code class="inline">null</code>. Rust's
+  <code class="inline">From&lt;DiplomatSliceMut&gt;</code> already handles this
+  (null + len 0 → empty slice). Don't add C#-side null guards — they'd be
+  redundant and break the empty case.
+</div>
+
+<div class="note warn">
+  <strong>2. Span lifetime escapes are the user's problem, not ours.</strong>
+  If the caller stashes the <code class="inline">Span&lt;byte&gt;</code>
+  after the call returns, that's fine — the Span still points at valid
+  memory (the caller's storage). The <em>pointer</em> we extracted via
+  <code class="inline">fixed</code> is invalid post-block; the Span isn't.
+  No special care needed.
+</div>
+
+<div class="note warn">
+  <strong>3. <code class="inline">stackalloc</code> + large buffers.</strong>
+  <code class="inline">stackalloc byte[N]</code> for large N blows the
+  stack. .NET 7+ has <code class="inline">stackalloc</code> guarded by a
+  size limit, but if callers pass IronRDP-sized frames (megabytes), they
+  should use <code class="inline">ArrayPool&lt;byte&gt;.Shared.Rent(n)</code>
+  or a regular <code class="inline">byte[]</code>. Our binding accepts any
+  of them via <code class="inline">Span&lt;byte&gt;</code>; that's the
+  caller's choice.
+</div>
+
+<div class="note warn">
+  <strong>4. Concurrent access during the call.</strong> The caller must
+  not touch <code class="inline">buf</code> on another thread while Rust
+  is writing through. The <code class="inline">&amp;mut</code> borrow in
+  Rust enforces single-writer; the C# binding can't enforce it across
+  threads. Document the API as "not thread-safe during the call" — same
+  rule that applies to any FFI mutable-buffer API.
+</div>
+
+<h2>Summary — the one-line story per slice flavor</h2>
+
+<ol style="font-size:14px;">
+  <li><strong><code class="inline">&amp;DiplomatStr</code></strong>: caller's <code class="inline">string</code> → allocate UTF-8 byte[] → pin → cross. One copy (the encode), one allocation.</li>
+  <li><strong><code class="inline">&amp;[u8]</code></strong>: caller's <code class="inline">ReadOnlySpan&lt;byte&gt;</code> → pin → cross. Zero copies, zero allocations.</li>
+  <li><strong><code class="inline">&amp;mut [u8]</code></strong>: caller's <code class="inline">Span&lt;byte&gt;</code> → pin → Rust writes through → caller observes. Zero copies, zero allocations, writes propagate. <strong>The IronRDP unblock.</strong></li>
+</ol>
+
+<script>
+  hljs.highlightAll();
+</script>
+
+</body>
+</html>

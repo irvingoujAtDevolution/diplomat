@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Option&lt;T&gt; — a layered walkthrough</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/csharp.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto; padding: 28px 32px 80px;
+    background: #0d1117; color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    line-height: 1.55; max-width: 1200px;
+  }
+  h1 { margin: 0 0 4px 0; font-size: 24px; font-weight: 600; color: #f0f6fc; }
+  h2 { margin: 40px 0 8px 0; font-size: 18px; font-weight: 600; color: #f0f6fc; border-bottom: 1px solid #21262d; padding-bottom: 6px; }
+  h3 { margin: 24px 0 6px 0; font-size: 14px; font-weight: 600; color: #c9d1d9; text-transform: uppercase; letter-spacing: 0.05em; }
+  .subtitle { color: #8b949e; font-size: 14px; margin-bottom: 28px; }
+  p { color: #c9d1d9; }
+  .panel { border: 1px solid #30363d; border-radius: 8px; overflow: hidden; margin: 12px 0; background: #0d1117; }
+  .panel-header { background: #161b22; color: #8b949e; padding: 9px 14px; font-size: 12px; font-family: "SF Mono", Consolas, monospace; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; }
+  .panel-header .layer-tag { background: #21262d; color: #c9d1d9; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+  .layer-rust          { background: #4d1f00; color: #ffa657; }
+  .layer-abi           { background: #2d2d00; color: #d1d100; }
+  .layer-csharp-raw    { background: #003a4d; color: #79c0ff; }
+  .layer-csharp-impl   { background: #033a16; color: #7ee787; }
+  .layer-user          { background: #3a1d5d; color: #d2a8ff; }
+  .layer-path-a        { background: #033a16; color: #7ee787; }
+  .layer-path-b        { background: #4d1f00; color: #ffa657; }
+  pre { margin: 0; }
+  pre code { padding: 14px 16px !important; font-size: 13px; line-height: 1.5; font-family: "SF Mono", Consolas, "Liberation Mono", monospace; }
+  .note { background: #161b22; border-left: 3px solid #58a6ff; padding: 10px 14px; margin: 12px 0; border-radius: 0 6px 6px 0; font-size: 13px; color: #c9d1d9; }
+  .note strong { color: #58a6ff; }
+  .warn { background: #2d1b00; border-left-color: #d29922; }
+  .warn strong { color: #d29922; }
+  .err-note { background: #2d0d0d; border-left-color: #f85149; }
+  .err-note strong { color: #f85149; }
+  .win { background: #07260f; border-left-color: #56d364; }
+  .win strong { color: #56d364; }
+  code.inline { background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 1px 6px; font-family: "SF Mono", Consolas, monospace; font-size: 12px; color: #79c0ff; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  table.layout { border-collapse: collapse; margin: 14px 0; font-family: "SF Mono", Consolas, monospace; font-size: 12px; width: 100%; }
+  table.layout th, table.layout td { border: 1px solid #30363d; padding: 6px 10px; text-align: center; }
+  table.layout th { background: #161b22; color: #8b949e; font-weight: 500; }
+  table.layout td.some  { color: #7ee787; }
+  table.layout td.none  { color: #6e7681; }
+  table.layout td.tag   { color: #d2a8ff; }
+  table.layout td.pad   { color: #6e7681; }
+  .flow { display: grid; grid-template-columns: 1fr; gap: 6px; margin: 20px 0; font-family: "SF Mono", Consolas, monospace; font-size: 13px; }
+  .flow-step { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 10px 14px; }
+  .flow-step.some-path  { border-left: 3px solid #56d364; }
+  .flow-step.none-path  { border-left: 3px solid #6e7681; }
+  .flow-step .lbl { color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+  .flow-arrow { text-align: center; color: #8b949e; font-size: 16px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 8px 0 20px 0; font-size: 12px; }
+  .legend span { padding: 3px 10px; border-radius: 4px; }
+  .lg-rust    { background: #4d1f00; color: #ffa657; }
+  .lg-abi     { background: #2d2d00; color: #d1d100; }
+  .lg-raw     { background: #003a4d; color: #79c0ff; }
+  .lg-impl    { background: #033a16; color: #7ee787; }
+  .lg-user    { background: #3a1d5d; color: #d2a8ff; }
+  .lg-path-a  { background: #033a16; color: #7ee787; }
+  .lg-path-b  { background: #4d1f00; color: #ffa657; }
+</style>
+</head>
+<body>
+
+<h1>Option&lt;T&gt; — a layered walkthrough</h1>
+<div class="subtitle">
+  Rust's <em>maybe a value, maybe nothing</em> meets C#'s null story. Unlike
+  <code class="inline">Result&lt;T, E&gt;</code> (errors-as-values), Option is not
+  about failure — just absence. The C# binding maps it to <strong>nullable
+  types</strong>, not exceptions. Two distinct paths under the hood
+  depending on whether the inner type carries null natively (pointers) or
+  needs a tag (value types).
+</div>
+
+<div class="legend">
+  <span class="lg-user">user code</span>
+  <span class="lg-impl">C# idiomatic (auto-gen)</span>
+  <span class="lg-raw">C# raw P/Invoke (auto-gen)</span>
+  <span class="lg-abi">C ABI contract (binary)</span>
+  <span class="lg-rust">Rust shim (macro-gen)</span>
+  <span class="lg-path-a">Path A — native-nullable (pointers)</span>
+  <span class="lg-path-b">Path B — tagged Option (value types)</span>
+</div>
+
+<h2>Option vs Result — what's different</h2>
+
+<div class="grid2">
+  <div class="panel">
+    <div class="panel-header">
+      <span>Result&lt;T, E&gt; — "did this fail?"</span>
+      <span class="layer-tag layer-rust">errors</span>
+    </div>
+    <pre><code class="language-rust">// Rust: returns Ok or Err with reason
+fn parse(s: &amp;str) -&gt; Result&lt;Color, ParseError&gt;
+
+// C#: throw on Err, success returns
+try { var c = Color.Parse(s); }
+catch (ColorErrorException ex) { ... }</code></pre>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <span>Option&lt;T&gt; — "is this here?"</span>
+      <span class="layer-tag layer-csharp-impl">absence</span>
+    </div>
+    <pre><code class="language-rust">// Rust: returns Some or None, no reason
+fn find(&amp;self, key: &amp;str) -&gt; Option&lt;Color&gt;
+
+// C#: null = None, otherwise the value
+var c = registry.Find(key);
+if (c is null) { ... }</code></pre>
+  </div>
+</div>
+
+<div class="note">
+  <strong>Semantic difference matters.</strong> Result encodes <em>failure</em>
+  — something went wrong, here's why. Option encodes <em>absence</em> — the
+  thing might just not exist, no error semantics. C# already has
+  <code class="inline">null</code> for absence; throwing on null would be
+  weird (you'd write <code class="inline">try { ... } catch (NotFoundException)</code>
+  when the API said "this might not be there"). So Option maps to nullable
+  returns, not exceptions.
+</div>
+
+<h2>The C# null story</h2>
+
+<p>
+  C# has two flavors of null, and Option maps to whichever fits the inner type:
+</p>
+
+<table class="layout">
+  <tr>
+    <th>Inner type</th>
+    <th>C# return type</th>
+    <th>How null is represented</th>
+    <th>Mechanism</th>
+  </tr>
+  <tr>
+    <td><code>Box&lt;Color&gt;</code> (managed wrapper class)</td>
+    <td><code>Color?</code></td>
+    <td>The reference itself can be null</td>
+    <td>Nullable reference types (C# 8+)</td>
+  </tr>
+  <tr>
+    <td><code>&amp;Color</code> (borrowed opaque)</td>
+    <td><code>Color?</code></td>
+    <td>Pointer can be null</td>
+    <td>Same — reference nullability</td>
+  </tr>
+  <tr>
+    <td><code>u32</code> (primitive)</td>
+    <td><code>uint?</code> i.e. <code>Nullable&lt;uint&gt;</code></td>
+    <td>16-byte struct with tag + value</td>
+    <td><code>Nullable&lt;T&gt;</code> generic</td>
+  </tr>
+  <tr>
+    <td><code>Point2D</code> (struct)</td>
+    <td><code>Point2D?</code> i.e. <code>Nullable&lt;Point2D&gt;</code></td>
+    <td>struct holds value + flag</td>
+    <td><code>Nullable&lt;T&gt;</code> generic</td>
+  </tr>
+</table>
+
+<p style="font-size: 13px; color: #8b949e;">
+  Pointers can be null natively — no extra storage needed. Value types
+  cannot — C# wraps them in <code class="inline">Nullable&lt;T&gt;</code> which
+  carries an explicit <code class="inline">HasValue</code> flag alongside the
+  value. The shape of the wire bytes mirrors this distinction.
+</p>
+
+<h2>The two examples</h2>
+
+<p>One method per path — the simplest cases that exercise the divide:</p>
+
+<ul>
+  <li><strong>Path A</strong> — <code class="inline">Color::find_by_name(name: &amp;DiplomatStr) -&gt; Option&lt;Box&lt;Color&gt;&gt;</code> — known name returns a Color, unknown name returns None. <em>Native-nullable pointer.</em></li>
+  <li><strong>Path B</strong> — <code class="inline">Color::default_brightness() -&gt; Option&lt;u8&gt;</code> — sometimes returns a default brightness, sometimes "no opinion." <em>Tagged Option struct on the wire.</em></li>
+</ul>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>dotnet_smoke/src/lib.rs</span>
+    <span class="layer-tag layer-rust">rust source</span>
+  </div>
+  <pre><code class="language-rust">impl Color {
+    /// Path A — owned opaque option. Pointer is null when None.
+    pub fn find_by_name(name: &amp;DiplomatStr) -&gt; Option&lt;Box&lt;Color&gt;&gt; {
+        match name {
+            b"red"   =&gt; Some(Box::new(Color { brightness: 255 })),
+            b"black" =&gt; Some(Box::new(Color { brightness: 0 })),
+            _        =&gt; None,
+        }
+    }
+
+    /// Path B — primitive option. Needs a tagged struct on the wire.
+    pub fn default_brightness() -&gt; Option&lt;u8&gt; {
+        Some(128)  // could be None depending on state
+    }
+}</code></pre>
+</div>
+
+<h2>HIR splits the cases</h2>
+
+<p>
+  The same Rust <code class="inline">Option&lt;T&gt;</code> hits two different
+  HIR shapes depending on <code class="inline">T</code>:
+</p>
+
+<div class="panel">
+  <div class="panel-header"><span>diplomat-core's hir::ReturnType for Option</span></div>
+  <pre><code class="language-rust">// Rust source:                    HIR:
+fn find_by_name(...)               ReturnType::Infallible(
+    -&gt; Option&lt;Box&lt;Color&gt;&gt;             SuccessType::OutType(Type::Opaque(opaque_path_with_optional))
+                                   )
+
+fn default_brightness()            ReturnType::Nullable(
+    -&gt; Option&lt;u8&gt;                     SuccessType::OutType(Type::Primitive(U8))
+                                   )</code></pre>
+</div>
+
+<div class="note">
+  <strong>Why the split.</strong> HIR collapses <code class="inline">Option&lt;Box&lt;T&gt;&gt;</code>
+  into <code class="inline">Infallible</code> because <strong>the pointer
+  carries the null natively</strong> — no extra tag needed on the wire. For
+  any other <code class="inline">T</code> (primitive, struct, enum) the wire
+  needs an explicit "is this Some?" tag, so it goes through
+  <code class="inline">Nullable</code> which lowers to
+  <code class="inline">DiplomatOption&lt;T&gt;</code> (= <code class="inline">DiplomatResult&lt;T, ()&gt;</code>
+  in the runtime). Same machinery as Result, with unit error.
+</div>
+
+<h2>Path A — native-nullable pointer (Option&lt;Box&lt;T&gt;&gt;)</h2>
+
+<h3>Layer 1 — Rust shim (macro-gen)</h3>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>generated by #[diplomat::bridge]</span>
+    <span class="layer-tag layer-rust">rust shim</span>
+  </div>
+  <pre><code class="language-rust">#[no_mangle]
+pub unsafe extern "C" fn Color_find_by_name(
+    name: DiplomatStrSlice,
+) -&gt; *mut Color {        // ← plain pointer, null = None
+    let bytes: &amp;[u8] = name.into();
+    match Color::find_by_name(bytes) {
+        Some(boxed) =&gt; Box::into_raw(boxed),   // valid pointer
+        None        =&gt; core::ptr::null_mut(),  // null pointer
+    }
+}</code></pre>
+</div>
+
+<div class="note">
+  <strong>No wrapper struct needed.</strong> The pointer IS the discriminant
+  — null means None, anything else means Some. Zero extra bytes on the wire
+  vs a non-Option opaque return.
+</div>
+
+<h3>Layer 2 — C ABI bytes</h3>
+
+<div class="grid2">
+  <div class="panel">
+    <div class="panel-header"><span>Some(...) on the wire</span><span class="layer-tag layer-abi">C ABI</span></div>
+    <pre><code class="language-c">// 8 bytes total — just a pointer
+Color* ret = 0x000001B45F2C8010;
+// → not null, valid heap pointer</code></pre>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><span>None on the wire</span><span class="layer-tag layer-abi">C ABI</span></div>
+    <pre><code class="language-c">// 8 bytes total — null
+Color* ret = 0x0000000000000000;
+// → null, indicates None</code></pre>
+  </div>
+</div>
+
+<h3>Layer 3 — C# raw extern</h3>
+
+<div class="panel">
+  <div class="panel-header"><span>RawColor.cs (codegen)</span><span class="layer-tag layer-csharp-raw">C# raw</span></div>
+  <pre><code class="language-csharp">[DllImport(NativeLib, EntryPoint = "Color_find_by_name", CallingConvention = CallingConvention.Cdecl)]
+public static extern Color* FindByName(DiplomatSliceU8 name);
+// ↑ same as a non-optional opaque return — the pointer is just allowed to be null</code></pre>
+</div>
+
+<div class="note win">
+  <strong>The raw layer needs zero changes.</strong> Already-generated opaque
+  returns already declare <code class="inline">Color*</code>, which is
+  intrinsically nullable. The Option-ness is a property of how the
+  <em>idiomatic</em> wrapper handles the result, not of the wire shape.
+</div>
+
+<h3>Layer 4 — C# idiomatic wrapper (the null check)</h3>
+
+<div class="panel">
+  <div class="panel-header"><span>Color.cs (codegen)</span><span class="layer-tag layer-csharp-impl">C# idiomatic</span></div>
+  <pre><code class="language-csharp">public static Color? FindByName(string name)
+{
+    unsafe
+    {
+        byte[] nameBytes = Encoding.UTF8.GetBytes(name);
+        fixed (byte* namePtr = nameBytes)
+        {
+            Raw.Color* result = Raw.Color.FindByName(new DiplomatSliceU8 {
+                Ptr = namePtr,
+                Len = (nuint)nameBytes.Length,
+            });
+            return result == null ? null : new Color(result);
+            //     ^^^^^^^^^^^^^^^^^^^^^^^^   The whole Option story.
+        }
+    }
+}</code></pre>
+</div>
+
+<p>
+  Two new things vs a non-optional opaque return:
+</p>
+<ul>
+  <li><strong>Return type</strong> is <code class="inline">Color?</code> (nullable reference type) instead of <code class="inline">Color</code> — signals to C# 8+ that null is a possible value.</li>
+  <li><strong>Body</strong> conditionally wraps: <code class="inline">result == null ? null : new Color(result)</code>. The non-option path was <code class="inline">return new Color(result)</code> unconditionally.</li>
+</ul>
+
+<h3>Layer 5 — User call site</h3>
+
+<div class="panel">
+  <div class="panel-header"><span>idiomatic use</span><span class="layer-tag layer-user">user code</span></div>
+  <pre><code class="language-csharp">// C# 8+ patterns work naturally — no exception machinery.
+using Color? maybeColor = Color.FindByName("rainbow");
+if (maybeColor is null) {
+    Console.WriteLine("not found");
+} else {
+    Console.WriteLine($"brightness: {maybeColor.Brightness()}");
+}
+
+// Or null-coalescing:
+var color = Color.FindByName("red") ?? Color.New();
+//                                  ^^ default if None
+
+// Or null-conditional:
+byte? b = Color.FindByName("red")?.Brightness();
+//                              ^ skips method call when null</code></pre>
+</div>
+
+<h2>Path B — tagged Option for value types (Option&lt;primitive | struct&gt;)</h2>
+
+<h3>Layer 1 — Rust shim (macro-gen)</h3>
+
+<div class="panel">
+  <div class="panel-header">
+    <span>generated by #[diplomat::bridge]</span>
+    <span class="layer-tag layer-rust">rust shim</span>
+  </div>
+  <pre><code class="language-rust">#[no_mangle]
+pub unsafe extern "C" fn Color_default_brightness()
+    -&gt; diplomat_runtime::DiplomatOption&lt;u8&gt;      // ← tagged struct
+{
+    Color::default_brightness().into()
+        // From&lt;Option&lt;T&gt;&gt; for DiplomatOption&lt;T&gt; via runtime
+}</code></pre>
+</div>
+
+<p>
+  <code class="inline">DiplomatOption&lt;T&gt;</code> is literally
+  <code class="inline">DiplomatResult&lt;T, ()&gt;</code> in the runtime — the
+  same tagged-union machinery we used for Result, with unit error type.
+  The wire bytes:
+</p>
+
+<h3>Layer 2 — Wire layout (same shape as DiplomatResult)</h3>
+
+<div class="grid2">
+  <div class="panel">
+    <div class="panel-header"><span>Some(128) on the wire</span><span class="layer-tag layer-abi">C ABI</span></div>
+    <table class="layout">
+      <tr><th>offset</th><td>0</td><td>1</td></tr>
+      <tr><th>field</th><td class="some">value</td><td class="tag">is_ok</td></tr>
+      <tr><th>byte</th><td class="some">80</td><td class="tag">01</td></tr>
+    </table>
+    <p style="margin: 8px 14px; font-size:12px; color:#8b949e;">
+      Total: 2 bytes (1 value + 1 tag), aligned to 2.
+    </p>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><span>None on the wire</span><span class="layer-tag layer-abi">C ABI</span></div>
+    <table class="layout">
+      <tr><th>offset</th><td>0</td><td>1</td></tr>
+      <tr><th>field</th><td class="none">slack</td><td class="tag">is_ok</td></tr>
+      <tr><th>byte</th><td class="none">??</td><td class="tag">00</td></tr>
+    </table>
+    <p style="margin: 8px 14px; font-size:12px; color:#8b949e;">
+      Value byte is union slack — uninitialized. Must check tag before reading.
+    </p>
+  </div>
+</div>
+
+<h3>Layer 3 — C# raw struct (same pattern as DiplomatResult)</h3>
+
+<div class="panel">
+  <div class="panel-header"><span>DiplomatOptionU8.cs (codegen)</span><span class="layer-tag layer-csharp-raw">C# raw</span></div>
+  <pre><code class="language-csharp">namespace DotnetSmoke;
+
+internal static unsafe partial class Raw
+{
+    [StructLayout(LayoutKind.Sequential)]
+    public partial struct DiplomatOptionU8
+    {
+        [StructLayout(LayoutKind.Explicit)]
+        private struct InnerUnion
+        {
+            [FieldOffset(0)] internal byte value;
+            [FieldOffset(0)] internal byte _err;   // ZST in Rust, single byte slack here
+        }
+
+        private InnerUnion _inner;
+
+        [MarshalAs(UnmanagedType.U1)]
+        public bool IsSome;
+
+        public byte Value =&gt; IsSome ? _inner.value : throw new InvalidOperationException("Option is None");
+    }
+}</code></pre>
+</div>
+
+<div class="note">
+  <strong>Reuse of the Result template.</strong> Structurally identical to
+  <code class="inline">DiplomatResult_&lt;T&gt;_ColorError</code> — outer
+  Sequential, inner Explicit union, tag at the end via
+  <code class="inline">[MarshalAs(U1)]</code>. The codegen can <em>literally</em>
+  emit this through the same <code class="inline">result.raw.cs.jinja</code>
+  template with <code class="inline">error</code> set to a unit/dummy type.
+  Or have a parallel <code class="inline">option.raw.cs.jinja</code> if we
+  want a different field name (<code class="inline">IsSome</code> reads more
+  naturally than <code class="inline">IsOk</code> for Option).
+</div>
+
+<h3>Layer 4 — C# idiomatic wrapper (tag check, return Nullable)</h3>
+
+<div class="panel">
+  <div class="panel-header"><span>Color.cs (codegen)</span><span class="layer-tag layer-csharp-impl">C# idiomatic</span></div>
+  <pre><code class="language-csharp">public static byte? DefaultBrightness()
+{
+    unsafe
+    {
+        var result = Raw.Color.DefaultBrightness();
+        return result.IsSome ? result.Value : (byte?)null;
+        //     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        //     The whole Option story for value types.
+    }
+}</code></pre>
+</div>
+
+<p>
+  Return type is <code class="inline">byte?</code> (= <code class="inline">Nullable&lt;byte&gt;</code>).
+  Body checks the tag and returns either the value or null. The
+  <code class="inline">(byte?)null</code> cast is needed because C#'s
+  ternary requires both branches to have the same type and <code class="inline">result.Value</code>
+  is <code class="inline">byte</code>, not <code class="inline">byte?</code>.
+</p>
+
+<h3>Layer 5 — User call site</h3>
+
+<div class="panel">
+  <div class="panel-header"><span>idiomatic use</span><span class="layer-tag layer-user">user code</span></div>
+  <pre><code class="language-csharp">byte? maybeDefault = Color.DefaultBrightness();
+
+// Pattern 1: HasValue / Value
+if (maybeDefault.HasValue) {
+    Console.WriteLine($"default = {maybeDefault.Value}");
+}
+
+// Pattern 2: ?? default
+byte b = Color.DefaultBrightness() ?? (byte)0;
+
+// Pattern 3: pattern matching (C# 9+)
+if (Color.DefaultBrightness() is byte d) {
+    Console.WriteLine($"got {d}");
+}</code></pre>
+</div>
+
+<h2>Side-by-side — three paths compared</h2>
+
+<div class="grid3">
+  <div class="panel">
+    <div class="panel-header"><span>Option&lt;Box&lt;T&gt;&gt; — Path A</span><span class="layer-tag layer-path-a">native-null</span></div>
+    <pre><code class="language-csharp">// extern: Color* return
+public static Color? Find(string s)
+{
+    unsafe
+    {
+        ...
+        Raw.Color* r = Raw....();
+        return r == null
+            ? null
+            : new Color(r);
+    }
+}
+
+// caller:
+Color? c = Color.Find("red");
+if (c is null) ...</code></pre>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><span>Option&lt;u8&gt; — Path B</span><span class="layer-tag layer-path-b">tagged</span></div>
+    <pre><code class="language-csharp">// extern: DiplomatOptionU8 return
+public static byte? DefaultBrightness()
+{
+    unsafe
+    {
+        var r = Raw....();
+        return r.IsSome
+            ? r.Value
+            : (byte?)null;
+    }
+}
+
+// caller:
+byte? b = Color.DefaultBrightness();
+if (b.HasValue) ...</code></pre>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><span>Result&lt;T, E&gt; — for contrast</span><span class="layer-tag layer-rust">errors</span></div>
+    <pre><code class="language-csharp">// extern: DiplomatResult&lt;T,E&gt; return
+public static Color Parse(string s)
+{
+    unsafe
+    {
+        var r = Raw....();
+        if (!r.IsOk)
+            throw new ColorErrorException(r.Err);
+        return new Color(r.Ok);
+    }
+}
+
+// caller:
+try { var c = Color.Parse("red"); }
+catch (ColorErrorException) ...</code></pre>
+  </div>
+</div>
+
+<h3>The decision table</h3>
+
+<table class="layout">
+  <tr>
+    <th>Rust signature</th>
+    <th>C# return type</th>
+    <th>Wire shape</th>
+    <th>How "absence" is signaled</th>
+    <th>Caller pattern</th>
+  </tr>
+  <tr>
+    <td><code>-&gt; Option&lt;Box&lt;T&gt;&gt;</code></td>
+    <td><code>T?</code> (nullable ref)</td>
+    <td>plain <code>T*</code> (8 bytes)</td>
+    <td><code>null</code> pointer</td>
+    <td><code>c is null</code> / <code>c?.Foo()</code> / <code>c ?? default</code></td>
+  </tr>
+  <tr>
+    <td><code>-&gt; Option&lt;&amp;T&gt;</code></td>
+    <td><code>T?</code> (nullable ref)</td>
+    <td>plain <code>T*</code> (8 bytes)</td>
+    <td><code>null</code> pointer</td>
+    <td>same as above</td>
+  </tr>
+  <tr>
+    <td><code>-&gt; Option&lt;Primitive&gt;</code></td>
+    <td><code>P?</code> (Nullable&lt;P&gt;)</td>
+    <td><code>DiplomatOption&lt;P&gt;</code> (P bytes + 1 tag + padding)</td>
+    <td><code>IsSome == false</code></td>
+    <td><code>b.HasValue</code> / <code>b ?? default</code> / <code>b is P p</code></td>
+  </tr>
+  <tr>
+    <td><code>-&gt; Option&lt;Struct&gt;</code></td>
+    <td><code>S?</code> (Nullable&lt;S&gt;)</td>
+    <td><code>DiplomatOption&lt;S&gt;</code></td>
+    <td><code>IsSome == false</code></td>
+    <td>same as primitive</td>
+  </tr>
+  <tr>
+    <td><code>-&gt; Option&lt;Enum&gt;</code></td>
+    <td><code>E?</code> (Nullable&lt;E&gt;)</td>
+    <td><code>DiplomatOption&lt;E&gt;</code></td>
+    <td><code>IsSome == false</code></td>
+    <td>same</td>
+  </tr>
+  <tr>
+    <td><code>-&gt; Option&lt;()&gt;</code></td>
+    <td><code>bool</code>?</td>
+    <td><code>bool</code> (degenerate)</td>
+    <td><code>false</code></td>
+    <td>plain bool check (rare)</td>
+  </tr>
+</table>
+
+<h2>End-to-end data flow — Path B (the harder one)</h2>
+
+<div class="flow">
+  <div class="flow-step some-path">
+    <div class="lbl">1. User calls Color.DefaultBrightness()</div>
+    Idiomatic wrapper, no params.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step some-path">
+    <div class="lbl">2. P/Invoke into Rust</div>
+    Rust's <code>Color::default_brightness()</code> runs, returns
+    <code>Some(128)</code>. The bridge shim's <code>.into()</code> converts
+    to <code>DiplomatOption&lt;u8&gt;</code> with <code>value = 128, is_some = true</code>.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step some-path">
+    <div class="lbl">3. 2 bytes returned by value</div>
+    Native stack carries <code>[0x80, 0x01]</code> — byte 0 = 128, byte 1 = tag (true).
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step some-path">
+    <div class="lbl">4. C# reads as DiplomatOptionU8</div>
+    <code>result.IsSome</code> = true via <code>[MarshalAs(U1)]</code>.
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-step some-path">
+    <div class="lbl">5. Return Nullable&lt;byte&gt;</div>
+    <code>return result.IsSome ? result.Value : (byte?)null;</code> →
+    returns <code>(byte?)128</code>.
+  </div>
+</div>
+
+<p>The None path is identical except step 2 stops at <code class="inline">None</code>, step 3's value byte is undefined slack, step 4 sees <code class="inline">IsSome == false</code>, step 5 returns <code class="inline">null</code>.</p>
+
+<h2>What the codegen needs to add</h2>
+
+<h3>1. New arm in <code>lower_return</code> for Nullable</h3>
+
+<div class="panel">
+  <div class="panel-header"><span>tool/src/dotnet/gen/method.rs</span></div>
+  <pre><code class="language-rust">// Before:
+hir::ReturnType::Nullable(_) =&gt; unimplemented!("nullable return"),
+
+// After:
+hir::ReturnType::Nullable(s) =&gt; {
+    let return_type = self.lower_success(s);
+    // Register a DiplomatOption_&lt;T&gt; struct in a new registry
+    // (or reuse the existing result_struct_registry with `()` as error).
+    let option_info = self.register_option(&amp;return_type);
+    ReturnLowering {
+        return_type,
+        option_info: Some(option_info),
+    }
+}</code></pre>
+</div>
+
+<p>
+  And for <code class="inline">Option&lt;Box&lt;T&gt;&gt;</code> (HIR's
+  <code class="inline">Infallible(OutType(Opaque-Optional-marker))</code>):
+  detect the optional marker on the opaque path and set a "nullable" flag
+  on the return — no extra struct registered, just mark the return so the
+  template emits the null check.
+</p>
+
+<h3>2. New runtime helper template — DiplomatOption&lt;T&gt;</h3>
+
+<div class="panel">
+  <div class="panel-header"><span>tool/templates/dotnet/option.raw.cs.jinja (sketch)</span></div>
+  <pre><code class="language-csharp">[StructLayout(LayoutKind.Sequential)]
+public partial struct DiplomatOption{{ inner.raw() }}
+{
+    [StructLayout(LayoutKind.Explicit)]
+    private struct InnerUnion
+    {
+        [FieldOffset(0)] internal {{ inner.raw() }} value;
+        [FieldOffset(0)] internal byte _slack;  // matches Rust's union-with-() slot
+    }
+
+    private InnerUnion _inner;
+
+    [MarshalAs(UnmanagedType.U1)]
+    public bool IsSome;
+
+    public {{ inner.raw() }} Value =&gt; IsSome ? _inner.value
+        : throw new InvalidOperationException("Option is None");
+}</code></pre>
+</div>
+
+<h3>3. Method body branch for both paths</h3>
+
+<div class="panel">
+  <div class="panel-header"><span>method_body.cs.jinja addition</span></div>
+  <pre><code class="language-csharp">{# Native-nullable opaque #}
+{%- if method.return_type.is_optional_opaque() %}
+    Raw.{{ method.return_type.raw() }} result = Raw.{{ name }}.{{ method.name }}(...);
+    return result == null ? null : new {{ method.return_type }}(result);
+
+{# Tagged option for value types #}
+{%- else if let Some(option) = method.option_info %}
+    var result = Raw.{{ name }}.{{ method.name }}(...);
+    return result.IsSome ? result.Value : ({{ method.return_type }}?)null;
+
+{# existing branches: fallible / opaque-non-optional / struct / void / primitive #}
+{%- endif %}</code></pre>
+</div>
+
+<h3>4. Return-type rendering — append <code>?</code> for nullable types</h3>
+
+<p>
+  Method signature needs <code class="inline">Color?</code> /
+  <code class="inline">byte?</code> instead of <code class="inline">Color</code> /
+  <code class="inline">byte</code>. Cleanest fix: a method
+  <code class="inline">DotnetReturnType::idiomatic()</code> that takes a
+  nullable flag and emits <code class="inline">"{name}?"</code> when needed.
+  Or just inline the <code class="inline">?</code> conditionally in the
+  signature template.
+</p>
+
+<h2>Pitfalls</h2>
+
+<div class="note err-note">
+  <strong>1. Value-type nullable boxing.</strong> <code class="inline">Nullable&lt;T&gt;</code>
+  for primitives doesn't box — it's a value struct. But certain APIs
+  (e.g., generic boxes via <code class="inline">object</code>) will box
+  <code class="inline">Nullable&lt;T&gt;</code> to <code class="inline">null</code>
+  vs the boxed value. Rarely an issue for binding consumers; flagged for
+  completeness.
+</div>
+
+<div class="note warn">
+  <strong>2. C# 8 nullable-context.</strong> <code class="inline">Color?</code>
+  only means "might be null" if the project has <code class="inline">&lt;Nullable&gt;enable&lt;/Nullable&gt;</code>
+  in its csproj. Without it, <code class="inline">Color</code> and
+  <code class="inline">Color?</code> are the same type at runtime; the
+  annotation is just a hint. The behavior is identical regardless — the
+  binding works either way — but tooling warnings differ.
+</div>
+
+<div class="note warn">
+  <strong>3. Ternary type inference.</strong> <code class="inline">IsSome ? result.Value : null</code>
+  fails to compile when <code class="inline">result.Value</code> is a
+  primitive — the two branches have incompatible types
+  (<code class="inline">byte</code> vs <code class="inline">null</code>). The
+  cast <code class="inline">(byte?)null</code> is mandatory for primitive
+  paths. For reference types it Just Works.
+</div>
+
+<div class="note err-note">
+  <strong>4. Union slack on None.</strong> Same as Result —
+  <code class="inline">result.Value</code> on a <code class="inline">None</code>
+  result reads union slack bytes (uninitialized). The property guards with
+  <code class="inline">throw</code>; never call it without checking
+  <code class="inline">IsSome</code>. The codegen always emits the guard,
+  so users can't accidentally read garbage.
+</div>
+
+<h2>Smoke tests to add</h2>
+
+<div class="panel">
+  <div class="panel-header"><span>dotnet_smoke/tests/Program.cs</span><span class="layer-tag layer-user">user code</span></div>
+  <pre><code class="language-csharp">// Path A — native-nullable
+Test("FindByName(\"red\") returns non-null Color with brightness 255", () =&gt;
+{
+    using var c = Color.FindByName("red");
+    Assert(c is not null, "should be Some");
+    AssertEqual&lt;byte&gt;(255, c!.Brightness(), "red brightness");
+});
+
+Test("FindByName(\"rainbow\") returns null", () =&gt;
+{
+    using var c = Color.FindByName("rainbow");
+    Assert(c is null, "should be None");
+});
+
+// Path B — tagged option
+Test("DefaultBrightness() returns Some(128)", () =&gt;
+{
+    byte? b = Color.DefaultBrightness();
+    Assert(b.HasValue, "should be Some");
+    AssertEqual&lt;byte&gt;(128, b!.Value, "default value");
+});
+
+// Cross-validation: discriminant carries
+Test("Some and None produce distinguishable results", () =&gt;
+{
+    var hit  = Color.FindByName("red");
+    var miss = Color.FindByName("rainbow");
+    Assert(hit is not null &amp;&amp; miss is null, "discriminant lost");
+    hit?.Dispose();
+});</code></pre>
+</div>
+
+<h2>TL;DR</h2>
+
+<ol style="font-size: 14px;">
+  <li><strong>Option ≠ Result.</strong> Option encodes <em>absence</em>, not failure. Maps to nullable types, not exceptions.</li>
+  <li><strong>Two code paths.</strong> Pointer-shaped <code class="inline">T</code> (Box, &amp;T): wire is just a nullable <code class="inline">T*</code>, no extra bytes. Value-shaped <code class="inline">T</code> (primitive, struct, enum): wire is a <code class="inline">DiplomatOption&lt;T&gt;</code> tagged struct (same machinery as Result, unit error).</li>
+  <li><strong>C# representation matches the wire.</strong> Pointer cases return <code class="inline">T?</code> (nullable reference). Value cases return <code class="inline">T?</code> (<code class="inline">Nullable&lt;T&gt;</code>).</li>
+  <li><strong>Codegen reuses 80% of Result machinery.</strong> Same tagged-struct pattern, same nested Sequential + Explicit layout, same exception-free body branching. Just <code class="inline">IsSome</code> instead of <code class="inline">IsOk</code> and no exception class.</li>
+  <li><strong>For the user, this is just C# idiom.</strong> <code class="inline">?.</code>, <code class="inline">??</code>, pattern matching all work naturally. No new abstractions to learn.</li>
+</ol>
+
+<script>
+  hljs.highlightAll();
+</script>
+
+</body>
+</html>

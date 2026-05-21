@@ -1,0 +1,1770 @@
+TypeContext {
+    out_structs: [],
+    structs: [
+        StructDef {
+            docs: Docs {
+                lines: "",
+                rust_links: [],
+            },
+            name: "FixedDecimalFormatterOptions",
+            fields: [
+                StructField {
+                    docs: Docs {
+                        lines: "",
+                        rust_links: [],
+                    },
+                    name: "grouping_strategy",
+                    ty: Enum(
+                        EnumPath {
+                            tcx_id: EnumId(
+                                0,
+                            ),
+                        },
+                    ),
+                    attrs: Attrs {
+                        disable: false,
+                        deprecated: None,
+                        namespace: None,
+                        rename: RenameAttr {
+                            pattern: None,
+                        },
+                        abi_rename: RenameAttr {
+                            pattern: None,
+                        },
+                        special_method: None,
+                        custom_errors: false,
+                        default: false,
+                        demo_attrs: DemoInfo {
+                            generate: false,
+                            default_constructor: false,
+                            external: false,
+                            custom_func: None,
+                            input_cfg: DemoInputCFG {
+                                label: "ICU4X Fixed Decimal Grouping Strategy",
+                                default_value: "",
+                            },
+                        },
+                        generate_mocking_interface: false,
+                        abi_compatible: false,
+                        mut_struct_ref: false,
+                        custom_extra_code: {},
+                        default_value: None,
+                    },
+                },
+                StructField {
+                    docs: Docs {
+                        lines: "",
+                        rust_links: [],
+                    },
+                    name: "some_other_config",
+                    ty: Primitive(
+                        Bool,
+                    ),
+                    attrs: Attrs {
+                        disable: false,
+                        deprecated: None,
+                        namespace: None,
+                        rename: RenameAttr {
+                            pattern: None,
+                        },
+                        abi_rename: RenameAttr {
+                            pattern: None,
+                        },
+                        special_method: None,
+                        custom_errors: false,
+                        default: false,
+                        demo_attrs: DemoInfo {
+                            generate: false,
+                            default_constructor: false,
+                            external: false,
+                            custom_func: None,
+                            input_cfg: DemoInputCFG {
+                                label: "Useless Config (Ignore)",
+                                default_value: "true",
+                            },
+                        },
+                        generate_mocking_interface: false,
+                        abi_compatible: false,
+                        mut_struct_ref: false,
+                        custom_extra_code: {},
+                        default_value: None,
+                    },
+                },
+            ],
+            methods: [
+                Method {
+                    docs: Docs {
+                        lines: "",
+                        rust_links: [],
+                    },
+                    name: "default",
+                    abi_name: "icu4x_FixedDecimalFormatterOptions_default_mv1",
+                    lifetime_env: LifetimeEnv {
+                        nodes: [],
+                        num_lifetimes: 0,
+                    },
+                    param_self: None,
+                    params: [],
+                    output: Infallible(
+                        OutType(
+                            Struct(
+                                Struct(
+                                    StructPath {
+                                        lifetimes: Lifetimes {
+                                            indices: [],
+                                        },
+                                        tcx_id: StructId(
+                                            0,
+                                        ),
+                                        owner: Own,
+                                    },
+                                ),
+                            ),
+                        ),
+                    ),
+                    attrs: Attrs {
+                        disable: false,
+                        deprecated: None,
+                        namespace: None,
+                        rename: RenameAttr {
+                            pattern: None,
+                        },
+                        abi_rename: RenameAttr {
+                            pattern: Some(
+                                RenamePattern {
+                                    replacement: "icu4x__mv1",
+                                    insertion_index: Some(
+                                        6,
+                                    ),
+                                },
+                            ),
+                        },
+                        special_method: Some(
+                            Constructor,
+                        ),
+                        custom_errors: false,
+                        default: false,
+                        demo_attrs: DemoInfo {
+                            generate: false,
+                            default_constructor: false,
+                            external: false,
+                            custom_func: None,
+                            input_cfg: DemoInputCFG {
+                                label: "",
+                                default_value: "",
+                            },
+                        },
+                        generate_mocking_interface: false,
+                        abi_compatible: false,
+                        mut_struct_ref: false,
+                        custom_extra_code: {},
+                        default_value: None,
+                    },
+                },
+            ],
+            attrs: Attrs {
+                disable: false,
+                deprecated: None,
+                namespace: None,
+                rename: RenameAttr {
+                    pattern: None,
+                },
+                abi_rename: RenameAttr {
+                    pattern: Some(
+                        RenamePattern {
+                            replacement: "icu4x__mv1",
+                            insertion_index: Some(
+                                6,
+                            ),
+                        },
+                    ),
+                },
+                special_method: None,
+                custom_errors: false,
+                default: false,
+                demo_attrs: DemoInfo {
+                    generate: false,
+                    default_constructor: false,
+                    external: false,
+                    custom_func: None,
+                    input_cfg: DemoInputCFG {
+                        label: "",
+                        default_value: "",
+                    },
+                },
+                generate_mocking_interface: false,
+                abi_compatible: false,
+                mut_struct_ref: false,
+                custom_extra_code: {},
+                default_value: None,
+            },
+            lifetimes: LifetimeEnv {
+                nodes: [],
+                num_lifetimes: 0,
+            },
+            special_method_presence: SpecialMethodPresence {
+                comparator: false,
+                iterator: None,
+                iterable: None,
+            },
+        },
+    ],
+    opaques: [
+        OpaqueDef {
+            docs: Docs {
+                lines: "An  data provider, capable of loading  data keys from some source.",
+                rust_links: [
+                    RustLink {
+                        path: Path {
+                            elements: [
+                                Ident(
+                                    "icu_provider",
+                                ),
+                            ],
+                        },
+                        typ: Mod,
+                        display: Normal,
+                    },
+                ],
+            },
+            name: "DataProvider",
+            methods: [
+                Method {
+                    docs: Docs {
+                        lines: "",
+                        rust_links: [
+                            RustLink {
+                                path: Path {
+                                    elements: [
+                                        Ident(
+                                            "icu_testdata",
+                                        ),
+                                        Ident(
+                                            "get_static_provider",
+                                        ),
+                                    ],
+                                },
+                                typ: Fn,
+                                display: Normal,
+                            },
+                        ],
+                    },
+                    name: "new_static",
+                    abi_name: "icu4x_DataProvider_new_static_mv1",
+                    lifetime_env: LifetimeEnv {
+                        nodes: [],
+                        num_lifetimes: 0,
+                    },
+                    param_self: None,
+                    params: [],
+                    output: Infallible(
+                        OutType(
+                            Opaque(
+                                OpaquePath {
+                                    lifetimes: Lifetimes {
+                                        indices: [],
+                                    },
+                                    optional: Optional(
+                                        false,
+                                    ),
+                                    owner: Own,
+                                    tcx_id: OpaqueId(
+                                        0,
+                                    ),
+                                },
+                            ),
+                        ),
+                    ),
+                    attrs: Attrs {
+                        disable: false,
+                        deprecated: None,
+                        namespace: None,
+                        rename: RenameAttr {
+                            pattern: None,
+                        },
+                        abi_rename: RenameAttr {
+                            pattern: Some(
+                                RenamePattern {
+                                    replacement: "icu4x__mv1",
+                                    insertion_index: Some(
+                                        6,
+                                    ),
+                                },
+                            ),
+                        },
+                        special_method: Some(
+                            NamedConstructor(
+                                Some(
+                                    "static",
+                                ),
+                            ),
+                        ),
+                        custom_errors: false,
+                        default: false,
+                        demo_attrs: DemoInfo {
+                            generate: false,
+                            default_constructor: true,
+                            external: false,
+                            custom_func: None,
+                            input_cfg: DemoInputCFG {
+                                label: "",
+                                default_value: "",
+                            },
+                        },
+                        generate_mocking_interface: false,
+                        abi_compatible: false,
+                        mut_struct_ref: false,
+                        custom_extra_code: {},
+                        default_value: None,
+                    },
+                },
+                Method {
+                    docs: Docs {
+                        lines: "This exists as a regression test for https://github.com/rust-diplomat/diplomat/issues/155",
+                        rust_links: [],
+                    },
+                    name: "returns_result",
+                    abi_name: "icu4x_DataProvider_returns_result_mv1",
+                    lifetime_env: LifetimeEnv {
+                        nodes: [],
+                        num_lifetimes: 0,
+                    },
+                    param_self: None,
+                    params: [],
+                    output: Fallible(
+                        Unit,
+                        None,
+                    ),
+                    attrs: Attrs {
+                        disable: false,
+                        deprecated: None,
+                        namespace: None,
+                        rename: RenameAttr {
+                            pattern: None,
+                        },
+                        abi_rename: RenameAttr {
+                            pattern: Some(
+                                RenamePattern {
+                                    replacement: "icu4x__mv1",
+                                    insertion_index: Some(
+                                        6,
+                                    ),
+                                },
+                            ),
+                        },
+                        special_method: None,
+                        custom_errors: false,
+                        default: false,
+                        demo_attrs: DemoInfo {
+                            generate: false,
+                            default_constructor: false,
+                            external: false,
+                            custom_func: None,
+                            input_cfg: DemoInputCFG {
+                                label: "",
+                                default_value: "",
+                            },
+                        },
+                        generate_mocking_interface: false,
+                        abi_compatible: false,
+                        mut_struct_ref: false,
+                        custom_extra_code: {},
+                        default_value: None,
+                    },
+                },
+            ],
+            attrs: Attrs {
+                disable: false,
+                deprecated: None,
+                namespace: None,
+                rename: RenameAttr {
+                    pattern: None,
+                },
+                abi_rename: RenameAttr {
+                    pattern: Some(
+                        RenamePattern {
+                            replacement: "icu4x__mv1",
+                            insertion_index: Some(
+                                6,
+                            ),
+                        },
+                    ),
+                },
+                special_method: None,
+                custom_errors: false,
+                default: false,
+                demo_attrs: DemoInfo {
+                    generate: false,
+                    default_constructor: false,
+                    external: false,
+                    custom_func: None,
+                    input_cfg: DemoInputCFG {
+                        label: "",
+                        default_value: "",
+                    },
+                },
+                generate_mocking_interface: false,
+                abi_compatible: false,
+                mut_struct_ref: false,
+                custom_extra_code: {},
+                default_value: None,
+            },
+            lifetimes: LifetimeEnv {
+                nodes: [],
+                num_lifetimes: 0,
+            },
+            special_method_presence: SpecialMethodPresence {
+                comparator: false,
+                iterator: None,
+                iterable: None,
+            },
+            dtor_abi_name: "icu4x_DataProvider_destroy_mv1",
+        },
+        OpaqueDef {
+            docs: Docs {
+                lines: "An  Fixed Decimal Format object, capable of formatting a [`FixedDecimal`] as a string.",
+                rust_links: [
+                    RustLink {
+                        path: Path {
+                            elements: [
+                                Ident(
+                                    "icu",
+                                ),
+                                Ident(
+                                    "decimal",
+                                ),
+                                Ident(
+                                    "FixedDecimalFormatter",
+                                ),
+                            ],
+                        },
+                        typ: Struct,
+                        display: Normal,
+                    },
+                ],
+            },
+            name: "FixedDecimalFormatter",
+            methods: [
+                Method {
+                    docs: Docs {
+                        lines: "Creates a new [`FixedDecimalFormatter`] from locale data.",
+                        rust_links: [
+                            RustLink {
+                                path: Path {
+                                    elements: [
+                                        Ident(
+                                            "icu",
+                                        ),
+                                        Ident(
+                                            "decimal",
+                                        ),
+                                        Ident(
+                                            "FixedDecimalFormatter",
+                                        ),
+                                        Ident(
+                                            "try_new",
+                                        ),
+                                    ],
+                                },
+                                typ: FnInStruct,
+                                display: Normal,
+                            },
+                        ],
+                    },
+                    name: "try_new",
+                    abi_name: "icu4x_FixedDecimalFormatter_try_new_mv1",
+                    lifetime_env: LifetimeEnv {
+                        nodes: [],
+                        num_lifetimes: 2,
+                    },
+                    param_self: None,
+                    params: [
+                        Param {
+                            name: "locale",
+                            ty: Opaque(
+                                OpaquePath {
+                                    lifetimes: Lifetimes {
+                                        indices: [],
+                                    },
+                                    optional: Optional(
+                                        false,
+                                    ),
+                                    owner: Borrow {
+                                        lifetime: NonStatic(
+                                            Lifetime(
+                                                0,
+                                            ),
+                                        ),
+                                        mutability: Immutable,
+                                    },
+                                    tcx_id: OpaqueId(
+                                        3,
+                                    ),
+                                },
+                            ),
+                            attrs: Attrs {
+                                disable: false,
+                                deprecated: None,
+                                namespace: None,
+                                rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                abi_rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                special_method: None,
+                                custom_errors: false,
+                                default: false,
+                                demo_attrs: DemoInfo {
+                                    generate: false,
+                                    default_constructor: false,
+                                    external: false,
+                                    custom_func: None,
+                                    input_cfg: DemoInputCFG {
+                                        label: "",
+                                        default_value: "",
+                                    },
+                                },
+                                generate_mocking_interface: false,
+                                abi_compatible: false,
+                                mut_struct_ref: false,
+                                custom_extra_code: {},
+                                default_value: None,
+                            },
+                        },
+                        Param {
+                            name: "provider",
+                            ty: Opaque(
+                                OpaquePath {
+                                    lifetimes: Lifetimes {
+                                        indices: [],
+                                    },
+                                    optional: Optional(
+                                        false,
+                                    ),
+                                    owner: Borrow {
+                                        lifetime: NonStatic(
+                                            Lifetime(
+                                                1,
+                                            ),
+                                        ),
+                                        mutability: Immutable,
+                                    },
+                                    tcx_id: OpaqueId(
+                                        0,
+                                    ),
+                                },
+                            ),
+                            attrs: Attrs {
+                                disable: false,
+                                deprecated: None,
+                                namespace: None,
+                                rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                abi_rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                special_method: None,
+                                custom_errors: false,
+                                default: false,
+                                demo_attrs: DemoInfo {
+                                    generate: false,
+                                    default_constructor: false,
+                                    external: false,
+                                    custom_func: None,
+                                    input_cfg: DemoInputCFG {
+                                        label: "",
+                                        default_value: "",
+                                    },
+                                },
+                                generate_mocking_interface: false,
+                                abi_compatible: false,
+                                mut_struct_ref: false,
+                                custom_extra_code: {},
+                                default_value: None,
+                            },
+                        },
+                        Param {
+                            name: "options",
+                            ty: Struct(
+                                StructPath {
+                                    lifetimes: Lifetimes {
+                                        indices: [],
+                                    },
+                                    tcx_id: StructId(
+                                        0,
+                                    ),
+                                    owner: Own,
+                                },
+                            ),
+                            attrs: Attrs {
+                                disable: false,
+                                deprecated: None,
+                                namespace: None,
+                                rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                abi_rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                special_method: None,
+                                custom_errors: false,
+                                default: false,
+                                demo_attrs: DemoInfo {
+                                    generate: false,
+                                    default_constructor: false,
+                                    external: false,
+                                    custom_func: None,
+                                    input_cfg: DemoInputCFG {
+                                        label: "",
+                                        default_value: "",
+                                    },
+                                },
+                                generate_mocking_interface: false,
+                                abi_compatible: false,
+                                mut_struct_ref: false,
+                                custom_extra_code: {},
+                                default_value: None,
+                            },
+                        },
+                    ],
+                    output: Fallible(
+                        OutType(
+                            Opaque(
+                                OpaquePath {
+                                    lifetimes: Lifetimes {
+                                        indices: [],
+                                    },
+                                    optional: Optional(
+                                        false,
+                                    ),
+                                    owner: Own,
+                                    tcx_id: OpaqueId(
+                                        1,
+                                    ),
+                                },
+                            ),
+                        ),
+                        None,
+                    ),
+                    attrs: Attrs {
+                        disable: false,
+                        deprecated: None,
+                        namespace: None,
+                        rename: RenameAttr {
+                            pattern: None,
+                        },
+                        abi_rename: RenameAttr {
+                            pattern: Some(
+                                RenamePattern {
+                                    replacement: "icu4x__mv1",
+                                    insertion_index: Some(
+                                        6,
+                                    ),
+                                },
+                            ),
+                        },
+                        special_method: None,
+                        custom_errors: false,
+                        default: false,
+                        demo_attrs: DemoInfo {
+                            generate: false,
+                            default_constructor: true,
+                            external: false,
+                            custom_func: None,
+                            input_cfg: DemoInputCFG {
+                                label: "",
+                                default_value: "",
+                            },
+                        },
+                        generate_mocking_interface: false,
+                        abi_compatible: false,
+                        mut_struct_ref: false,
+                        custom_extra_code: {},
+                        default_value: None,
+                    },
+                },
+                Method {
+                    docs: Docs {
+                        lines: "Formats a [`FixedDecimal`] to a string.",
+                        rust_links: [
+                            RustLink {
+                                path: Path {
+                                    elements: [
+                                        Ident(
+                                            "icu",
+                                        ),
+                                        Ident(
+                                            "decimal",
+                                        ),
+                                        Ident(
+                                            "FixedDecimalFormatter",
+                                        ),
+                                        Ident(
+                                            "format",
+                                        ),
+                                    ],
+                                },
+                                typ: FnInStruct,
+                                display: Normal,
+                            },
+                        ],
+                    },
+                    name: "format_write",
+                    abi_name: "icu4x_FixedDecimalFormatter_format_write_mv1",
+                    lifetime_env: LifetimeEnv {
+                        nodes: [],
+                        num_lifetimes: 2,
+                    },
+                    param_self: Some(
+                        ParamSelf {
+                            ty: Opaque(
+                                OpaquePath {
+                                    lifetimes: Lifetimes {
+                                        indices: [],
+                                    },
+                                    optional: NonOptional,
+                                    owner: Borrow {
+                                        lifetime: NonStatic(
+                                            Lifetime(
+                                                0,
+                                            ),
+                                        ),
+                                        mutability: Immutable,
+                                    },
+                                    tcx_id: OpaqueId(
+                                        1,
+                                    ),
+                                },
+                            ),
+                            attrs: Attrs {
+                                disable: false,
+                                deprecated: None,
+                                namespace: None,
+                                rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                abi_rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                special_method: None,
+                                custom_errors: false,
+                                default: false,
+                                demo_attrs: DemoInfo {
+                                    generate: false,
+                                    default_constructor: false,
+                                    external: false,
+                                    custom_func: None,
+                                    input_cfg: DemoInputCFG {
+                                        label: "",
+                                        default_value: "",
+                                    },
+                                },
+                                generate_mocking_interface: false,
+                                abi_compatible: false,
+                                mut_struct_ref: false,
+                                custom_extra_code: {},
+                                default_value: None,
+                            },
+                        },
+                    ),
+                    params: [
+                        Param {
+                            name: "value",
+                            ty: Opaque(
+                                OpaquePath {
+                                    lifetimes: Lifetimes {
+                                        indices: [],
+                                    },
+                                    optional: Optional(
+                                        false,
+                                    ),
+                                    owner: Borrow {
+                                        lifetime: NonStatic(
+                                            Lifetime(
+                                                1,
+                                            ),
+                                        ),
+                                        mutability: Immutable,
+                                    },
+                                    tcx_id: OpaqueId(
+                                        2,
+                                    ),
+                                },
+                            ),
+                            attrs: Attrs {
+                                disable: false,
+                                deprecated: None,
+                                namespace: None,
+                                rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                abi_rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                special_method: None,
+                                custom_errors: false,
+                                default: false,
+                                demo_attrs: DemoInfo {
+                                    generate: false,
+                                    default_constructor: false,
+                                    external: false,
+                                    custom_func: None,
+                                    input_cfg: DemoInputCFG {
+                                        label: "",
+                                        default_value: "",
+                                    },
+                                },
+                                generate_mocking_interface: false,
+                                abi_compatible: false,
+                                mut_struct_ref: false,
+                                custom_extra_code: {},
+                                default_value: None,
+                            },
+                        },
+                    ],
+                    output: Infallible(
+                        Write,
+                    ),
+                    attrs: Attrs {
+                        disable: false,
+                        deprecated: None,
+                        namespace: None,
+                        rename: RenameAttr {
+                            pattern: None,
+                        },
+                        abi_rename: RenameAttr {
+                            pattern: Some(
+                                RenamePattern {
+                                    replacement: "icu4x__mv1",
+                                    insertion_index: Some(
+                                        6,
+                                    ),
+                                },
+                            ),
+                        },
+                        special_method: None,
+                        custom_errors: false,
+                        default: false,
+                        demo_attrs: DemoInfo {
+                            generate: false,
+                            default_constructor: false,
+                            external: false,
+                            custom_func: None,
+                            input_cfg: DemoInputCFG {
+                                label: "",
+                                default_value: "",
+                            },
+                        },
+                        generate_mocking_interface: false,
+                        abi_compatible: false,
+                        mut_struct_ref: false,
+                        custom_extra_code: {},
+                        default_value: None,
+                    },
+                },
+            ],
+            attrs: Attrs {
+                disable: false,
+                deprecated: None,
+                namespace: None,
+                rename: RenameAttr {
+                    pattern: None,
+                },
+                abi_rename: RenameAttr {
+                    pattern: Some(
+                        RenamePattern {
+                            replacement: "icu4x__mv1",
+                            insertion_index: Some(
+                                6,
+                            ),
+                        },
+                    ),
+                },
+                special_method: None,
+                custom_errors: false,
+                default: false,
+                demo_attrs: DemoInfo {
+                    generate: false,
+                    default_constructor: false,
+                    external: false,
+                    custom_func: None,
+                    input_cfg: DemoInputCFG {
+                        label: "",
+                        default_value: "",
+                    },
+                },
+                generate_mocking_interface: false,
+                abi_compatible: false,
+                mut_struct_ref: false,
+                custom_extra_code: {},
+                default_value: None,
+            },
+            lifetimes: LifetimeEnv {
+                nodes: [],
+                num_lifetimes: 0,
+            },
+            special_method_presence: SpecialMethodPresence {
+                comparator: false,
+                iterator: None,
+                iterable: None,
+            },
+            dtor_abi_name: "icu4x_FixedDecimalFormatter_destroy_mv1",
+        },
+        OpaqueDef {
+            docs: Docs {
+                lines: "",
+                rust_links: [
+                    RustLink {
+                        path: Path {
+                            elements: [
+                                Ident(
+                                    "fixed_decimal",
+                                ),
+                                Ident(
+                                    "FixedDecimal",
+                                ),
+                            ],
+                        },
+                        typ: Struct,
+                        display: Normal,
+                    },
+                ],
+            },
+            name: "FixedDecimal",
+            methods: [
+                Method {
+                    docs: Docs {
+                        lines: "Construct an [`FixedDecimal`] from an integer.",
+                        rust_links: [],
+                    },
+                    name: "new",
+                    abi_name: "icu4x_FixedDecimal_new_mv1",
+                    lifetime_env: LifetimeEnv {
+                        nodes: [],
+                        num_lifetimes: 0,
+                    },
+                    param_self: None,
+                    params: [
+                        Param {
+                            name: "v",
+                            ty: Primitive(
+                                Int(
+                                    I32,
+                                ),
+                            ),
+                            attrs: Attrs {
+                                disable: false,
+                                deprecated: None,
+                                namespace: None,
+                                rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                abi_rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                special_method: None,
+                                custom_errors: false,
+                                default: false,
+                                demo_attrs: DemoInfo {
+                                    generate: false,
+                                    default_constructor: false,
+                                    external: false,
+                                    custom_func: None,
+                                    input_cfg: DemoInputCFG {
+                                        label: "ICU4XFixedDecimal Value",
+                                        default_value: "1000",
+                                    },
+                                },
+                                generate_mocking_interface: false,
+                                abi_compatible: false,
+                                mut_struct_ref: false,
+                                custom_extra_code: {},
+                                default_value: None,
+                            },
+                        },
+                    ],
+                    output: Infallible(
+                        OutType(
+                            Opaque(
+                                OpaquePath {
+                                    lifetimes: Lifetimes {
+                                        indices: [],
+                                    },
+                                    optional: Optional(
+                                        false,
+                                    ),
+                                    owner: Own,
+                                    tcx_id: OpaqueId(
+                                        2,
+                                    ),
+                                },
+                            ),
+                        ),
+                    ),
+                    attrs: Attrs {
+                        disable: false,
+                        deprecated: None,
+                        namespace: None,
+                        rename: RenameAttr {
+                            pattern: None,
+                        },
+                        abi_rename: RenameAttr {
+                            pattern: Some(
+                                RenamePattern {
+                                    replacement: "icu4x__mv1",
+                                    insertion_index: Some(
+                                        6,
+                                    ),
+                                },
+                            ),
+                        },
+                        special_method: Some(
+                            Constructor,
+                        ),
+                        custom_errors: false,
+                        default: false,
+                        demo_attrs: DemoInfo {
+                            generate: false,
+                            default_constructor: false,
+                            external: false,
+                            custom_func: None,
+                            input_cfg: DemoInputCFG {
+                                label: "",
+                                default_value: "",
+                            },
+                        },
+                        generate_mocking_interface: false,
+                        abi_compatible: false,
+                        mut_struct_ref: false,
+                        custom_extra_code: {},
+                        default_value: None,
+                    },
+                },
+                Method {
+                    docs: Docs {
+                        lines: "Multiply the [`FixedDecimal`] by a given power of ten.",
+                        rust_links: [
+                            RustLink {
+                                path: Path {
+                                    elements: [
+                                        Ident(
+                                            "fixed_decimal",
+                                        ),
+                                        Ident(
+                                            "FixedDecimal",
+                                        ),
+                                        Ident(
+                                            "multiply_pow10",
+                                        ),
+                                    ],
+                                },
+                                typ: FnInStruct,
+                                display: Normal,
+                            },
+                        ],
+                    },
+                    name: "multiply_pow10",
+                    abi_name: "icu4x_FixedDecimal_multiply_pow10_mv1",
+                    lifetime_env: LifetimeEnv {
+                        nodes: [],
+                        num_lifetimes: 1,
+                    },
+                    param_self: Some(
+                        ParamSelf {
+                            ty: Opaque(
+                                OpaquePath {
+                                    lifetimes: Lifetimes {
+                                        indices: [],
+                                    },
+                                    optional: NonOptional,
+                                    owner: Borrow {
+                                        lifetime: NonStatic(
+                                            Lifetime(
+                                                0,
+                                            ),
+                                        ),
+                                        mutability: Mutable,
+                                    },
+                                    tcx_id: OpaqueId(
+                                        2,
+                                    ),
+                                },
+                            ),
+                            attrs: Attrs {
+                                disable: false,
+                                deprecated: None,
+                                namespace: None,
+                                rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                abi_rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                special_method: None,
+                                custom_errors: false,
+                                default: false,
+                                demo_attrs: DemoInfo {
+                                    generate: false,
+                                    default_constructor: false,
+                                    external: false,
+                                    custom_func: None,
+                                    input_cfg: DemoInputCFG {
+                                        label: "",
+                                        default_value: "",
+                                    },
+                                },
+                                generate_mocking_interface: false,
+                                abi_compatible: false,
+                                mut_struct_ref: false,
+                                custom_extra_code: {},
+                                default_value: None,
+                            },
+                        },
+                    ),
+                    params: [
+                        Param {
+                            name: "power",
+                            ty: Primitive(
+                                Int(
+                                    I16,
+                                ),
+                            ),
+                            attrs: Attrs {
+                                disable: false,
+                                deprecated: None,
+                                namespace: None,
+                                rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                abi_rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                special_method: None,
+                                custom_errors: false,
+                                default: false,
+                                demo_attrs: DemoInfo {
+                                    generate: false,
+                                    default_constructor: false,
+                                    external: false,
+                                    custom_func: None,
+                                    input_cfg: DemoInputCFG {
+                                        label: "",
+                                        default_value: "",
+                                    },
+                                },
+                                generate_mocking_interface: false,
+                                abi_compatible: false,
+                                mut_struct_ref: false,
+                                custom_extra_code: {},
+                                default_value: None,
+                            },
+                        },
+                    ],
+                    output: Infallible(
+                        Unit,
+                    ),
+                    attrs: Attrs {
+                        disable: false,
+                        deprecated: None,
+                        namespace: None,
+                        rename: RenameAttr {
+                            pattern: None,
+                        },
+                        abi_rename: RenameAttr {
+                            pattern: Some(
+                                RenamePattern {
+                                    replacement: "icu4x__mv1",
+                                    insertion_index: Some(
+                                        6,
+                                    ),
+                                },
+                            ),
+                        },
+                        special_method: None,
+                        custom_errors: false,
+                        default: false,
+                        demo_attrs: DemoInfo {
+                            generate: false,
+                            default_constructor: false,
+                            external: false,
+                            custom_func: None,
+                            input_cfg: DemoInputCFG {
+                                label: "",
+                                default_value: "",
+                            },
+                        },
+                        generate_mocking_interface: false,
+                        abi_compatible: false,
+                        mut_struct_ref: false,
+                        custom_extra_code: {},
+                        default_value: None,
+                    },
+                },
+                Method {
+                    docs: Docs {
+                        lines: "Format the [`FixedDecimal`] as a string.",
+                        rust_links: [
+                            RustLink {
+                                path: Path {
+                                    elements: [
+                                        Ident(
+                                            "fixed_decimal",
+                                        ),
+                                        Ident(
+                                            "FixedDecimal",
+                                        ),
+                                        Ident(
+                                            "write_to",
+                                        ),
+                                    ],
+                                },
+                                typ: FnInStruct,
+                                display: Normal,
+                            },
+                        ],
+                    },
+                    name: "to_string",
+                    abi_name: "icu4x_FixedDecimal_to_string_mv1",
+                    lifetime_env: LifetimeEnv {
+                        nodes: [],
+                        num_lifetimes: 1,
+                    },
+                    param_self: Some(
+                        ParamSelf {
+                            ty: Opaque(
+                                OpaquePath {
+                                    lifetimes: Lifetimes {
+                                        indices: [],
+                                    },
+                                    optional: NonOptional,
+                                    owner: Borrow {
+                                        lifetime: NonStatic(
+                                            Lifetime(
+                                                0,
+                                            ),
+                                        ),
+                                        mutability: Immutable,
+                                    },
+                                    tcx_id: OpaqueId(
+                                        2,
+                                    ),
+                                },
+                            ),
+                            attrs: Attrs {
+                                disable: false,
+                                deprecated: None,
+                                namespace: None,
+                                rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                abi_rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                special_method: None,
+                                custom_errors: false,
+                                default: false,
+                                demo_attrs: DemoInfo {
+                                    generate: false,
+                                    default_constructor: false,
+                                    external: false,
+                                    custom_func: None,
+                                    input_cfg: DemoInputCFG {
+                                        label: "",
+                                        default_value: "",
+                                    },
+                                },
+                                generate_mocking_interface: false,
+                                abi_compatible: false,
+                                mut_struct_ref: false,
+                                custom_extra_code: {},
+                                default_value: None,
+                            },
+                        },
+                    ),
+                    params: [],
+                    output: Fallible(
+                        Write,
+                        None,
+                    ),
+                    attrs: Attrs {
+                        disable: false,
+                        deprecated: None,
+                        namespace: None,
+                        rename: RenameAttr {
+                            pattern: None,
+                        },
+                        abi_rename: RenameAttr {
+                            pattern: Some(
+                                RenamePattern {
+                                    replacement: "icu4x__mv1",
+                                    insertion_index: Some(
+                                        6,
+                                    ),
+                                },
+                            ),
+                        },
+                        special_method: None,
+                        custom_errors: false,
+                        default: false,
+                        demo_attrs: DemoInfo {
+                            generate: false,
+                            default_constructor: false,
+                            external: false,
+                            custom_func: None,
+                            input_cfg: DemoInputCFG {
+                                label: "",
+                                default_value: "",
+                            },
+                        },
+                        generate_mocking_interface: false,
+                        abi_compatible: false,
+                        mut_struct_ref: false,
+                        custom_extra_code: {},
+                        default_value: None,
+                    },
+                },
+            ],
+            attrs: Attrs {
+                disable: false,
+                deprecated: None,
+                namespace: None,
+                rename: RenameAttr {
+                    pattern: None,
+                },
+                abi_rename: RenameAttr {
+                    pattern: Some(
+                        RenamePattern {
+                            replacement: "icu4x__mv1",
+                            insertion_index: Some(
+                                6,
+                            ),
+                        },
+                    ),
+                },
+                special_method: None,
+                custom_errors: false,
+                default: false,
+                demo_attrs: DemoInfo {
+                    generate: false,
+                    default_constructor: false,
+                    external: false,
+                    custom_func: Some(
+                        "../demo_gen/custom_func/a.mjs",
+                    ),
+                    input_cfg: DemoInputCFG {
+                        label: "",
+                        default_value: "",
+                    },
+                },
+                generate_mocking_interface: false,
+                abi_compatible: false,
+                mut_struct_ref: false,
+                custom_extra_code: {},
+                default_value: None,
+            },
+            lifetimes: LifetimeEnv {
+                nodes: [],
+                num_lifetimes: 0,
+            },
+            special_method_presence: SpecialMethodPresence {
+                comparator: false,
+                iterator: None,
+                iterable: None,
+            },
+            dtor_abi_name: "icu4x_FixedDecimal_destroy_mv1",
+        },
+        OpaqueDef {
+            docs: Docs {
+                lines: "An  Locale, capable of representing strings like `\"en-US\"`.",
+                rust_links: [
+                    RustLink {
+                        path: Path {
+                            elements: [
+                                Ident(
+                                    "icu",
+                                ),
+                                Ident(
+                                    "locid",
+                                ),
+                                Ident(
+                                    "Locale",
+                                ),
+                            ],
+                        },
+                        typ: Struct,
+                        display: Normal,
+                    },
+                ],
+            },
+            name: "Locale",
+            methods: [
+                Method {
+                    docs: Docs {
+                        lines: "Construct an [`Locale`] from a locale identifier represented as a string.",
+                        rust_links: [],
+                    },
+                    name: "new",
+                    abi_name: "icu4x_Locale_new_mv1",
+                    lifetime_env: LifetimeEnv {
+                        nodes: [],
+                        num_lifetimes: 1,
+                    },
+                    param_self: None,
+                    params: [
+                        Param {
+                            name: "name",
+                            ty: Slice(
+                                Str(
+                                    Some(
+                                        NonStatic(
+                                            Lifetime(
+                                                0,
+                                            ),
+                                        ),
+                                    ),
+                                    UnvalidatedUtf8,
+                                ),
+                            ),
+                            attrs: Attrs {
+                                disable: false,
+                                deprecated: None,
+                                namespace: None,
+                                rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                abi_rename: RenameAttr {
+                                    pattern: None,
+                                },
+                                special_method: None,
+                                custom_errors: false,
+                                default: false,
+                                demo_attrs: DemoInfo {
+                                    generate: false,
+                                    default_constructor: false,
+                                    external: false,
+                                    custom_func: None,
+                                    input_cfg: DemoInputCFG {
+                                        label: "",
+                                        default_value: "",
+                                    },
+                                },
+                                generate_mocking_interface: false,
+                                abi_compatible: false,
+                                mut_struct_ref: false,
+                                custom_extra_code: {},
+                                default_value: None,
+                            },
+                        },
+                    ],
+                    output: Infallible(
+                        OutType(
+                            Opaque(
+                                OpaquePath {
+                                    lifetimes: Lifetimes {
+                                        indices: [],
+                                    },
+                                    optional: Optional(
+                                        false,
+                                    ),
+                                    owner: Own,
+                                    tcx_id: OpaqueId(
+                                        3,
+                                    ),
+                                },
+                            ),
+                        ),
+                    ),
+                    attrs: Attrs {
+                        disable: false,
+                        deprecated: None,
+                        namespace: None,
+                        rename: RenameAttr {
+                            pattern: None,
+                        },
+                        abi_rename: RenameAttr {
+                            pattern: Some(
+                                RenamePattern {
+                                    replacement: "icu4x__mv1",
+                                    insertion_index: Some(
+                                        6,
+                                    ),
+                                },
+                            ),
+                        },
+                        special_method: Some(
+                            Constructor,
+                        ),
+                        custom_errors: false,
+                        default: false,
+                        demo_attrs: DemoInfo {
+                            generate: false,
+                            default_constructor: false,
+                            external: false,
+                            custom_func: None,
+                            input_cfg: DemoInputCFG {
+                                label: "",
+                                default_value: "",
+                            },
+                        },
+                        generate_mocking_interface: false,
+                        abi_compatible: false,
+                        mut_struct_ref: false,
+                        custom_extra_code: {},
+                        default_value: None,
+                    },
+                },
+            ],
+            attrs: Attrs {
+                disable: false,
+                deprecated: None,
+                namespace: None,
+                rename: RenameAttr {
+                    pattern: None,
+                },
+                abi_rename: RenameAttr {
+                    pattern: Some(
+                        RenamePattern {
+                            replacement: "icu4x__mv1",
+                            insertion_index: Some(
+                                6,
+                            ),
+                        },
+                    ),
+                },
+                special_method: None,
+                custom_errors: false,
+                default: false,
+                demo_attrs: DemoInfo {
+                    generate: false,
+                    default_constructor: false,
+                    external: false,
+                    custom_func: None,
+                    input_cfg: DemoInputCFG {
+                        label: "",
+                        default_value: "",
+                    },
+                },
+                generate_mocking_interface: false,
+                abi_compatible: false,
+                mut_struct_ref: false,
+                custom_extra_code: {},
+                default_value: None,
+            },
+            lifetimes: LifetimeEnv {
+                nodes: [],
+                num_lifetimes: 0,
+            },
+            special_method_presence: SpecialMethodPresence {
+                comparator: false,
+                iterator: None,
+                iterable: None,
+            },
+            dtor_abi_name: "icu4x_Locale_destroy_mv1",
+        },
+    ],
+    enums: [
+        EnumDef {
+            docs: Docs {
+                lines: "",
+                rust_links: [],
+            },
+            name: "FixedDecimalGroupingStrategy",
+            variants: [
+                EnumVariant {
+                    docs: Docs {
+                        lines: "Auto grouping",
+                        rust_links: [],
+                    },
+                    name: "Auto",
+                    discriminant: 0,
+                    attrs: Attrs {
+                        disable: false,
+                        deprecated: None,
+                        namespace: None,
+                        rename: RenameAttr {
+                            pattern: None,
+                        },
+                        abi_rename: RenameAttr {
+                            pattern: None,
+                        },
+                        special_method: None,
+                        custom_errors: false,
+                        default: false,
+                        demo_attrs: DemoInfo {
+                            generate: false,
+                            default_constructor: false,
+                            external: false,
+                            custom_func: None,
+                            input_cfg: DemoInputCFG {
+                                label: "",
+                                default_value: "",
+                            },
+                        },
+                        generate_mocking_interface: false,
+                        abi_compatible: false,
+                        mut_struct_ref: false,
+                        custom_extra_code: {},
+                        default_value: None,
+                    },
+                },
+                EnumVariant {
+                    docs: Docs {
+                        lines: "No grouping",
+                        rust_links: [],
+                    },
+                    name: "Never",
+                    discriminant: 1,
+                    attrs: Attrs {
+                        disable: false,
+                        deprecated: None,
+                        namespace: None,
+                        rename: RenameAttr {
+                            pattern: None,
+                        },
+                        abi_rename: RenameAttr {
+                            pattern: None,
+                        },
+                        special_method: None,
+                        custom_errors: false,
+                        default: false,
+                        demo_attrs: DemoInfo {
+                            generate: false,
+                            default_constructor: false,
+                            external: false,
+                            custom_func: None,
+                            input_cfg: DemoInputCFG {
+                                label: "",
+                                default_value: "",
+                            },
+                        },
+                        generate_mocking_interface: false,
+                        abi_compatible: false,
+                        mut_struct_ref: false,
+                        custom_extra_code: {},
+                        default_value: None,
+                    },
+                },
+                EnumVariant {
+                    docs: Docs {
+                        lines: "Always group",
+                        rust_links: [],
+                    },
+                    name: "Always",
+                    discriminant: 2,
+                    attrs: Attrs {
+                        disable: false,
+                        deprecated: None,
+                        namespace: None,
+                        rename: RenameAttr {
+                            pattern: None,
+                        },
+                        abi_rename: RenameAttr {
+                            pattern: None,
+                        },
+                        special_method: None,
+                        custom_errors: false,
+                        default: false,
+                        demo_attrs: DemoInfo {
+                            generate: false,
+                            default_constructor: false,
+                            external: false,
+                            custom_func: None,
+                            input_cfg: DemoInputCFG {
+                                label: "",
+                                default_value: "",
+                            },
+                        },
+                        generate_mocking_interface: false,
+                        abi_compatible: false,
+                        mut_struct_ref: false,
+                        custom_extra_code: {},
+                        default_value: None,
+                    },
+                },
+                EnumVariant {
+                    docs: Docs {
+                        lines: "At least 2 groups",
+                        rust_links: [],
+                    },
+                    name: "Min2",
+                    discriminant: 3,
+                    attrs: Attrs {
+                        disable: false,
+                        deprecated: None,
+                        namespace: None,
+                        rename: RenameAttr {
+                            pattern: None,
+                        },
+                        abi_rename: RenameAttr {
+                            pattern: None,
+                        },
+                        special_method: None,
+                        custom_errors: false,
+                        default: false,
+                        demo_attrs: DemoInfo {
+                            generate: false,
+                            default_constructor: false,
+                            external: false,
+                            custom_func: None,
+                            input_cfg: DemoInputCFG {
+                                label: "",
+                                default_value: "",
+                            },
+                        },
+                        generate_mocking_interface: false,
+                        abi_compatible: false,
+                        mut_struct_ref: false,
+                        custom_extra_code: {},
+                        default_value: None,
+                    },
+                },
+            ],
+            methods: [],
+            attrs: Attrs {
+                disable: false,
+                deprecated: None,
+                namespace: None,
+                rename: RenameAttr {
+                    pattern: None,
+                },
+                abi_rename: RenameAttr {
+                    pattern: Some(
+                        RenamePattern {
+                            replacement: "icu4x__mv1",
+                            insertion_index: Some(
+                                6,
+                            ),
+                        },
+                    ),
+                },
+                special_method: None,
+                custom_errors: false,
+                default: false,
+                demo_attrs: DemoInfo {
+                    generate: false,
+                    default_constructor: false,
+                    external: false,
+                    custom_func: None,
+                    input_cfg: DemoInputCFG {
+                        label: "",
+                        default_value: "",
+                    },
+                },
+                generate_mocking_interface: false,
+                abi_compatible: false,
+                mut_struct_ref: false,
+                custom_extra_code: {},
+                default_value: None,
+            },
+            special_method_presence: SpecialMethodPresence {
+                comparator: false,
+                iterator: None,
+                iterable: None,
+            },
+        },
+    ],
+    traits: [],
+    functions: [],
+}

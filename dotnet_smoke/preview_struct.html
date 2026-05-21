@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Diplomat .NET — Struct, side by side</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/csharp.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  h1 {
+    margin: 0 0 4px 0;
+    font-size: 20px;
+    font-weight: 600;
+  }
+  .subtitle {
+    color: #8b949e;
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .panel {
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .panel-header {
+    background: #161b22;
+    color: #8b949e;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-family: "SF Mono", Consolas, monospace;
+    border-bottom: 1px solid #30363d;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .panel-header .filename { color: #58a6ff; }
+  .panel-header .lang { color: #d2a8ff; }
+  pre {
+    margin: 0;
+    background: #0d1117 !important;
+  }
+  pre code {
+    padding: 14px !important;
+    font-size: 13px;
+    line-height: 1.5;
+    font-family: "SF Mono", Consolas, "Cascadia Code", monospace;
+  }
+  .stage-note {
+    background: #1c2128;
+    border: 1px solid #30363d;
+    border-left: 3px solid #d29922;
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    color: #c9d1d9;
+    font-size: 13px;
+  }
+  .stage-note strong { color: #d29922; }
+  .contrast {
+    background: #1c2128;
+    border: 1px solid #30363d;
+    border-left: 3px solid #3fb950;
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-top: 16px;
+    color: #c9d1d9;
+    font-size: 13px;
+  }
+  .contrast strong { color: #3fb950; }
+  .contrast ul { margin: 6px 0 0 0; padding-left: 20px; }
+  .contrast li { margin: 2px 0; }
+  code { color: #79c0ff; }
+</style>
+</head>
+<body>
+
+<h1>Diplomat .NET backend — Struct mapping</h1>
+<div class="subtitle">Stage 3: <code>dotnet_smoke/src/lib.rs</code> &rarr; <code>dotnet_smoke/out/Point2D.cs</code> + <code>RawPoint2D.cs</code></div>
+
+<div class="stage-note">
+  <strong>What this exercises:</strong> a by-value <em>struct</em> (POD aggregate), public fields, a static factory, and methods that consume <code>self</code> by value. Contrast with opaque: the struct <em>is</em> the data &mdash; no handle, no destructor, no <code>IDisposable</code>.
+</div>
+
+<div class="grid">
+
+  <div class="col">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="filename">dotnet_smoke/src/lib.rs</span>
+        <span class="lang">Rust (input)</span>
+      </div>
+<pre><code class="language-rust">#[diplomat::bridge]
+pub mod ffi {
+    pub struct Point2D {
+        pub x: f32,
+        pub y: f32,
+    }
+
+    impl Point2D {
+        pub fn new(x: f32, y: f32) -&gt; Point2D {
+            Point2D { x, y }
+        }
+
+        pub fn magnitude(self) -&gt; f32 {
+            (self.x * self.x + self.y * self.y).sqrt()
+        }
+
+        pub fn translated(self, dx: f32, dy: f32) -&gt; Point2D {
+            Point2D {
+                x: self.x + dx,
+                y: self.y + dy,
+            }
+        }
+    }
+}
+</code></pre>
+    </div>
+
+    <div class="contrast">
+      <strong>How structs differ from opaques in the bridge:</strong>
+      <ul>
+        <li>No <code>#[diplomat::opaque]</code> &mdash; fields are <code>pub</code> and visible across FFI.</li>
+        <li>No <code>Box&lt;Self&gt;</code> &mdash; passed/returned by value across the C ABI.</li>
+        <li>No <code>&amp;self</code> / <code>&amp;mut self</code> on methods &mdash; either <code>self</code> (by value) or static. Mutation across FFI on a value type wouldn&rsquo;t round-trip cleanly.</li>
+        <li>The bridge macro does <strong>not</strong> emit a <code>Point2D_destroy</code> &mdash; nothing is heap-allocated.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="col">
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="filename">dotnet_smoke/out/Point2D.cs</span>
+        <span class="lang">C# (idiomatic layer)</span>
+      </div>
+<pre><code class="language-csharp">// &lt;auto-generated/&gt; by Diplomat
+using System;
+
+namespace DotnetSmoke;
+
+[StructLayout(LayoutKind.Sequential)]
+public partial struct Point2D
+{
+    public float X;
+    public float Y;
+
+    // Rust: pub fn new(x: f32, y: f32) -&gt; Point2D
+    public static Point2D New(float x, float y)
+    {
+        unsafe
+        {
+            return Raw.Point2D.New(x, y);
+        }
+    }
+
+    // Rust: pub fn magnitude(self) -&gt; f32
+    public float Magnitude()
+    {
+        unsafe
+        {
+            return Raw.Point2D.Magnitude(this);
+        }
+    }
+
+    // Rust: pub fn translated(self, dx: f32, dy: f32) -&gt; Point2D
+    public Point2D Translated(float dx, float dy)
+    {
+        unsafe
+        {
+            return Raw.Point2D.Translated(this, dx, dy);
+        }
+    }
+}
+</code></pre>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="filename">dotnet_smoke/out/RawPoint2D.cs</span>
+        <span class="lang">C# (raw [DllImport] layer)</span>
+      </div>
+<pre><code class="language-csharp">// &lt;auto-generated/&gt; by Diplomat
+using System;
+using System.Runtime.InteropServices;
+
+namespace DotnetSmoke;
+
+internal static unsafe partial class Raw
+{
+    [StructLayout(LayoutKind.Sequential)]
+    public partial struct Point2D
+    {
+        public float X;
+        public float Y;
+
+        private const string NativeLib = "dotnet_smoke";
+
+        [DllImport(NativeLib, EntryPoint = "Point2D_new",
+                   CallingConvention = CallingConvention.Cdecl)]
+        public static extern Point2D New(float x, float y);
+
+        [DllImport(NativeLib, EntryPoint = "Point2D_magnitude",
+                   CallingConvention = CallingConvention.Cdecl)]
+        public static extern float Magnitude(Point2D self);
+
+        [DllImport(NativeLib, EntryPoint = "Point2D_translated",
+                   CallingConvention = CallingConvention.Cdecl)]
+        public static extern Point2D Translated(Point2D self, float dx, float dy);
+    }
+}
+</code></pre>
+    </div>
+
+    <div class="contrast">
+      <strong>How struct C# differs from opaque C#:</strong>
+      <ul>
+        <li>C# <code>struct</code>, not <code>class</code> &mdash; value semantics, lives on the stack/inline in containers.</li>
+        <li>No <code>IDisposable</code>, no finalizer, no <code>_inner</code> pointer.</li>
+        <li>Public fields directly mirror the Rust fields. <code>[StructLayout(Sequential)]</code> guarantees ABI-compat with Rust&rsquo;s <code>#[repr(C)]</code> (Diplomat enforces this on bridge structs).</li>
+        <li>Idiomatic <code>struct</code> declares the fields itself &mdash; the raw layer is just for <code>[DllImport]</code> declarations. Same fields, two declarations, layout-compatible.</li>
+        <li>No destructor &mdash; the GC reclaims the struct&rsquo;s containing storage; nothing on the Rust heap to free.</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  hljs.highlightAll();
+</script>
+
+</body>
+</html>

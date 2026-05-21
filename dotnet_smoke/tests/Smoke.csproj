@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    End-to-end smoke runner for the .NET Diplomat backend.
+
+    Compiles the generated bindings in ../out together with Program.cs,
+    copies the Rust cdylib alongside the output exe so [DllImport] can
+    resolve it, and runs the assertions.
+
+    Run via:
+        just smoke-test    # cargo build cdylib + dotnet run tests
+        just smoke-run     # dotnet run only (assumes cdylib already built)
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>DotnetSmoke.Tests</RootNamespace>
+
+    <!-- Quiet the same warnings the syntax-check project quiets. -->
+    <NoWarn>CS8019;CS0169;CS0414;CS0649;CS8500;CS0162</NoWarn>
+
+    <BaseIntermediateOutputPath>obj\</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin\</BaseOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pull in the generated bindings AND Program.cs. -->
+    <Compile Remove="**\*.cs" />
+    <Compile Include="..\out\**\*.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Copy the Rust cdylib next to the exe so [DllImport("dotnet_smoke")] -->
+    <!-- finds it at runtime. Cargo workspace target is two levels up.       -->
+    <None Include="..\..\target\debug\dotnet_smoke.dll"
+          Condition="Exists('..\..\target\debug\dotnet_smoke.dll')">
+      <Link>dotnet_smoke.dll</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

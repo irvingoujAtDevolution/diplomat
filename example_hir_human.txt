@@ -1,0 +1,104 @@
+Diplomat HIR Summary
+====================
+
+Types
+-----
+struct FixedDecimalFormatterOptions
+  fields:
+    grouping_strategy: enum FixedDecimalGroupingStrategy
+    some_other_config: bool
+  methods:
+    method default
+      abi: icu4x_FixedDecimalFormatterOptions_default_mv1
+      special: Constructor
+      self: none
+      params: none
+      return: owned struct FixedDecimalFormatterOptions
+  type id: StructId(0)
+
+opaque DataProvider
+  destructor: icu4x_DataProvider_destroy_mv1
+  methods:
+    method new_static
+      abi: icu4x_DataProvider_new_static_mv1
+      special: NamedConstructor(Some("static"))
+      self: none
+      params: none
+      return: owned opaque DataProvider
+    method returns_result
+      abi: icu4x_DataProvider_returns_result_mv1
+      self: none
+      params: none
+      return: Result<(), ()>
+  type id: OpaqueId(0)
+
+opaque FixedDecimalFormatter
+  destructor: icu4x_FixedDecimalFormatter_destroy_mv1
+  methods:
+    method try_new
+      abi: icu4x_FixedDecimalFormatter_try_new_mv1
+      self: none
+      params:
+        locale: borrowed immutable opaque Locale
+        provider: borrowed immutable opaque DataProvider
+        options: owned struct FixedDecimalFormatterOptions
+      return: Result<owned opaque FixedDecimalFormatter, ()>
+    method format_write
+      abi: icu4x_FixedDecimalFormatter_format_write_mv1
+      self: borrowed immutable opaque FixedDecimalFormatter
+      params:
+        value: borrowed immutable opaque FixedDecimal
+      return: write output
+  type id: OpaqueId(1)
+
+opaque FixedDecimal
+  destructor: icu4x_FixedDecimal_destroy_mv1
+  methods:
+    method new
+      abi: icu4x_FixedDecimal_new_mv1
+      special: Constructor
+      self: none
+      params:
+        v: i32
+      return: owned opaque FixedDecimal
+    method multiply_pow10
+      abi: icu4x_FixedDecimal_multiply_pow10_mv1
+      self: borrowed mutable opaque FixedDecimal
+      params:
+        power: i16
+      return: ()
+    method to_string
+      abi: icu4x_FixedDecimal_to_string_mv1
+      self: borrowed immutable opaque FixedDecimal
+      params: none
+      return: Result<write output, ()>
+  type id: OpaqueId(2)
+
+opaque Locale
+  destructor: icu4x_Locale_destroy_mv1
+  methods:
+    method new
+      abi: icu4x_Locale_new_mv1
+      special: Constructor
+      self: none
+      params:
+        name: UnvalidatedUtf8 string slice
+      return: owned opaque Locale
+  type id: OpaqueId(3)
+
+enum FixedDecimalGroupingStrategy
+  variants:
+    Auto = 0
+    Never = 1
+    Always = 2
+    Min2 = 3
+  methods: none
+  type id: EnumId(0)
+
+Traits
+------
+  none
+
+Free Functions
+--------------
+  none
