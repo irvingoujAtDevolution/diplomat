@@ -10,6 +10,7 @@ pub mod c;
 mod cpp;
 mod dart;
 mod demo_gen;
+mod dotnet;
 mod js;
 mod kotlin;
 mod nanobind;
@@ -37,6 +38,7 @@ pub fn get_supported(target_language: &str) -> hir::BackendAttrSupport {
         "js" => js::attr_support(),
         "demo_gen" => demo_gen::attr_support(),
         "kotlin" => kotlin::attr_support(),
+        "dotnet" | "csharp" => dotnet::attr_support(),
         "py-nanobind" | "nanobind" => nanobind::attr_support(),
         o => panic!("Unknown target: {}", o),
     }
@@ -136,6 +138,7 @@ pub fn gen(
         "cpp" => cpp::run(&tcx, &config, docs_url_gen),
         "dart" => dart::run(&tcx, docs_url_gen),
         "js" => js::run(&tcx, config, docs_url_gen),
+        "dotnet" => dotnet::run(&tcx, &config, docs_url_gen),
         "py-nanobind" | "nanobind" => nanobind::run(&tcx, config, docs_url_gen),
         "demo_gen" => {
             // If we don't already have an import path set up, generate our own imports:
@@ -186,6 +189,89 @@ pub fn gen(
     }
 
     Ok(())
+}
+
+pub fn lower_to_hir(
+    entry: &Path,
+    target_language: &str,
+    mut config: Config,
+) -> Result<hir::TypeContext, String> {
+    if !entry.exists() {
+        return Err(format!(
+            "{}\n{}",
+            if entry.file_name().map(|e| e == "lib.rs").unwrap_or_default() {
+                "Could not find the lib.rs file to process."
+            } else {
+                "The entry file does not exist."
+            },
+            std::env::current_dir()
+                .map(|cwd| cwd.join(entry))
+                .unwrap_or_else(|_| entry.to_path_buf())
+                .display()
+        ));
+    }
+
+    if config
+        .shared_config
+        .custom_extra_code_location
+        .as_os_str()
+        .is_empty()
+    {
+        config.shared_config.custom_extra_code_location = entry
+            .parent()
+            .ok_or_else(|| "Could not get parent of lib.rs".to_string())?
+            .to_path_buf();
+    }
+
+    let target_language = target_language.strip_suffix('2').unwrap_or(target_language);
+    let mut attr_validator = hir::BasicAttributeValidator::new(target_language);
+    attr_validator.support = get_supported(target_language);
+    if matches!(target_language, "demo_gen") {
+        attr_validator.other_backend_names = vec!["js".to_string()];
+    }
+
+    let module = syn_inline_mod::parse_and_inline_modules(entry);
+
+    let cfg = find_top_level_attr(module.items.clone());
+    for attr in cfg {
+        for kvp in attr.key_value_pairs {
+            config.set(&kvp.key, toml_value_from_str(&kvp.value));
+        }
+    }
+
+    let config = config.get_overridden(target_language);
+    let lowering_config = config.shared_config.lowering_config();
+    attr_validator.features_enabled = config.shared_config.features_enabled.clone();
+
+    let manifest_path = config
+        .shared_config
+        .manifest_dir
+        .as_ref()
+        .map(std::path::Path::new)
+        .unwrap_or(
+            entry
+                .parent()
+                .ok_or_else(|| "Could not get parent for entry file.".to_string())?
+                .parent()
+                .ok_or_else(|| "Could not get parent folder of entry file.".to_string())?,
+        );
+
+    let cache = Some(&RefCell::new(HashMap::new()));
+
+    hir::TypeContext::from_syn(
+        &module,
+        lowering_config,
+        attr_validator,
+        Some(ModuleIncludeInfo::new(manifest_path, cache)),
+    )
+    .map_err(|errors| {
+        let mut out = String::new();
+        for (ctx, err) in errors {
+            use std::fmt::Write as _;
+            writeln!(&mut out, "Lowering error in {ctx}: {err}").unwrap();
+        }
+        out
+    })
 }
 
 /// This type abstracts over files being written to.

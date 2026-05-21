@@ -132,7 +132,6 @@ impl<'tcx> ItemGenContext<'_, 'tcx> {
     pub(super) fn gen_enum(
         &self,
         typescript: bool,
-
         enum_def: &'tcx EnumDef,
         methods: &MethodsInfo,
     ) -> String {
@@ -238,7 +237,7 @@ impl<'tcx> ItemGenContext<'_, 'tcx> {
         .map(|(i, field)| {
             let field_name = self.formatter.fmt_param_name(field.name.as_str());
             let (field_type, is_optional) = match &field.ty {
-                // If this is an option, we want to look at the inner type for determining field_type, 
+                // If this is an option, we want to look at the inner type for determining field_type,
                 // since that's what we're actually converting.
                 hir::Type::DiplomatOption(inner) => (inner.as_ref(), true),
                 other => (other, false),
@@ -265,7 +264,7 @@ impl<'tcx> ItemGenContext<'_, 'tcx> {
 
             let c_to_js = self.gen_c_to_js_for_type(
                 &field.ty,
-                format!("{field_name}Deref").into(), 
+                format!("{field_name}Deref").into(),
                 &struct_def.lifetimes
             );
 

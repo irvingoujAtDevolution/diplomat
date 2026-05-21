@@ -129,7 +129,7 @@ pub(crate) fn run<'tcx>(
             config: config.js_config.clone(),
         };
 
-        let (m, special_method_presence, fields, fields_out) = match type_def {
+        let (methods, special_method_presence, fields, fields_out) = match type_def {
             TypeDef::Enum(e) => (&e.methods, &e.special_method_presence, None, None),
             TypeDef::Opaque(o) => (&o.methods, &o.special_method_presence, None, None),
             TypeDef::Struct(s) => (
@@ -149,7 +149,7 @@ pub(crate) fn run<'tcx>(
 
         let mut special_methods = context.generate_special_method(special_method_presence);
 
-        let methods = m
+        let methods = methods
             .iter()
             .flat_map(|method| {
                 let inf = context.generate_method(method);
@@ -193,7 +193,6 @@ pub(crate) fn run<'tcx>(
             };
 
             let file_name = formatter.fmt_file_name(&context.type_name, &file_type);
-
             // Remove our self reference:
             context.remove_import(context.type_name.clone(), None, gen::ImportUsage::Both);
 

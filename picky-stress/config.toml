@@ -1,0 +1,5 @@
+lib_name = "picky"
+
+[dotnet]
+namespace = "Devolutions.Picky"
+exception_trim_suffix = "Error"

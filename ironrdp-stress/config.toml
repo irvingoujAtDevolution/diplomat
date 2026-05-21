@@ -1,0 +1,7 @@
+lib_name = "DevolutionsIronRdp"
+
+[dotnet]
+namespace = "Devolutions.IronRdp"
+exception_trim_suffix = "Error"
+getters_prefix = "get_"
+setters_prefix = "set_"

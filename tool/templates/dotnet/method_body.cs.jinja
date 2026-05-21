@@ -1,0 +1,94 @@
+{#- Shared idiomatic method body — encoding setup, pin chain, raw call,
+    return wrap. The caller is responsible for the method declaration line,
+    the `unsafe { }` wrap, and (for opaque) the disposed check.
+
+    Variables in scope (from the caller's `for method in methods` loop):
+      - method: MethodInfo
+      - name:   the owner type's bare C# name (e.g. "Color", "Point2D")
+-#}
+{%- for statement in method.inputs.to_bytes_statements %}
+{{ statement }}
+{%- endfor %}
+
+{%- for statement in method.inputs.validation_statements %}
+{{ statement }}
+{%- endfor %}
+
+{%- for statement in method.inputs.fix_statements %}
+{{ statement }}
+{%- endfor %}
+{
+{%- if method.return_type.is_write() %}
+    {# Benoit-compat surface: caller supplies the writer, we never
+       allocate or dispose internally. Method returns void; the writer
+       fills with the formatted string. #}
+    {%- if let Some(info) = method.error_info %}
+    var result = Raw.{{ name }}.{{ method.name }}({{ method.raw_call_args_with_writer() }});
+    if (!result.IsOk)
+    {
+        {%- if info.error.is_opaque() %}
+        throw new {{ info.exception_name }}(new {{ info.error }}(result.Err));
+        {%- else %}
+        throw new {{ info.exception_name }}(result.Err);
+        {%- endif %}
+    }
+    {%- else %}
+    Raw.{{ name }}.{{ method.name }}({{ method.raw_call_args_with_writer() }});
+    {%- endif %}
+{%- else if let Some(info) = method.error_info %}
+    var result = Raw.{{ name }}.{{ method.name }}({{ method.inputs.raw_call_args }});
+    if (!result.IsOk)
+    {
+        {%- if info.error.is_opaque() %}
+        throw new {{ info.exception_name }}(new {{ info.error }}(result.Err));
+        {%- else %}
+        throw new {{ info.exception_name }}(result.Err);
+        {%- endif %}
+    }
+    {%- if let Some(opt) = method.option_info %}
+        {%- if let Some(_) = opt.raw_option_type %}
+            {%- if method.return_type.is_opaque() %}
+    return result.Ok.IsSome ? new {{ method.return_type }}(result.Ok.Value) : null;
+            {%- else if method.return_type.is_struct() %}
+    return result.Ok.IsSome ? {{ method.return_type }}.FromFFI(result.Ok.Value) : ({{ method.return_type }}?)null;
+            {%- else %}
+    return result.Ok.IsSome ? result.Ok.Value : ({{ method.return_type }}?)null;
+            {%- endif %}
+        {%- else %}
+    return result.Ok == null ? null : new {{ method.return_type }}(result.Ok);
+        {%- endif %}
+    {%- else if method.return_type.is_opaque() %}
+    return new {{ method.return_type }}(result.Ok);
+    {%- else if method.return_type.is_struct() %}
+    return {{ method.return_type }}.FromFFI(result.Ok);
+    {%- else if method.return_type.is_void() %}
+    return;
+    {%- else %}
+    return result.Ok;
+    {%- endif %}
+{%- else if let Some(opt) = method.option_info %}
+    {%- if let Some(_) = opt.raw_option_type %}
+    var result = Raw.{{ name }}.{{ method.name }}({{ method.inputs.raw_call_args }});
+        {%- if method.return_type.is_opaque() %}
+    return result.IsSome ? new {{ method.return_type }}(result.Value) : null;
+        {%- else if method.return_type.is_struct() %}
+    return result.IsSome ? {{ method.return_type }}.FromFFI(result.Value) : ({{ method.return_type }}?)null;
+        {%- else %}
+    return result.IsSome ? result.Value : ({{ method.return_type }}?)null;
+        {%- endif %}
+    {%- else %}
+    Raw.{{ method.return_type.raw() }} result = Raw.{{ name }}.{{ method.name }}({{ method.inputs.raw_call_args }});
+    return result == null ? null : new {{ method.return_type }}(result);
+    {%- endif %}
+{%- else if method.return_type.is_opaque() %}
+    Raw.{{ method.return_type.raw() }} result = Raw.{{ name }}.{{ method.name }}({{ method.inputs.raw_call_args }});
+    return new {{ method.return_type }}(result);
+{%- else if method.return_type.is_struct() %}
+    Raw.{{ method.return_type.raw() }} result = Raw.{{ name }}.{{ method.name }}({{ method.inputs.raw_call_args }});
+    return {{ method.return_type }}.FromFFI(result);
+{%- else if method.return_type.is_void() %}
+    Raw.{{ name }}.{{ method.name }}({{ method.inputs.raw_call_args }});
+{%- else %}
+    return Raw.{{ name }}.{{ method.name }}({{ method.inputs.raw_call_args }});
+{%- endif %}
+}
