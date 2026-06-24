@@ -400,20 +400,19 @@ pub mod ffi {
         }
 
         pub fn drops_during_spin(&self, millis: u64) -> u64 {
-            let before = super::PROBE_DROPS.load(super::Ordering::SeqCst);
+            let before = super::PROBE_DROPS.load(std::sync::atomic::Ordering::Relaxed);
             std::thread::sleep(std::time::Duration::from_millis(millis));
-            super::PROBE_DROPS.load(super::Ordering::SeqCst) - before
+            super::PROBE_DROPS.load(std::sync::atomic::Ordering::Relaxed) - before
         }
     }
 }
 
 // Bumped by GcRaceProbe's Drop. Outside the bridge so the macro doesn't see it.
 pub(crate) static PROBE_DROPS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-pub(crate) use std::sync::atomic::Ordering;
 
 impl Drop for ffi::GcRaceProbe {
     fn drop(&mut self) {
-        PROBE_DROPS.fetch_add(1, Ordering::SeqCst);
+        PROBE_DROPS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 }
 

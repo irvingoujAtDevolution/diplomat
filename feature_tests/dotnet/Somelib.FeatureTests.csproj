@@ -25,7 +25,8 @@
          Optimize=false stamps [Debuggable(DisableOptimizations)], which roots
          locals for their whole scope and hides the race — making the test a
          no-op. With this on, the default `dotnet test` (what CI runs) catches
-         the regression. -->
+         the regression. This optimizes the whole test assembly — a deliberate
+         tradeoff for one reproducer; revisit if per-test isolation is needed. -->
     <Optimize>true</Optimize>
     <IsPackable>false</IsPackable>
     <RollForward>Major</RollForward>

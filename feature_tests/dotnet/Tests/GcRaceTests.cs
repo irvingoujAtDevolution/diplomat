@@ -30,9 +30,11 @@ public class GcRaceTests
     public void InstanceCall_DoesNotFinalizeReceiverMidCall()
     {
         // Race needs a GC to finalize the receiver inside the call window:
-        // retry, bail on first catch.
+        // retry, bail on first catch. The forced full GC below surfaces it in
+        // the first attempt or two; 20 keeps a margin without dragging CI (the
+        // passing case runs them all).
         ulong worstDropsDuringCall = 0;
-        for (int attempt = 0; attempt < 50 && worstDropsDuringCall == 0; attempt++)
+        for (int attempt = 0; attempt < 20 && worstDropsDuringCall == 0; attempt++)
         {
             // Drain prior stragglers so a counted drop is THIS receiver, not
             // leftover garbage (else false positive).
