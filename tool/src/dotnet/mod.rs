@@ -105,6 +105,15 @@ struct RustHandleTemplate<'a> {
     namespace: &'a str,
 }
 
+/// `DiplomatBorrowedRegion` — a pinned managed buffer handed to a wrapper's
+/// edges when its return value borrows from a slice/string parameter, kept
+/// pinned (and aliased, not copied) until the wrapper is disposed.
+#[derive(Template)]
+#[template(path = "dotnet/DiplomatBorrowedRegion.cs.jinja", escape = "none")]
+struct DiplomatBorrowedRegionTemplate<'a> {
+    namespace: &'a str,
+}
+
 pub(crate) fn attr_support() -> BackendAttrSupport {
     let mut a = BackendAttrSupport::default();
 
@@ -446,6 +455,15 @@ pub(crate) fn run<'tcx>(
         }
         .render()
         .expect("RustHandle template render failed"),
+    );
+    add_cs_file(
+        &files,
+        "DiplomatBorrowedRegion.cs".to_string(),
+        DiplomatBorrowedRegionTemplate {
+            namespace: &namespace,
+        }
+        .render()
+        .expect("DiplomatBorrowedRegion template render failed"),
     );
 
     (files, errors)

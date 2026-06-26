@@ -80,6 +80,15 @@ public partial class OpaqueThinIter: IDisposable
 
             _inner.Release();
             _inner = default;
+            foreach (var edge in _edges)
+            {
+                // Only the pinned buffers this value owns are freed here; the
+                // other edges are borrowed-from owners we merely keep alive.
+                if (edge is DiplomatBorrowedRegion region)
+                {
+                    region.Dispose();
+                }
+            }
             _edges = System.Array.Empty<object>();
 
             GC.SuppressFinalize(this);
