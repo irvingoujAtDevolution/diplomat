@@ -42,6 +42,22 @@ public class BorrowedReturnTests
     }
 
     [Fact]
+    public void First_AliasesOwnerStorage_NotACopy()
+    {
+        using OpaqueThinVec vec = OpaqueThinVec.CreateSingle(7, 1.5f, "x");
+
+        // The borrow is taken BEFORE the mutation and never refreshed.
+        using OpaqueThin borrow = vec.First()!;
+        Assert.Equal(7, borrow.A());
+
+        // Mutate the owner's element 0 in place. If `First()` had handed back a
+        // copy, the borrow would still read 7. Seeing 99 proves the borrow is an
+        // interior reference into the same Vec slot the owner just wrote.
+        vec.SetFirstA(99);
+        Assert.Equal(99, borrow.A());
+    }
+
+    [Fact]
     public void First_AliasesOwnerStorage_StringField()
     {
         using OpaqueThinVec vec = OpaqueThinVec.CreateSingle(7, 1.5f, "before");

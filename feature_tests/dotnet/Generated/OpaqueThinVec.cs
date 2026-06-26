@@ -41,6 +41,18 @@ public partial class OpaqueThinVec: IDisposable
             }
         }
     }
+    public void SetFirstA(int value)
+    {
+        unsafe
+        {
+            if (_inner == null)
+            {
+                throw new ObjectDisposedException("OpaqueThinVec");
+            }
+            Raw.OpaqueThinVec.SetFirstA(AsFFI(), value);
+            GC.KeepAlive(this);
+        }
+    }
     public void SetFirstC(string value)
     {
         unsafe

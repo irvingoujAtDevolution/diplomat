@@ -371,9 +371,17 @@ pub mod ffi {
             }]))
         }
 
-        // dotnet-only: the borrowed-return aliasing test replaces the owner's
-        // heap-backed `String` here and reads it back through `First()` to prove
-        // the borrow isn't a copy.
+        // dotnet-only: the borrowed-return aliasing test mutates the owner here
+        // and reads it back through `First()` to prove the borrow isn't a copy.
+        #[diplomat::attr(not(dotnet), disable)]
+        pub fn set_first_a(&mut self, value: i32) {
+            if let Some(first) = self.0.first_mut() {
+                first.a = value;
+            }
+        }
+
+        // dotnet-only: same aliasing proof for the heap-backed `String` field —
+        // replacing it must still be observed through an outstanding borrow.
         #[diplomat::attr(not(dotnet), disable)]
         pub fn set_first_c(&mut self, value: &DiplomatStr) {
             if let Some(first) = self.0.first_mut() {
