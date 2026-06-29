@@ -412,6 +412,15 @@ struct InputLowering {
     /// Wrapper to `GC.KeepAlive` after the raw call — else the GC may free its
     /// pointer mid-call. `Some` for opaque self/params, `None` otherwise.
     keep_alive_target: Option<String>,
+
+    /// Body-level statement that pins this slice/string param in a
+    /// `DiplomatBorrowedRegion` for the returned value's lifetime. Set only when
+    /// the return borrows from this param; it replaces the call-scoped `fixed`.
+    region_statement: Option<String>,
+
+    /// The region variable to root in the returned wrapper's `_edges`, so the
+    /// pin lives as long as the borrow. Paired with `region_statement`.
+    region_edge: Option<String>,
 }
 
 /// All of a method's inputs, joined for template substitution.
@@ -433,6 +442,13 @@ pub(super) struct DotnetInputs {
     pub(super) param_count: usize,
     /// Keep-alive targets (opaque self + params), in raw-call arg order.
     pub(super) keep_alive_targets: Vec<String>,
+
+    /// Body-level `DiplomatBorrowedRegion.Pin(...)` statements for slice/string
+    /// params that a borrowed return depends on.
+    pub(super) region_statements: Vec<String>,
+
+    /// Region variables to root in the returned wrapper's `_edges`.
+    pub(super) region_edges: Vec<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1108,6 +1124,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
     pub(super) fn lower_inputs(
         &self,
         method_context: StructMethodContext<'tcx>,
+        borrowed_slice_params: &std::collections::BTreeSet<String>,
     ) -> Option<DotnetInputs> {
         let method = method_context.method();
         let self_lowering = match method.param_self.as_ref() {
@@ -1120,7 +1137,10 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             .enumerate()
             .map(|(index, p)| {
                 let arg_name = self.formatter.fmt_param_name(p.name.as_str()).into_owned();
-                self.lower_input(MethodInputContext::new(method_context, index, p, arg_name))
+                self.lower_input(
+                    MethodInputContext::new(method_context, index, p, arg_name),
+                    borrowed_slice_params,
+                )
             })
             .collect::<Option<Vec<_>>>()?;
 
@@ -1133,6 +1153,8 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
         let mut first_param_type = None;
         let mut param_count = 0;
         let mut keep_alive_targets = Vec::new();
+        let mut region_statements = Vec::new();
+        let mut region_edges = Vec::new();
 
         if let Some(s) = &self_lowering {
             raw_params.push(s.raw_param.as_str());
@@ -1170,6 +1192,12 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             if let Some(to_bytes) = &p.to_bytes_statement {
                 to_bytes_statements.push(to_bytes.clone());
             }
+            if let Some(region) = &p.region_statement {
+                region_statements.push(region.clone());
+            }
+            if let Some(edge) = &p.region_edge {
+                region_edges.push(edge.clone());
+            }
             if let Some(target) = &p.keep_alive_target {
                 keep_alive_targets.push(target.clone());
             }
@@ -1185,6 +1213,8 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             first_param_type,
             param_count,
             keep_alive_targets,
+            region_statements,
+            region_edges,
         })
     }
 
