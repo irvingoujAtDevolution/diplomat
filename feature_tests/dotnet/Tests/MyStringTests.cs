@@ -60,7 +60,7 @@ public class MyStringTests
         DiplomatBorrowedSpan<byte> view = value.Borrow();
 
         string decoded = "";
-        view.WithSpan(span => decoded = Encoding.UTF8.GetString(span));
+        view.WithSpan(span => decoded = Encoding.UTF8.GetString(span.ToArray()));
         Assert.Equal("hello 餐", decoded);
     }
 
@@ -69,7 +69,7 @@ public class MyStringTests
     // GC -> finalizer -> Destroy would free the owner out from under the
     // borrowed view. AggressiveOptimization forces that liveness so the race
     // can surface.
-    [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+    [MethodImpl(MethodImplOptions.NoInlining | TestCompat.AggressiveOptimization)]
     private static DiplomatBorrowedSpan<byte> BorrowAndDropOwner()
     {
         return MyString.New(Utf8("rooted 餐")).Borrow();
@@ -89,7 +89,7 @@ public class MyStringTests
 
         // If the owner had been finalized, this reads freed memory (UAF).
         string decoded = "";
-        view.WithSpan(span => decoded = Encoding.UTF8.GetString(span));
+        view.WithSpan(span => decoded = Encoding.UTF8.GetString(span.ToArray()));
         Assert.Equal("rooted 餐", decoded);
         GC.KeepAlive(view);
     }

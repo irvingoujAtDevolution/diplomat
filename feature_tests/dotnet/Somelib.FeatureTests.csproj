@@ -16,10 +16,17 @@
   -->
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <!-- net48 is here on purpose: it runs the whole suite on the legacy .NET
+         Framework CLR, which is where non-blittable-by-value marshalling (the
+         Result/Option/struct bool tags) has to keep working. -->
+    <TargetFrameworks>net8.0;net48</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- net48 needs binding redirects to load System.Memory and its deps under
+         the test host; the SDK only emits them for library projects when asked. -->
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
     <!-- Optimized IL even in Debug: the GcRaceTests UAF reproducer relies on
          the JIT's precise GC liveness (dropping the receiver at last use).
          Optimize=false stamps [Debuggable(DisableOptimizations)], which roots
@@ -38,6 +45,12 @@
     <CargoTargetDir Condition="'$(CargoTargetDir)' == ''">$(MSBuildProjectDirectory)/../../target</CargoTargetDir>
     <NativeLibPath Condition="'$(NativeLibPath)' == ''">$(CargoTargetDir)/debug/$(NativeLibName)</NativeLibPath>
   </PropertyGroup>
+
+  <!-- Span<T>/ReadOnlySpan<T> (borrowed-span + pinned-memory helpers) aren't in
+       the .NET Framework BCL; System.Memory backfills them. No-op on net8. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PackageReference Include="System.Memory" Version="4.5.5" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />

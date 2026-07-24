@@ -32,6 +32,22 @@ pub(super) struct StructField {
     field_type: StructFieldType,
 }
 
+impl StructField {
+    /// C# type for this field in the raw (`[StructLayout(Sequential)]`) struct.
+    /// A `bool` becomes `DiplomatBool` (a blittable one-byte stand-in) so the
+    /// whole struct stays blittable and can cross a by-value P/Invoke on .NET
+    /// Framework, where a `bool` field would make it non-blittable. Every other
+    /// type keeps its normal spelling. The idiomatic struct still uses `bool`;
+    /// `AsFFI`/`FromFFI` convert through `DiplomatBool`'s implicit operators.
+    pub(super) fn raw_field_type(&self) -> String {
+        if self.field_type.is_bool() {
+            "DiplomatBool".to_string()
+        } else {
+            self.field_type.to_string()
+        }
+    }
+}
+
 /// Field type that templates render verbatim. Enums use the same C# type
 /// name on both the raw and idiomatic side (they're declared once in the
 /// project namespace, not under `Raw.`), and they P/Invoke as their

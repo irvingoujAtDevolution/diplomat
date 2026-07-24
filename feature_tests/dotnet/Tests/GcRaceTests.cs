@@ -19,7 +19,7 @@ public class GcRaceTests
 {
     // AggressiveOptimization: Tier1's precise liveness drops `probe` at its
     // last use (the race); Tier0 would root it and hide the bug.
-    [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+    [MethodImpl(MethodImplOptions.NoInlining | TestCompat.AggressiveOptimization)]
     private static ulong UnrootedSlowCall(ulong millis)
     {
         GcRaceProbe probe = GcRaceProbe.Create();

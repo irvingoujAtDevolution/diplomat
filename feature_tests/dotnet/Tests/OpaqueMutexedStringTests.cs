@@ -51,7 +51,7 @@ public class OpaqueMutexedStringTests
         DiplomatBorrowedSpan<byte> view = value.DummyStr();
 
         string decoded = "";
-        view.WithSpan(span => decoded = Encoding.UTF8.GetString(span));
+        view.WithSpan(span => decoded = Encoding.UTF8.GetString(span.ToArray()));
         Assert.Equal("A const str with non byte char: 餐 which is a DiplomatChar,", decoded);
     }
 }

@@ -79,7 +79,7 @@ public class BorrowedReturnTests
     // use (the `First()` call). If `_edges` didn't root it, GC -> finalizer ->
     // Destroy would free the Vec out from under the returned borrow.
     // AggressiveOptimization forces that liveness so the race can surface.
-    [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+    [MethodImpl(MethodImplOptions.NoInlining | TestCompat.AggressiveOptimization)]
     private static OpaqueThin BorrowAndDropOwner()
     {
         return OpaqueThinVec.CreateSingle(42, 2.5f, Utf8("rooted")).First()!;
@@ -107,7 +107,7 @@ public class BorrowedReturnTests
     // Same liveness trap, but the borrow comes back through a
     // `Result<&OpaqueThin, ()>` — the keep-alive edges must ride on the
     // *success* (`result.Ok`) wrapper for a fallible return too.
-    [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+    [MethodImpl(MethodImplOptions.NoInlining | TestCompat.AggressiveOptimization)]
     private static OpaqueThin TryFirstAndDropOwner()
     {
         return OpaqueThinVec.CreateSingle(42, 2.5f, Utf8("rooted")).TryFirst(false);
@@ -156,7 +156,7 @@ public class BorrowedReturnTests
         Assert.Throws<InvalidOperationException>(() => vec.TryGet(0, true));
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+    [MethodImpl(MethodImplOptions.NoInlining | TestCompat.AggressiveOptimization)]
     private static OpaqueThin TryGetAndDropOwner()
     {
         return OpaqueThinVec.CreateSingle(42, 2.5f, Utf8("rooted")).TryGet(0, false)!;
@@ -182,7 +182,7 @@ public class BorrowedReturnTests
     // `Result<Box<OpaqueThinIter<'a>>, ()>` — the Ok value is an *owned* Box
     // (IronRDP's shape) that still borrows the Vec. Its keep-alive edges must
     // root the now-unreferenced owner, so the owned-but-borrowing case works.
-    [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+    [MethodImpl(MethodImplOptions.NoInlining | TestCompat.AggressiveOptimization)]
     private static OpaqueThinIter TryIterAndDropOwner()
     {
         return OpaqueThinVec.CreateSingle(42, 2.5f, Utf8("rooted")).TryIter(false);
@@ -238,7 +238,7 @@ public class BorrowedReturnTests
         Assert.Throws<InvalidOperationException>(() => vec.TryIter(true));
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+    [MethodImpl(MethodImplOptions.NoInlining | TestCompat.AggressiveOptimization)]
     private static OpaqueThinIter OptionalIterAndDropOwner()
     {
         return OpaqueThinVec.CreateSingle(42, 2.5f, Utf8("rooted")).OptionalIter(true)!;
@@ -290,7 +290,7 @@ public class BorrowedReturnTests
     // only thing that can root the owner for a caught exception is the edge
     // threaded onto the exception (and its inner error). Drop every other
     // reference to prove that edge alone holds the Vec.
-    [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+    [MethodImpl(MethodImplOptions.NoInlining | TestCompat.AggressiveOptimization)]
     private static BorrowingErrorException TryBorrowAndDropOwner()
     {
         try

@@ -48,14 +48,14 @@ public class Utf16WrapTests
         DiplomatBorrowedSpan<char> view = value.BorrowCont();
 
         string decoded = "";
-        view.WithSpan(span => decoded = new string(span));
+        view.WithSpan(span => decoded = new string(span.ToArray()));
         Assert.Equal("hello 𐐷", decoded);
     }
 
     // Same liveness trap as MyStringTests.Borrow_KeepsOwnerAliveAcrossGc: if
     // the borrowed view's `_edges` didn't root the owner, GC -> finalizer ->
     // Destroy would free it out from under the view.
-    [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+    [MethodImpl(MethodImplOptions.NoInlining | TestCompat.AggressiveOptimization)]
     private static DiplomatBorrowedSpan<char> BorrowContAndDropOwner()
     {
         return Utf16Wrap.FromUtf16("rooted 𐐷").BorrowCont();
@@ -74,7 +74,7 @@ public class Utf16WrapTests
         }
 
         string decoded = "";
-        view.WithSpan(span => decoded = new string(span));
+        view.WithSpan(span => decoded = new string(span.ToArray()));
         Assert.Equal("rooted 𐐷", decoded);
         GC.KeepAlive(view);
     }

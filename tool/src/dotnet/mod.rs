@@ -140,6 +140,15 @@ struct RustHandleTemplate<'a> {
     namespace: &'a str,
 }
 
+/// `DiplomatBool` — a blittable one-byte stand-in for `bool`, used for the
+/// Result/Option discriminant. .NET Framework won't marshal a `bool` field in
+/// a by-value returned struct, so the tag has to be a fixed-width byte.
+#[derive(Template)]
+#[template(path = "dotnet/DiplomatBool.cs.jinja", escape = "none")]
+struct DiplomatBoolTemplate<'a> {
+    namespace: &'a str,
+}
+
 /// `DiplomatBorrowedSpan<T>` — a zero-copy view over a borrowed slice/string
 /// return (Rust still owns the memory). Needs the `System.Memory` package on
 /// the netstandard2.0 / .NET Framework floor (`ReadOnlySpan<T>`), so it's
@@ -513,6 +522,15 @@ pub(crate) fn run<'tcx>(
         }
         .render()
         .expect("RustHandle template render failed"),
+    );
+    add_cs_file(
+        &files,
+        "DiplomatBool.cs".to_string(),
+        DiplomatBoolTemplate {
+            namespace: &namespace,
+        }
+        .render()
+        .expect("DiplomatBool template render failed"),
     );
     add_cs_file(
         &files,
