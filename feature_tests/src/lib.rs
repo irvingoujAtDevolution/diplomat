@@ -16,6 +16,7 @@ extern crate alloc;
 
 pub mod attrs;
 pub mod callbacks;
+pub mod dotnet_finalizer_order;
 pub mod imports;
 pub mod lifetimes;
 pub mod method_overloading;
