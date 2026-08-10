@@ -27,6 +27,23 @@ public class OwnedSliceReturnTests
         Assert.Empty(vec.Clone());
     }
 
+        [Fact]
+        public void TryMakeBytes_Ok_ReturnsExpectedContent()
+        {
+            using RustVec vec = OwnedSliceReturn.TryMakeBytes(5);
+
+            Assert.Equal(5, vec.Length);
+            Assert.Equal(new byte[] { 0, 1, 2, 3, 4 }, vec.Clone());
+        }
+
+        [Fact]
+        public void TryMakeBytes_ZeroLen_ThrowsErrorEnumException()
+        {
+            ErrorEnumException ex =
+                Assert.Throws<ErrorEnumException>(() => OwnedSliceReturn.TryMakeBytes(0));
+            Assert.Equal(ErrorEnum.Foo, ex.Inner);
+        }
+
     [Fact]
     public void MakeBytes_LargeBuffer_RoundTripsEveryByte()
     {

@@ -56,9 +56,23 @@ public partial class OwnedSliceReturn
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
+        /// <exception cref="ErrorEnumException"></exception>
+        public static RustVec TryMakeBytes(uint len)
+        {
+            unsafe
+            {
+                var result = Raw.OwnedSliceReturn.TryMakeBytes(len);
+                if (!result.IsOk)
+                {
+                    throw new ErrorEnumException(result.Err);
+                }
+                return new RustVec(result.Ok.Ptr, result.Ok.Len);
+            }
+        }
+
+        /// <summary>
+        /// Returns the underlying raw handle.
+        /// </summary>
     internal unsafe Raw.OwnedSliceReturn* AsFFI()
     {
         if (_inner is null || _inner.IsNull)

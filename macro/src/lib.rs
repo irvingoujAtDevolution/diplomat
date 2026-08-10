@@ -337,9 +337,15 @@ fn gen_custom_function(func_info: FuncGen) -> Item {
     };
 
     let (return_tokens, maybe_into) = if let Some(return_type) = func_info.return_type {
-        if let ast::TypeName::Result(_, _, StdlibOrDiplomat::Stdlib) = return_type {
+        if let ast::TypeName::Result(ok, _, StdlibOrDiplomat::Stdlib) = return_type {
             let return_type_syn = return_type.ffi_safe_version().to_syn();
-            (quote! { -> #return_type_syn }, quote! { .into() })
+            let conversion = if ok.is_owned_byte_slice() {
+                let ok = ok.ffi_safe_version().to_syn();
+                quote! { .map(<#ok>::from).into() }
+            } else {
+                quote! { .into() }
+            };
+            (quote! { -> #return_type_syn }, conversion)
         } else if let ast::TypeName::StrReference(_, _, StdlibOrDiplomat::Stdlib)
         | ast::TypeName::StrSlice(.., StdlibOrDiplomat::Stdlib)
         | ast::TypeName::PrimitiveSlice(_, _, StdlibOrDiplomat::Stdlib) = return_type
@@ -1030,6 +1036,28 @@ mod tests {
 
                     impl Foo {
                         pub fn bar(&self) -> Result<(), ()> {
+                            unimplemented!()
+                        }
+                    }
+                }
+            })
+            .to_token_stream()
+        ));
+    }
+
+    #[test]
+    fn result_ok_owned_byte_slice_is_ffi_safe() {
+        insta::assert_snapshot!(pretty_print_code(
+            gen_bridge(parse_quote! {
+                mod ffi {
+                    struct Foo {}
+
+                    enum MyError {
+                        A,
+                    }
+
+                    impl Foo {
+                        pub fn bar(&self) -> Result<Box<[u8]>, MyError> {
                             unimplemented!()
                         }
                     }
