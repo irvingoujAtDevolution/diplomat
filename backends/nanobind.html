@@ -15,8 +15,8 @@
         <link rel="icon" href="../favicon-de23e50b.svg">
         <link rel="shortcut icon" href="../favicon-8114d1fc.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-0392ca55.css">
-        <link rel="stylesheet" href="../css/chrome-fc474251.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ce127ed9.js";
+            window.path_to_searchindex_js = "../searchindex-7c453e55.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0b0cd8fa.js"></script>
+        <script src="../toc-e5cc950d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -291,10 +291,33 @@ somelib.Foo.takes_slice(f)
 <h3 id="explanation"><a class="header" href="#explanation">Explanation</a></h3>
 <p>Converting Rust types to and from Python is not straightforward. Every <code>list</code> object in Python is a <a href="https://docs.python.org/3/c-api/list.html">sequence of <code>PyObject</code> types</a> in C. For passing information to and from Rust, this makes straightforward conversion extremely difficult. Instead, nanobind will copy Python types into C++ memory layouts it understands.</p>
 <p>This is why we the <code>somelib.FooSlice</code> type exists. In nanobind terminology, this is a <a href="https://nanobind.readthedocs.io/en/latest/exchanging.html#option-2-bindings">bound object</a>, or a class that exists in Python that allows us to easily grab its memory and manipulate in C++. Any <code>list</code> you pass into a parameter that takes <code>&amp;[Foo]</code> as an input type will copy the contents of the <code>list</code> upon conversion into C/C++ into <code>somelib.FooSlice</code>.</p>
+<h2 id="async-nanobind"><a class="header" href="#async-nanobind">Async Nanobind</a></h2>
+<p>Diplomat’s Nanobind backend is currently based on <a href="https://wiki.python.org/moin/GlobalInterpreterLock">Python’s GIL</a> for much of its codegen and templating. This keeps synchronicity relatively straightforward, but for asynchronous functions this may require extra configuration on your end.</p>
+<p>Say we have two methods:</p>
+<pre><code class="language-rs">#[diplomat::bridge]
+mod ffi {
+    pub fn long_running_async() {
+        calls_long_running_async();
+    }
+
+    pub fn run_callback(f : impl Fn()) {
+        f();
+    }
+}
+</code></pre>
+<p>And we call these methods in order:</p>
+<pre><code class="language-py">somelib.long_running_async()
+somelib.run_callback(lambda: pass)
+</code></pre>
+<p>Then the GIL will lock and the program will freeze. When Rust calls into <code>f()</code>, Nanobind attempts to acquire the GIL, which is already held by <code>somelib.long_running_async</code>.</p>
+<p>Nanobind generally requires the GIL <a href="https://github.com/wjakob/nanobind/blob/73223b97e28909eb8fc7e83213c352c020a854f6/src/common.cpp#L282">when attempting to call into C++</a>, which in turn will hold the GIL while our async Rust function is being run.</p>
+<p>To get around this, for any functions which may be long running and asynchronous, you will want to use <a href="../attrs/custom_extra_code.html">Custom Extra Code</a> to mark a method with the <a href="https://nanobind.readthedocs.io/en/latest/api_core.html#gil-management"><code>nb::call_guard&lt;nb::gil_scoped_release&gt;</code></a> attribute. With this attribute present, Nanobind will call <a href="https://docs.python.org/3/c-api/threads.html#c.PyEval_SaveThread">PyEval_SaveThread</a> at the start of the bound method, and will call <a href="https://docs.python.org/3/c-api/threads.html#c.PyEval_RestoreThread">PyEval_RestoreThread</a> when the bound method has finished executing.</p>
+<p>Asynchronous methods through Nanobind currently require configuration through <code>custom_extra_code</code> as Diplomat currently makes no guarantees about the consequences of releasing the GIL when calling into asynchronous Rust. It is up to you to ensure correctness.</p>
+<p>See <a href="https://github.com/rust-diplomat/diplomat/issues/1196">https://github.com/rust-diplomat/diplomat/issues/1196</a> for more.</p>
 <h2 id="supports"><a class="header" href="#supports">Supports</a></h2>
 <ul>
 <li>
-<p><input disabled="" type="checkbox" checked=""> Namespaces</p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../attrs/namespace.html">Namespaces</a></p>
 </li>
 <li>
 <p><input disabled="" type="checkbox" checked=""> Memory Sharing</p>
@@ -312,13 +335,13 @@ somelib.Foo.takes_slice(f)
 <p><input disabled="" type="checkbox" checked=""> UTF16 Strings</p>
 </li>
 <li>
-<p><input disabled="" type="checkbox" checked=""> Static Slices</p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../types/slices.html">Static Slices</a></p>
 </li>
 <li>
-<p><input disabled="" type="checkbox" checked=""> Defaults</p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../attrs/default_value.html#default-value">Defaults</a></p>
 </li>
 <li>
-<p><input disabled="" type="checkbox" checked=""> Constructors</p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../attrs/constructors.html">Constructors</a></p>
 </li>
 <li>
 <p><input disabled="" type="checkbox"> Named Constructors</p>
@@ -327,13 +350,13 @@ somelib.Foo.takes_slice(f)
 <p><input disabled="" type="checkbox" checked=""> Fallible Constructors</p>
 </li>
 <li>
-<p><input disabled="" type="checkbox" checked=""> Getters/Setters</p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../attrs/accessors.html">Getters/Setters</a></p>
 </li>
 <li>
 <p><input disabled="" type="checkbox" checked=""> Static Getters/Setters</p>
 </li>
 <li>
-<p><input disabled="" type="checkbox" checked=""> Stringifiers</p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../attrs/stringifiers.html">Stringifiers</a></p>
 </li>
 <li>
 <p><input disabled="" type="checkbox" checked=""> <a href="../attrs/comparators.html">Comparators</a></p>
@@ -342,25 +365,25 @@ somelib.Foo.takes_slice(f)
 <p><input disabled="" type="checkbox" checked=""> <a href="../attrs/comparators.html#partial-comparisons">Partial Comparators</a></p>
 </li>
 <li>
-<p><input disabled="" type="checkbox" checked=""> Iterators</p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../attrs/iterators.html">Iterators</a></p>
 </li>
 <li>
-<p><input disabled="" type="checkbox" checked=""> Iterables</p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../attrs/iterators.html#marking-a-type-as-an-iterable">Iterables</a></p>
 </li>
 <li>
-<p><input disabled="" type="checkbox" checked=""> Indexers</p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../attrs/indexing.html">Indexers</a></p>
 </li>
 <li>
-<p><input disabled="" type="checkbox" checked=""> Arithmetic</p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../attrs/arithmetic.html">Arithmetic</a></p>
 </li>
 <li>
-<p><input disabled="" type="checkbox" checked=""> Options</p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../types/option.html">Options</a></p>
 </li>
 <li>
-<p><input disabled="" type="checkbox" checked=""> Callbacks</p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../types/callbacks.html">Callbacks</a></p>
 </li>
 <li>
-<p><input disabled="" type="checkbox"> Traits</p>
+<p><input disabled="" type="checkbox"> <a href="../types/traits.html">Traits</a></p>
 </li>
 <li>
 <p><input disabled="" type="checkbox"> Custom Errors</p>
@@ -375,7 +398,7 @@ somelib.Foo.takes_slice(f)
 <p><input disabled="" type="checkbox"> Generate Mocking Interface</p>
 </li>
 <li>
-<p><input disabled="" type="checkbox" checked=""> ABI Compatible Structs</p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../types/slices.html#primitive-structs">ABI Compatible Structs</a></p>
 </li>
 <li>
 <p><input disabled="" type="checkbox" checked=""> Struct References. See <a href="../attrs/references.html">References for more</a>.</p>
@@ -387,19 +410,19 @@ somelib.Foo.takes_slice(f)
 <p><input disabled="" type="checkbox" checked=""> Free Functions</p>
 </li>
 <li>
-<p><input disabled="" type="checkbox" checked=""> Custom Bindings</p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../attrs/custom_extra_code.html">Custom Bindings</a></p>
 </li>
 <li>
 <p><input disabled="" type="checkbox"> Owned Slices</p>
 </li>
 <li>
-<p><input disabled="" type="checkbox" checked=""> Default Arguments</p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../attrs/default_value.html#default-arguments">Default Arguments</a></p>
 </li>
 <li>
 <p><input disabled="" type="checkbox"> Mutable Slices (<code>&amp;mut [T]</code>)</p>
 </li>
 <li>
-<p><input disabled="" type="checkbox" checked=""> <a href="../attrs/slices.html#opaques">Opaque Slices</a></p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../types/slices.html#opaques">Opaque Slices</a></p>
 </li>
 <li>
 <p><input disabled="" type="checkbox" checked=""> Tuples. See <a href="../attrs/tuples.html">tuples for more</a></p>
@@ -448,7 +471,7 @@ somelib.Foo.takes_slice(f)
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-c22b7243.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

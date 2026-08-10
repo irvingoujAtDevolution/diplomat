@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Results - The Diplomat Book</title>
+        <title>.NET - The Diplomat Book</title>
 
 
         <!-- Custom HTML head -->
@@ -12,33 +12,33 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="favicon-de23e50b.svg">
-        <link rel="shortcut icon" href="favicon-8114d1fc.png">
-        <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-0392ca55.css">
-        <link rel="stylesheet" href="css/chrome-fc474251.css">
-        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
-        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
-        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
-        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
 
 
         <!-- Provide site root and default themes to javascript -->
         <script>
-            const path_to_root = "";
+            const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-ce127ed9.js";
+            window.path_to_searchindex_js = "../searchindex-7c453e55.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-0b0cd8fa.js"></script>
+        <script src="../toc-e5cc950d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -105,7 +105,7 @@
             <!-- populated by js -->
             <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
             <noscript>
-                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
             </noscript>
             <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -140,7 +140,7 @@
                     <h1 class="menu-title">The Diplomat Book</h1>
 
                     <div class="right-buttons">
-                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
                         </a>
 
@@ -174,39 +174,254 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="result-types"><a class="header" href="#result-types">Result types</a></h1>
-<p>Result types are returned by using <a href="https://docs.rs/diplomat-runtime/0.2.0/diplomat_runtime/struct.DiplomatResult.html"><code>Result&lt;T, E&gt;</code></a> (or <code>DiplomatResult&lt;T, E&gt;</code>).</p>
-<p>For example, let’s say we wish to define a fallible constructor:</p>
+                        <h1 id="net-backend"><a class="header" href="#net-backend">.NET Backend</a></h1>
+<p>The .NET backend wraps Diplomat’s C ABI in a C# library, generating two layers per type:
+a <code>Raw</code> layer of <code>[LibraryImport]</code> P/Invoke declarations and unsafe pointer types, and an
+idiomatic layer of safe, GC-friendly classes built on top of it. Consumers only interact
+with the idiomatic layer.</p>
+<p>To run the .NET backend you need to provide some configuration:</p>
+<pre><code class="language-sh">diplomat-tool -e {PATH_TO_LIB.RS} -c {CONFIG_FILE} --config {CONFIG_OVERRIDE_1} dotnet {OUTPUT_PATH}
+</code></pre>
+<p>The configuration consists of these options:</p>
+<ul>
+<li><code>namespace</code> - the root .NET namespace for the generated bindings (e.g. <code>Icu4x</code>). Defaults
+to the crate’s <code>lib_name</code>, upper-camel-cased.</li>
+<li><code>dylib_name</code> (or <code>native_lib</code>) - the native library name passed to <code>LibraryImport</code>.
+Defaults to the crate’s <code>lib_name</code>.</li>
+<li><code>exception_trim_suffix</code> (or <code>exceptions.trim_suffix</code>) - suffix trimmed when deriving
+exception class names from error types, e.g. trimming <code>Error</code> so <code>FooError</code> becomes
+<code>FooException</code>.</li>
+<li><code>exception_message_method</code> (or <code>exceptions.error_message_method</code>) - the method on an
+error type used to populate the generated exception’s message, e.g. <code>ToDisplay</code>.</li>
+<li><code>scaffold</code> - an optional binary value. If set to <code>true</code>, <code>diplomat-tool</code> will emit a
+<code>.csproj</code> scaffold next to the generated sources.</li>
+</ul>
+<h2 id="properties"><a class="header" href="#properties">Properties</a></h2>
+<p><code>#[diplomat::attr(auto, getter)]</code> and <code>#[diplomat::attr(auto, setter = "name")]</code> render as
+C# properties. The accessor <em>is</em> the property — its body is generated inline, so no
+separate method is emitted:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[diplomat::bridge]
-mod ffi {
-    #[diplomat::opaque]
-    struct Thingy(u8);
-
-    impl Thingy {
-        pub fn try_create(string: &amp;str) -&gt; Result&lt;Box&lt;Thingy&gt;, ()&gt; {
-            let parsed: Result&lt;u8, ()&gt; = string.parse().map_err(|_| ());
-            parsed.map(Thingy).map(Box::new)
+</span>#[diplomat::attr(auto, getter)]
+pub fn width(&amp;self) -&gt; u32 { self.0.width }
+<span class="boring">}</span></code></pre>
+<pre><code class="language-csharp">public uint Width
+{
+    get
+    {
+        unsafe
+        {
+            /* ... */
         }
     }
 }
-<span class="boring">}</span></code></pre>
-<p>On the C++ side, this will generate a method on <code>Thingy</code> with the signature</p>
-<pre><code class="language-cpp">  static diplomat::result&lt;std::unique_ptr&lt;Thingy&gt;, std::monostate&gt; try_create(const std::string_view string);
 </code></pre>
-<p><code>diplomat::result</code> is a type that can be found in the generated <a href="https://github.com/rust-diplomat/diplomat/blob/main/tool/src/cpp/runtime.hpp"><code>diplomat_runtime.hpp</code></a> file. The most basic APIs are <code>.is_ok()</code> and <code>.is_err()</code>, returning <code>bool</code>s, and <code>.ok()</code> and <code>.err()</code> returning <code>std::option</code>s. There are further APIs for constructing and manipulating these that can be found in the header file.</p>
-<p>On backends that do not support <code>Result</code>, they will instead throw an error (i.e., Python/Nanobind and JS).</p>
+<p>A getter and a setter that resolve to the same property name are merged into one property
+with both accessors. C# cannot hold two members of the same name, so this merging is
+required — unlike Dart or JS, where a getter and setter are separate members.</p>
+<p>Two cases do not merge:</p>
+<ul>
+<li>A setter with no matching getter becomes a <strong>write-only</strong> property.</li>
+<li>A getter and setter whose types disagree are rejected with a diagnostic naming both
+types, both Rust methods, and the marshal each side chose. A C# property has one type,
+and silently dropping the setter would hide the mistake — make the two agree. A
+byte-slice pair is the case you are most likely to hit: a <code>&amp;'a [u8]</code> getter hands out a
+<code>DiplomatBorrowedSpan&lt;byte&gt;</code> view over Rust-owned memory, while a <code>&amp;[u8]</code> setter takes a
+managed <code>byte[]</code> Rust only reads during the call. No single C# type serves both.</li>
+</ul>
+<p>A getter must take <code>&amp;self</code>. A <code>&amp;mut self</code> getter is rejected, because reading it could
+change the value: a property is read more than once — by a debugger watch, a serializer,
+or just twice in a row — and a one-shot <code>self.field.take()</code> behind a property would drain
+to null on the second read. Setters keep <code>&amp;mut self</code>; assigning is the point.</p>
+<p>Names must not collide either. A property that would share its name with a method, a
+struct field, the type that contains it, or one of the members Diplomat always generates
+(<code>AsFFI</code>, <code>FromFFI</code>, and <code>Dispose</code> on opaques) is rejected, because C# would not compile
+the result.</p>
+<p>A getter that returns an opaque or an owned <code>Box&lt;[u8]&gt;</code> hands back a value you own, so
+dispose it — <code>using var x = thing.Held;</code>. It is not a cheap field read: each get crosses
+the FFI boundary and, for those two shapes, allocates.</p>
+<p>In accessor position a string-shaped parameter is always <code>string</code>, even for
+<code>&amp;DiplomatStr</code> (which is <code>byte[]</code> everywhere else, zero-copy and unvalidated). A property
+cannot have one type for reading and another for writing, and every other backend already
+maps <code>&amp;DiplomatStr</code> to its string type — <code>std::string_view</code> in C++/Nanobind, <code>String</code> in
+Dart, <code>string</code> in JS. Parameters outside accessors keep the zero-copy <code>byte[]</code> shape.</p>
+<p><code>#[diplomat::rename]</code> is applied after case conversion, so its value is used verbatim
+(<code>#[rename = "UTCTime"]</code> stays <code>UTCTime</code>, not <code>UtcTime</code>) — matching how this backend names
+methods and types. Static accessors are not supported.</p>
+<h2 id="ownership-and-memory-safety"><a class="header" href="#ownership-and-memory-safety">Ownership and memory safety</a></h2>
+<p>Every opaque type is backed by a <code>RustHandle&lt;T&gt;</code> rather than a bare pointer. A handle
+remembers who owns the underlying memory: an <strong>owned</strong> handle carries the Rust destructor
+and runs it on release; a <strong>borrowed</strong> handle carries none, so releasing it is a no-op
+because Rust still owns (and will free) that memory. This means methods returning <code>&amp;T</code> or
+<code>Option&lt;&amp;T&gt;</code> are safe to wrap without risking a double-free.</p>
+<p>Borrowed returns also carry a <code>_edges</code> array on the object rooting whatever it borrowed
+from, so the GC can’t collect the source object out from under a still-live borrowed
+reference. <code>object[] _edges</code> is <code>Array.Empty&lt;object&gt;()</code> (no allocation) when a type has
+no lifetime-carrying returns.</p>
+<p>Consumers are not required to call <code>Dispose()</code>; a finalizer is the documented last-resort
+cleanup path for owned handles. Native calls are followed by <code>GC.KeepAlive(this)</code> to
+prevent the finalizer from running mid-call and freeing memory a P/Invoke is still using.</p>
+<h2 id="string-encoding"><a class="header" href="#string-encoding">String encoding</a></h2>
+<p>The backend supports both UTF-8 and UTF-16 strings, zero-copy wherever the C# and Rust
+representations line up:</p>
+<ul>
+<li><code>&amp;DiplomatStr16</code> params and returns: a C# <code>string</code> is already a flat UTF-16 buffer, so
+these are always zero-copy — pinned directly with <code>fixed</code> (or, if the return value
+borrows it, via <code>ReadOnlyMemory&lt;char&gt;</code> + the same pinning holder slices use).</li>
+<li><code>&amp;DiplomatStr</code> params and returns (unvalidated UTF-8 — Rust places no validity
+requirement on the caller): treated exactly like <code>&amp;[u8]</code>, so these are also zero-copy —
+<code>byte[]</code> / <code>ReadOnlyMemory&lt;byte&gt;</code> pinned directly, no transcoding.</li>
+<li><code>&amp;str</code> params (validated UTF-8 — Rust requires the caller to guarantee well-formed
+UTF-8, undefined behavior otherwise): a transcode from the UTF-16 <code>string</code> is
+unavoidable here. That copy is always routed through the explicitly-named
+<code>Diplomat.Utf8.Clone(...)</code> helper rather than inlined, so it stays visible in the
+generated source instead of hiding inside generic marshalling.</li>
+</ul>
+<p>A borrowed string or slice return (<code>&amp;'a str</code> / <code>&amp;'a DiplomatStr</code> / <code>&amp;'a DiplomatStr16</code> /
+<code>&amp;'a [u8]</code> / <code>&amp;'a [u32]</code>) surfaces as <code>DiplomatBorrowedSpan&lt;T&gt;</code> — a zero-copy view over
+memory Rust still owns, rooted with the same keep-alive-edge mechanism as a borrowed
+opaque return. It intentionally does not expose a <code>Span</code>-returning property (nothing
+would keep the view rooted once the span escaped it); call <code>WithSpan(...)</code> for scoped,
+zero-copy, read-only access instead — the same pattern <code>RustVec</code> uses for owned returns
+(see below). Producing an independent <code>T[]</code> is a separate, explicit step: call <code>Clone()</code>.</p>
+<p>An owned <code>Box&lt;[u8]&gt;</code> return surfaces as <code>RustVec</code> — it owns the native allocation, is
+<code>IDisposable</code>, and offers the same <code>WithSpan(...)</code> / <code>Clone()</code> shape as
+<code>DiplomatBorrowedSpan&lt;T&gt;</code> (it deliberately avoids <code>MemoryManager&lt;T&gt;</code> for the same reason:
+<code>GetSpan()</code>’s result wouldn’t keep the owner alive). Other owned string/slice returns
+(<code>Box&lt;str&gt;</code>, <code>Box&lt;[T]&gt;</code> for <code>T</code> other than <code>u8</code>) and <code>&amp;[&amp;str]</code> (<code>&amp;[DiplomatStrSlice]</code>)
+parameters aren’t supported yet.</p>
+<h2 id="examples"><a class="header" href="#examples">Examples</a></h2>
+<p>The best way to learn to use the .NET backend is to first understand Diplomat generally
+by reading this <a href="../SUMMARY.html">book</a>. Then look at the <code>example</code> and <code>feature_tests</code>
+directories in the Diplomat project.</p>
+<ul>
+<li>Feature tests: <a href="https://github.com/rust-diplomat/diplomat/tree/main/feature_tests/src/">rust source</a>, <a href="https://github.com/rust-diplomat/diplomat/tree/main/feature_tests/dotnet/Tests">.NET usage</a></li>
+<li>Example: <a href="https://github.com/rust-diplomat/diplomat/tree/main/example/src/">rust source</a>, <a href="https://github.com/rust-diplomat/diplomat/tree/main/example/dotnet/Generated">.NET generated bindings</a></li>
+</ul>
+<h2 id="supports"><a class="header" href="#supports">Supports</a></h2>
+<ul>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../attrs/namespace.html">Namespaces</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Memory Sharing</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox" checked=""> Non Exhaustive Structs</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox" checked=""> Method Overloading</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox" checked=""> UTF8 Strings</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox" checked=""> UTF16 Strings</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../types/slices.html">Static Slices</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../attrs/default_value.html#default-value">Defaults</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../attrs/constructors.html">Constructors</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Named Constructors</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Fallible Constructors</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox" checked=""> <a href="../attrs/accessors.html">Getters/Setters</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Static Getters/Setters</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../attrs/stringifiers.html">Stringifiers</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../attrs/comparators.html">Comparators</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../attrs/comparators.html#partial-comparisons">Partial Comparators</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../attrs/iterators.html">Iterators</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../attrs/iterators.html#marking-a-type-as-an-iterable">Iterables</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../attrs/indexing.html">Indexers</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../attrs/arithmetic.html">Arithmetic</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox" checked=""> <a href="../types/option.html">Options</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../types/callbacks.html">Callbacks</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../types/traits.html">Traits</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Custom Errors</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Traits are Send</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Traits are Sync</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Generate Mocking Interface</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../types/slices.html#primitive-structs">ABI Compatible Structs</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Struct References. See <a href="../attrs/references.html">References for more</a>.</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Mutable Struct References. See <a href="../attrs/references.html">References for more</a>.</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Free Functions</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../attrs/custom_extra_code.html">Custom Bindings</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Owned Slices</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../attrs/default_value.html#default-arguments">Default Arguments</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox" checked=""> Mutable Slices (<code>&amp;mut [T]</code>)</p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> <a href="../types/slices.html#opaques">Opaque Slices</a></p>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Tuples. See <a href="../attrs/tuples.html">tuples for more</a></p>
+</li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="option.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../backends/dart.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="callbacks.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../backends/demo_gen.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -216,11 +431,11 @@ mod ffi {
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="option.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../backends/dart.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="callbacks.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../backends/demo_gen.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
@@ -240,13 +455,13 @@ mod ffi {
         </script>
 
 
-        <script src="elasticlunr-ef4e11c1.min.js"></script>
-        <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-09f2665d.js"></script>
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
-        <script src="clipboard-1626706a.min.js"></script>
-        <script src="highlight-abc7f01d.js"></script>
-        <script src="book-c22b7243.js"></script>
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 
