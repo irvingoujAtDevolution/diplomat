@@ -537,10 +537,10 @@ impl DotnetReturnType {
             Self::Unit | Self::Write => unreachable!("unit/write options are rejected earlier"),
             // `RustVec` is a class — None is a null reference, same as opaque Option.
             Self::OwnedByteSlice => "null".to_string(),
-            // `DiplomatBorrowedSpan<T>` is a struct — None is a nullable value.
-            Self::BorrowedSpan(_) | Self::Primitive(_) | Self::Struct(_) | Self::Enum(_) => {
-                format!("({self}?)null")
+            Self::BorrowedSpan(_) => {
+                unreachable!("Option-wrapped borrowed-span returns are rejected earlier")
             }
+            Self::Primitive(_) | Self::Struct(_) | Self::Enum(_) => format!("({self}?)null"),
         }
     }
 
@@ -1250,9 +1250,23 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             return None;
         }
 
-        // Borrowed spans in Result/Option are allowed: the wire arm is the same
-        // blittable slice struct as a bare return, and keep-alive edges still
-        // ride on the idiomatic `DiplomatBorrowedSpan` constructor.
+        // `DiplomatBorrowedSpan<T>` carries its edges in its own constructor
+        // the same way an opaque wrapper does, but wrapping it in
+        // `Result`/`Option` hasn't been exercised end-to-end (the result/
+        // option helper structs' union-field and none-value plumbing was
+        // only ever built for opaque/primitive/struct/enum arms) — reject
+        // rather than risk generating broken bridging code.
+        if matches!(return_type, DotnetReturnType::BorrowedSpan(_))
+            && (option_info.is_some() || error_info.is_some())
+        {
+            self.errors.push_error(
+                "[.NET backend] wrapping a borrowed span return (`&str` / `&[T]`) in \
+                 `Result`/`Option` is not yet supported — return it bare, or disable this \
+                 API for .NET."
+                    .to_string(),
+            );
+            return None;
+        }
 
         if !error_keep_alive_sources.is_empty() {
             if let Some(error_info) = &error_info {

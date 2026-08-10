@@ -73,39 +73,6 @@ public class MyStringTests
         Assert.Equal("hello 餐", decoded);
     }
 
-        [Fact]
-        public void TryBorrow_Ok_MatchesBorrow()
-        {
-            using MyString value = MyString.New(Utf8("hello 餐"));
-
-            DiplomatBorrowedSpan<byte> view = value.TryBorrow();
-
-            string decoded = "";
-            view.WithSpan(span => decoded = Utf8String(span));
-            Assert.Equal("hello 餐", decoded);
-        }
-
-        [Fact]
-        public void MaybeBorrow_Some_WhenNonEmpty()
-        {
-            using MyString value = MyString.New(Utf8("hello 餐"));
-
-            DiplomatBorrowedSpan<byte>? view = value.MaybeBorrow();
-
-            Assert.NotNull(view);
-            string decoded = "";
-            view!.Value.WithSpan(span => decoded = Utf8String(span));
-            Assert.Equal("hello 餐", decoded);
-        }
-
-        [Fact]
-        public void MaybeBorrow_None_WhenEmpty()
-        {
-            using MyString value = MyString.New(Utf8(""));
-
-            Assert.Null(value.MaybeBorrow());
-        }
-
     // Tier1's precise liveness can drop the owning `MyString` local at its
     // last use (the `Borrow()` call). If the view's `_edges` didn't root it,
     // GC -> finalizer -> Destroy would free the owner out from under the

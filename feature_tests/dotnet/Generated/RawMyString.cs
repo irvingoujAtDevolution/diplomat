@@ -27,12 +27,6 @@ internal partial struct MyString
     [DllImport(DiplomatNativeLib.Name, EntryPoint = "MyString_borrow", CallingConvention = CallingConvention.Cdecl)]
     internal static unsafe extern DiplomatSliceU8 Borrow(MyString* handle);
 
-    [DllImport(DiplomatNativeLib.Name, EntryPoint = "MyString_try_borrow", CallingConvention = CallingConvention.Cdecl)]
-    internal static unsafe extern DiplomatResultBorrowedSpanByteUnit TryBorrow(MyString* handle);
-
-    [DllImport(DiplomatNativeLib.Name, EntryPoint = "MyString_maybe_borrow", CallingConvention = CallingConvention.Cdecl)]
-    internal static unsafe extern DiplomatOptionBorrowedSpanByte MaybeBorrow(MyString* handle);
-
     [DllImport(DiplomatNativeLib.Name, EntryPoint = "MyString_destroy", CallingConvention = CallingConvention.Cdecl)]
     internal static unsafe extern void Destroy(MyString* handle);
 }
