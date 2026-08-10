@@ -535,9 +535,8 @@ impl DotnetReturnType {
         match self {
             Self::Opaque(_) => "null".to_string(),
             Self::Unit | Self::Write => unreachable!("unit/write options are rejected earlier"),
-            Self::OwnedByteSlice => {
-                unreachable!("`Option<Box<[u8]>>` returns are rejected earlier")
-            }
+            // `RustVec` is a class — None is a null reference, same as opaque Option.
+            Self::OwnedByteSlice => "null".to_string(),
             Self::BorrowedSpan(_) => {
                 unreachable!("Option-wrapped borrowed-span returns are rejected earlier")
             }
@@ -908,7 +907,11 @@ impl MethodInfo<'_> {
         if self.return_type.is_write() {
             "string".to_string()
         } else if self.return_type.is_owned_byte_slice() {
-            "RustVec".to_string()
+            if self.option_info.is_some() {
+                "RustVec?".to_string()
+            } else {
+                "RustVec".to_string()
+            }
         } else {
             self.idiomatic_return_type()
         }
@@ -1701,15 +1704,9 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                         ));
                         return None;
                     }
-                    // `Option<Box<[u8]>>` is still rejected: no nullable owned-byte
-                    // container shape is defined in the .NET surface yet.
-                    if is_nullable_path {
-                        self.errors.push_error(
-                            "[.NET backend] `Option<Box<[u8]>>` return is not supported."
-                                .to_string(),
-                        );
-                        return None;
-                    }
+                    // `Option<Box<[u8]>>` is a tagged DiplomatOption on the wire and
+                    // `RustVec?` idiomaticly (None → null), same Path B as
+                    // primitives/structs/enums.
                     DotnetReturnType::OwnedByteSlice
                 }
                 other => {

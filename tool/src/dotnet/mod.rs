@@ -2049,11 +2049,9 @@ mod test {
         );
     }
 
-    // `Option<Box<[u8]>>` is rejected at HIR-lowering time: the new arm in
-    // `core::hir::lowering` requires `!in_result_option`, so an optioned
-    // owned slice falls through to the pre-existing rejection.
+    // `Option<Box<[u8]>>` lowers to tagged DiplomatOption + idiomatic `RustVec?`.
     #[test]
-    fn optional_owned_byte_slice_return_is_rejected() {
+    fn optional_owned_byte_slice_return_lowers_to_nullable_rustvec() {
         let tk_stream = quote! {
             #[diplomat::bridge]
             mod ffi {
@@ -2068,12 +2066,32 @@ mod test {
             }
         };
 
-        let errors = lowering_errors(tk_stream, true);
-        assert_eq!(errors.len(), 1, "unexpected diagnostics: {errors:?}");
+        let (files, errors) = run_dotnet(tk_stream);
         assert!(
-            errors[0].contains("except for method-return `Box<[u8]>`"),
-            "unexpected diagnostic: {}",
-            errors[0]
+            errors.is_empty(),
+            "unexpected diagnostics: {}",
+            errors.join("\n")
+        );
+
+        let buf = files.get("Buf.cs").expect("expected Buf.cs output");
+        assert!(
+            buf.contains("public static RustVec? Make(uint len)"),
+            "idiomatic signature should return RustVec?:\n{buf}"
+        );
+        assert!(
+            buf.contains(
+                "return result.IsSome ? new RustVec(result.Value.Ptr, result.Value.Len) : null;"
+            ),
+            "None should be null and Some should wrap as RustVec:\n{buf}"
+        );
+
+        assert!(
+            files.contains_key("DiplomatOptionDiplomatOwnedSliceU8.cs"),
+            "optional owned-byte-slice return should emit the DiplomatOption helper"
+        );
+        assert!(
+            files.contains_key("RustVec.cs"),
+            "optional owned-byte-slice return should still emit RustVec"
         );
     }
 

@@ -44,6 +44,22 @@ public class OwnedSliceReturnTests
             Assert.Equal(ErrorEnum.Foo, ex.Inner);
         }
 
+        [Fact]
+        public void MaybeMakeBytes_Some_ReturnsExpectedContent()
+        {
+            using RustVec? vec = OwnedSliceReturn.MaybeMakeBytes(5);
+
+            Assert.NotNull(vec);
+            Assert.Equal(5, vec!.Length);
+            Assert.Equal(new byte[] { 0, 1, 2, 3, 4 }, vec.Clone());
+        }
+
+        [Fact]
+        public void MaybeMakeBytes_ZeroLen_ReturnsNull()
+        {
+            Assert.Null(OwnedSliceReturn.MaybeMakeBytes(0));
+        }
+
     [Fact]
     public void MakeBytes_LargeBuffer_RoundTripsEveryByte()
     {

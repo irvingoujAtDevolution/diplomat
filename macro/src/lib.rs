@@ -369,9 +369,19 @@ fn gen_custom_function(func_info: FuncGen) -> Item {
                 }
                 // anything else goes through DiplomatResult
                 _ => {
-                    let ty_s = ty.to_syn();
+                    // Same fat-pointer rule as Result Ok: owned byte slices must
+                    // cross as `DiplomatOwnedSlice<u8>`, not raw `Box<[u8]>`.
+                    let (ty_s, payload_map) = if ty.is_owned_byte_slice() {
+                        let ty_s = ty.ffi_safe_version().to_syn();
+                        (ty_s.clone(), quote! { .map(<#ty_s>::from) })
+                    } else {
+                        (ty.to_syn(), quote! {})
+                    };
                     let conversion = if *is_std_option == StdlibOrDiplomat::Stdlib {
-                        quote! { .ok_or(()).into() }
+                        quote! { #payload_map .ok_or(()).into() }
+                    } else if ty.is_owned_byte_slice() {
+                        // DiplomatOption already on the wire: map the Some arm only.
+                        quote! { #payload_map }
                     } else {
                         quote! {}
                     };
@@ -1058,6 +1068,24 @@ mod tests {
 
                     impl Foo {
                         pub fn bar(&self) -> Result<Box<[u8]>, MyError> {
+                            unimplemented!()
+                        }
+                    }
+                }
+            })
+            .to_token_stream()
+        ));
+    }
+
+    #[test]
+    fn option_owned_byte_slice_is_ffi_safe() {
+        insta::assert_snapshot!(pretty_print_code(
+            gen_bridge(parse_quote! {
+                mod ffi {
+                    struct Foo {}
+
+                    impl Foo {
+                        pub fn bar(&self) -> Option<Box<[u8]>> {
                             unimplemented!()
                         }
                     }

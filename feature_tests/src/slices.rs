@@ -245,6 +245,16 @@ pub mod ffi {
             }
             Ok((0..len).map(|i| (i % 256) as u8).collect())
         }
+
+        /// Optional variant of [`Self::make_bytes`]: `None` on `len == 0`.
+        /// Exercises the `Option<Box<[u8]>>` bridge shape.
+        pub fn maybe_make_bytes(len: u32) -> Option<Box<[u8]>> {
+            if len == 0 {
+                None
+            } else {
+                Some((0..len).map(|i| (i % 256) as u8).collect())
+            }
+        }
     }
 
     // For testing throwing IndexError:

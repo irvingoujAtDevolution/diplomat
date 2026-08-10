@@ -1563,11 +1563,10 @@ impl<'ast> LoweringContext<'ast> {
                 ));
                 Err(())
             }
-            // Plain top-level method returns only by default: out-struct
-            // fields, callbacks, and Option inners keep the old rejection.
-            // A `Result` Ok arm may take this path too — the result-return
-            // lowering permits it because the macro converts that payload to
-            // the repr(C) `DiplomatOwnedSlice<u8>`.
+            // Method returns only: out-struct fields and callbacks keep the old
+            // rejection. `Result`/`Option` method returns may take this path
+            // when the call site passes `in_result_option = false` — the macro
+            // converts those payloads to repr(C) `DiplomatOwnedSlice<u8>`.
             ast::TypeName::PrimitiveSlice(None, prim, _stdlib)
                 if context == TypeLoweringContext::Method
                     && !in_result_option
@@ -1592,7 +1591,7 @@ impl<'ast> LoweringContext<'ast> {
             ast::TypeName::PrimitiveSlice(None, _, _stdlib)
             | ast::TypeName::StrReference(None, _, _stdlib) => {
                 self.errors.push(LoweringError::Other(
-                    "Owned slices cannot be returned, except for method-return `Box<[u8]>` (including `Result` Ok payloads) on backends supporting `owned_byte_slice_returns`.".into(),
+                    "Owned slices cannot be returned, except for method-return `Box<[u8]>` (including `Result`/`Option` payloads) on backends supporting `owned_byte_slice_returns`.".into(),
                 ));
                 Err(())
             }
@@ -2089,12 +2088,15 @@ impl<'ast> LoweringContext<'ast> {
                     .map(ReturnType::Infallible),
                 ast::TypeName::Unit => Ok(ReturnType::Nullable(write_or_unit)),
                 _ => {
+                    // `Option<Box<[u8]>>` uses the same FFI-safe owned-slice
+                    // payload path as a bare/`Result` return (macro converts).
+                    let in_result_option = !value_ty.is_owned_byte_slice();
                     let t = self.lower_out_type(
                         value_ty,
                         &mut return_ltl,
                         in_path,
                         TypeLoweringContext::Method,
-                        true,
+                        in_result_option,
                     );
                     if let Ok(t) = &t {
                         if let Some(i) = t.id() {

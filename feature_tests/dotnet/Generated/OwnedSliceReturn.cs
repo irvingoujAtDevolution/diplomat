@@ -70,6 +70,15 @@ public partial class OwnedSliceReturn
             }
         }
 
+        public static RustVec? MaybeMakeBytes(uint len)
+        {
+            unsafe
+            {
+                var result = Raw.OwnedSliceReturn.MaybeMakeBytes(len);
+                return result.IsSome ? new RustVec(result.Value.Ptr, result.Value.Len) : null;
+            }
+        }
+
         /// <summary>
         /// Returns the underlying raw handle.
         /// </summary>
