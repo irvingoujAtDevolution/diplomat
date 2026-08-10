@@ -282,44 +282,29 @@ struct FuncGen<'a> {
     attrs: &'a crate::ast::Attrs,
 }
 
-/// FFI type + optional `.map(...)` applied to a success payload when it is
+/// FFI type + optional conversion (a callable expression) for a payload
 /// embedded in `Result`/`Option`. Mirrors bare top-level return conversion:
 /// if `T` can be returned bare, nested `Option<T>` / `Result<T, E>` use the
-/// same wire type.
-fn success_payload_tokens(ty: &ast::TypeName) -> (syn::Type, TokenStream) {
+/// same wire type. The caller wraps the conversion in `.map(...)` (ok/Some
+/// arm) or `.map_err(...)` (err arm) so type and value always change together.
+fn payload_tokens(ty: &ast::TypeName) -> (syn::Type, Option<TokenStream>) {
     match ty {
-        ast::TypeName::Unit => (ty.to_syn(), TokenStream::new()),
-        ast::TypeName::Ordering => {
-            let syn_ty = ty.ffi_safe_version().to_syn();
-            (syn_ty, quote! { .map(|i| i as i8) })
-        }
+        ast::TypeName::Unit => (ty.to_syn(), None),
+        ast::TypeName::Ordering => (ty.ffi_safe_version().to_syn(), Some(quote! { |i| i as i8 })),
         // Stdlib slices/strs and owned `Box<[u8]>` become Diplomat* slice types.
         ast::TypeName::StrReference(.., StdlibOrDiplomat::Stdlib)
         | ast::TypeName::StrSlice(.., StdlibOrDiplomat::Stdlib)
         | ast::TypeName::PrimitiveSlice(.., StdlibOrDiplomat::Stdlib) => {
             let syn_ty = ty.ffi_safe_version().to_syn();
-            (syn_ty.clone(), quote! { .map(<#syn_ty>::from) })
+            (syn_ty.clone(), Some(quote! { <#syn_ty>::from }))
         }
         _ if !ty.is_ffi_safe() => {
-            // Defensive: any other non-FFI-safe success payload gets the same
+            // Defensive: any other non-FFI-safe payload gets the same
             // treatment bare returns already apply via `ffi_safe_version`.
             let syn_ty = ty.ffi_safe_version().to_syn();
-            (syn_ty.clone(), quote! { .map(<#syn_ty>::from) })
+            (syn_ty.clone(), Some(quote! { <#syn_ty>::from }))
         }
-        _ => (ty.to_syn(), TokenStream::new()),
-    }
-}
-
-fn err_return_syn(err: &ast::TypeName) -> syn::Type {
-    match err {
-        ast::TypeName::Ordering => err.ffi_safe_version().to_syn(),
-        ast::TypeName::StrReference(.., StdlibOrDiplomat::Stdlib)
-        | ast::TypeName::StrSlice(.., StdlibOrDiplomat::Stdlib)
-        | ast::TypeName::PrimitiveSlice(.., StdlibOrDiplomat::Stdlib) => {
-            err.ffi_safe_version().to_syn()
-        }
-        _ if !err.is_ffi_safe() => err.ffi_safe_version().to_syn(),
-        _ => err.to_syn(),
+        _ => (ty.to_syn(), None),
     }
 }
 
@@ -412,7 +397,8 @@ fn gen_custom_function(func_info: FuncGen) -> Item {
                 // conversion rule as Result Ok (if bare T is returnable, Option
                 // of T is too).
                 _ => {
-                    let (ty_s, payload_map) = success_payload_tokens(ty);
+                    let (ty_s, conv) = payload_tokens(ty);
+                    let payload_map = conv.map(|c| quote! { .map(#c) }).unwrap_or_default();
                     let conversion = if *is_std_option == StdlibOrDiplomat::Stdlib {
                         quote! { #payload_map .ok_or(()).into() }
                     } else {

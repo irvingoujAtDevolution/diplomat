@@ -61,13 +61,15 @@ pub mod ffi {
         }
 
         /// Fallible borrow: always Ok today — exercises `Result` of a bare-returnable
-        /// borrowed slice payload.
+        /// borrowed slice payload (.NET coverage; other backends stay unchanged).
+        #[diplomat::attr(not(dotnet), disable)]
         pub fn try_borrow<'a>(&'a self) -> Result<DiplomatStrSlice<'a>, ()> {
             Ok(AsRef::<[u8]>::as_ref(&self.0).into())
         }
 
         /// Optional borrow: `None` when empty — exercises `Option` of a bare-returnable
-        /// borrowed slice payload.
+        /// borrowed slice payload (.NET coverage; other backends stay unchanged).
+        #[diplomat::attr(not(dotnet), disable)]
         pub fn maybe_borrow<'a>(&'a self) -> Option<DiplomatStrSlice<'a>> {
             if self.0.is_empty() {
                 None
