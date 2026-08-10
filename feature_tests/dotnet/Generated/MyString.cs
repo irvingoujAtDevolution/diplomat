@@ -162,9 +162,50 @@ public partial class MyString: IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
+        /// <exception cref="InvalidOperationException"></exception>
+        /// <remarks>
+        /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
+        /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+        /// </remarks>
+        public DiplomatBorrowedSpan<byte> TryBorrow()
+        {
+            unsafe
+            {
+                if (_inner.IsNull)
+                {
+                    throw new ObjectDisposedException("MyString");
+                }
+                var result = Raw.MyString.TryBorrow(AsFFI());
+                GC.KeepAlive(this);
+                if (!result.IsOk)
+                {
+                    throw new InvalidOperationException("FFI function failed with unit error");
+                }
+                return new DiplomatBorrowedSpan<byte>(result.Ok.Ptr, result.Ok.Len, new object[] { this });
+            }
+        }
+
+        /// <remarks>
+        /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
+        /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+        /// </remarks>
+        public DiplomatBorrowedSpan<byte>? MaybeBorrow()
+        {
+            unsafe
+            {
+                if (_inner.IsNull)
+                {
+                    throw new ObjectDisposedException("MyString");
+                }
+                var result = Raw.MyString.MaybeBorrow(AsFFI());
+                GC.KeepAlive(this);
+                return result.IsSome ? new DiplomatBorrowedSpan<byte>(result.Value.Ptr, result.Value.Len, new object[] { this }) : (DiplomatBorrowedSpan<byte>?)null;
+            }
+        }
+
+        /// <summary>
+        /// Returns the underlying raw handle.
+        /// </summary>
     internal unsafe Raw.MyString* AsFFI()
     {
         if (_inner is null || _inner.IsNull)

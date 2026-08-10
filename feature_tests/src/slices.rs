@@ -60,6 +60,22 @@ pub mod ffi {
             AsRef::<[u8]>::as_ref(&self.0).into()
         }
 
+        /// Fallible borrow: always Ok today — exercises `Result` of a bare-returnable
+        /// borrowed slice payload.
+        pub fn try_borrow<'a>(&'a self) -> Result<DiplomatStrSlice<'a>, ()> {
+            Ok(AsRef::<[u8]>::as_ref(&self.0).into())
+        }
+
+        /// Optional borrow: `None` when empty — exercises `Option` of a bare-returnable
+        /// borrowed slice payload.
+        pub fn maybe_borrow<'a>(&'a self) -> Option<DiplomatStrSlice<'a>> {
+            if self.0.is_empty() {
+                None
+            } else {
+                Some(AsRef::<[u8]>::as_ref(&self.0).into())
+            }
+        }
+
         #[diplomat::cfg(supports=opaque_slices)]
         pub fn slice_of_opaques(sl: &[&MyString], w: &mut DiplomatWrite) {
             let st: String = sl.iter().map(|o| o.0.clone()).collect();
