@@ -8,11 +8,6 @@ namespace Somelib;
 
 #nullable enable
 
-// PROTOTYPE: every opaque is backed by a reference-counted `RustHandle<T>`
-// (see `RustHandle.cs.jinja`). Pins and retain tokens live on that handle,
-// not on a separate wrapper field. `DiplomatRetainDependency()` is always
-// available.
-
 public partial class Opaque: IDisposable
 {
     private unsafe RustHandle<Raw.Opaque>? _inner;
@@ -34,11 +29,8 @@ public partial class Opaque: IDisposable
     }
 
     /// <summary>
-    /// Owned construction that also holds pinned input buffers and/or
-    /// retained borrow-dependency tokens (<paramref name="edges"/>) — disposed
-    /// right after this value's own Rust destructor actually runs, even when
-    /// that destructor call itself ends up deferred behind an outstanding
-    /// dependent (see <c>RustHandle.cs.jinja</c>).
+    /// Owned construction with lifetime resources released after the Rust
+    /// destructor.
     /// </summary>
     internal unsafe Opaque(Raw.Opaque* handle, object[] edges)
     {
@@ -169,11 +161,7 @@ public partial class Opaque: IDisposable
     }
 
     /// <summary>
-    /// Retains this value's native resource for a new direct dependent (a
-    /// value another generated wrapper is about to construct by borrowing
-    /// from this one). The caller must dispose the returned dependency token
-    /// exactly once, from its own cleanup — see <c>RustHandle.cs.jinja</c>
-    /// for the full contract.
+    /// Retains this value's native resource for a new direct dependent.
     /// </summary>
     /// <exception cref="ObjectDisposedException">
     /// This <c>Opaque</c> was already disposed/finalized, so there is
@@ -199,8 +187,6 @@ public partial class Opaque: IDisposable
             }
 
             _inner = null;
-            // Drops this wrapper's owner ref. Native destruction (and edge
-            // disposal) wait until every retain token is gone too.
             inner.Release();
         }
     }

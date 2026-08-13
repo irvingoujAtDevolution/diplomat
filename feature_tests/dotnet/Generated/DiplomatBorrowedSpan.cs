@@ -10,24 +10,24 @@ public delegate void DiplomatBorrowedSpanAction<T>(ReadOnlySpan<T> span) where T
 /// A zero-copy view over memory Rust still owns (a borrowed <c>&amp;str</c> /
 /// <c>&amp;[T]</c> return). Unlike <c>RustVec</c>, there's nothing to free
 /// here — Rust still owns this memory, so there's no <c>IDisposable</c> and
-/// no ownership race to guard against. <c>edges</c> roots whatever this was
-/// borrowed from (the receiver or an input parameter) so the GC can't
-/// collect it while this view is alive.
+/// no native allocation of its own to free. <c>edges</c> contains retained
+/// references to whatever opaque values this was borrowed from, keeping their
+/// native allocations alive while this view is reachable.
 /// </summary>
 /// <remarks>
 /// This intentionally does not expose a public <c>Span</c>-returning
-/// property. A caller could extract it, let this value go, and be left
-/// holding a span with nothing keeping <c>edges</c> (and the parent it
+/// property. A caller could extract it, let this object go, and be left
+/// holding a span with nothing keeping <c>edges</c> (and the parent allocations
 /// roots) alive — exactly the trap <c>RustVec</c> avoids by not implementing
 /// <c>MemoryManager&lt;T&gt;</c>. <see cref="WithSpan"/> gives synchronous,
 /// zero-copy, read-only access instead: the callback receives the span
-/// directly, so it can never outlive this value's own lifetime. This is a
-/// plain struct, not a <c>ref struct</c>, so it can be stored in a field, a
-/// collection, or held across an <c>await</c> — unlike a bare
-/// <see cref="ReadOnlySpan{T}"/>. <see cref="Clone"/> is the explicit,
-/// independent copy — never something this type does on its own.
+/// directly, so it can never outlive this object's own lifetime. This is a
+/// reference type: assigning it to another variable aliases the same object,
+/// so the retained parent references are released exactly once after all
+/// aliases become unreachable. <see cref="Clone"/> is the explicit,
+/// independent data copy.
 /// </remarks>
-public readonly unsafe struct DiplomatBorrowedSpan<T> where T : unmanaged
+public sealed unsafe class DiplomatBorrowedSpan<T> where T : unmanaged
 {
     private readonly T* _ptr;
     private readonly int _len;
@@ -53,9 +53,28 @@ public readonly unsafe struct DiplomatBorrowedSpan<T> where T : unmanaged
             throw new ArgumentNullException(nameof(action));
         }
         action(new ReadOnlySpan<T>(_ptr, _len));
-        GC.KeepAlive(_edges);
+        GC.KeepAlive(this);
     }
 
     /// <summary>An explicit, independent copy — never implicit.</summary>
-    public T[] Clone() => new ReadOnlySpan<T>(_ptr, _len).ToArray();
+    public T[] Clone()
+    {
+        T[] result = new ReadOnlySpan<T>(_ptr, _len).ToArray();
+        GC.KeepAlive(this);
+        return result;
+    }
+
+    ~DiplomatBorrowedSpan()
+    {
+        try
+        {
+            foreach (object edge in _edges)
+            {
+                (edge as IDisposable)?.Dispose();
+            }
+        }
+        catch
+        {
+        }
+    }
 }

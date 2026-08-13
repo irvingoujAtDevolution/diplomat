@@ -4,12 +4,6 @@ namespace {{ namespace }}.Diplomat;
 
 #nullable enable
 
-// PROTOTYPE: every opaque is backed by a reference-counted RustHandle<T>.
-// Pointer, destructor, edges, and refcount live in exactly one place — this
-// class. Consumer thread-confined by design: no locks, no atomics — do not
-// call Dispose/Retain for the same handle from two threads at once, and do
-// not race a Dispose() against the finalizer.
-
 /// Frees a Rust-owned <typeparamref name="T"/> by calling its native destructor.
 internal unsafe delegate void RustDestructor<T>(T* ptr) where T : unmanaged;
 
@@ -19,6 +13,7 @@ internal unsafe delegate void RustDestructor<T>(T* ptr) where T : unmanaged;
 /// count reaches zero this runs the native destructor first, then disposes
 /// every edge — never the other way around.
 /// </summary>
+/// <remarks>Lifecycle operations on the same handle must be thread-confined.</remarks>
 internal sealed unsafe class RustHandle<T> where T : unmanaged
 {
     private T* _ptr;

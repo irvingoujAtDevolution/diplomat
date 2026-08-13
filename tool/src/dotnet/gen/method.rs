@@ -510,23 +510,17 @@ impl DotnetReturnType {
                 Self::opaque_construction(name, &raw_expr, dependencies, pins, ownership)
             }
             Self::Struct(name) => format!("{name}.FromFFI({raw_expr})"),
-            // Rust still owns this memory — no ownership decision needed,
-            // unlike opaque construction. Just wrap the pointer/length off
-            // the raw wire struct and root the keep-alive edges bare (no
-            // `.DiplomatRetainDependency()` suffix, and no `Dispose` hook
-            // exists here to ever run a `Release()` — a borrowed span is
-            // plain GC-keep-alive, never RC).
+            // Rust still owns this memory. The sealed span wrapper retains its
+            // opaque sources and releases those tokens from its finalizer.
             Self::BorrowedSpan(elem) => {
                 debug_assert!(
                     pins.is_empty(),
                     "a borrowed-span return never has pins of its own"
                 );
-                let combined: Vec<String> =
-                    dependencies.iter().cloned().chain(pins.iter().cloned()).collect();
                 format!(
                     "new DiplomatBorrowedSpan<{}>({raw_expr}.Ptr, {raw_expr}.Len, {})",
                     elem.element_type(),
-                    Self::edges_array_expr(&combined)
+                    dependencies_array_expr(dependencies)
                 )
             }
             Self::Unit | Self::Write => String::new(),
