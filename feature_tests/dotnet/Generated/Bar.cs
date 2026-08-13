@@ -8,20 +8,14 @@ namespace Somelib;
 
 #nullable enable
 
-// PROTOTYPE: every opaque uses the same lazily-promotable `RustHandle<T>`
-// (see `RustHandle.cs.jinja`) plus one combined `_edges` array holding both
-// this wrapper's own pins and any retained `IRustHandleDependency` tokens.
-// There is no separate "borrow source" lane: `DiplomatRetainDependency()` is
-// always available, and only actually allocates shared state the first time
-// something else borrows from this instance.
+// PROTOTYPE: every opaque is backed by a reference-counted `RustHandle<T>`
+// (see `RustHandle.cs.jinja`). Pins and retain tokens live on that handle,
+// not on a separate wrapper field. `DiplomatRetainDependency()` is always
+// available.
 
 public partial class Bar
 {
-    private unsafe RustHandle<Raw.Bar> _inner;
-    /// This value's own pinned input buffers and/or retained borrow-dependency
-    /// tokens, released (in that order) right after `_inner`'s own cleanup —
-    /// see `Cleanup()` below.
-    private object[] _edges = System.Array.Empty<object>();
+    private unsafe RustHandle<Raw.Bar>? _inner;
 
     private static readonly unsafe RustDestructor<Raw.Bar> _destroy = Raw.Bar.Destroy;
 
@@ -38,13 +32,13 @@ public partial class Bar
         {
             unsafe
             {
-                if (_inner.IsNull)
+                if (_inner is null || _inner.IsNull)
                 {
                     throw new ObjectDisposedException("Bar");
                 }
                 Raw.Foo* result = Raw.Bar.Foo(AsFFI());
                 GC.KeepAlive(this);
-                return new Foo(RustHandle<Raw.Foo>.Borrowed(result), new object[] { this.DiplomatRetainDependency() });
+                return new Foo(RustHandle<Raw.Foo>.Borrowed(result, new object[] { this.DiplomatRetainDependency() }));
             }
         }
     }
@@ -65,15 +59,14 @@ public partial class Bar
 
     /// <summary>
     /// Owned construction that also holds pinned input buffers and/or
-    /// retained borrow-dependency tokens (<paramref name="edges"/>) — released
+    /// retained borrow-dependency tokens (<paramref name="edges"/>) — disposed
     /// right after this value's own Rust destructor actually runs, even when
     /// that destructor call itself ends up deferred behind an outstanding
     /// dependent (see <c>RustHandle.cs.jinja</c>).
     /// </summary>
     internal unsafe Bar(Raw.Bar* handle, object[] edges)
     {
-        _inner = RustHandle<Raw.Bar>.Owned(handle, _destroy);
-        _edges = edges;
+        _inner = RustHandle<Raw.Bar>.Owned(handle, _destroy, edges);
     }
 
     /// <summary>
@@ -87,72 +80,47 @@ public partial class Bar
     }
 
     /// <summary>
-    /// Wraps a borrowed, non-owning handle that also holds pinned input
-    /// buffers and/or retained borrow-dependency tokens.
-    /// </summary>
-    internal unsafe Bar(RustHandle<Raw.Bar> inner, object[] edges)
-    {
-        _inner = inner;
-        _edges = edges;
-    }
-
-    /// <summary>
     /// Returns the underlying raw handle.
     /// </summary>
     internal unsafe Raw.Bar* AsFFI()
     {
-        return _inner.Ptr;
+        return _inner!.Ptr;
     }
 
     /// <summary>
     /// Retains this value's native resource for a new direct dependent (a
     /// value another generated wrapper is about to construct by borrowing
-    /// from this one). The caller must release the returned dependency
+    /// from this one). The caller must dispose the returned dependency token
     /// exactly once, from its own cleanup — see <c>RustHandle.cs.jinja</c>
-    /// for the full contract. Lazily allocates this handle's shared state on
-    /// the FIRST call; every earlier call (and every instance nothing ever
-    /// borrows from) pays nothing extra over the plain handle.
+    /// for the full contract.
     /// </summary>
     /// <exception cref="ObjectDisposedException">
     /// This <c>Bar</c> was already disposed/finalized, so there is
     /// nothing left to lend a dependent.
     /// </exception>
-    internal unsafe IRustHandleDependency DiplomatRetainDependency()
+    internal unsafe IDisposable DiplomatRetainDependency()
     {
-        if (_inner.IsNull)
+        if (_inner is null || _inner.IsNull)
         {
             throw new ObjectDisposedException("Bar");
         }
-        return _inner.Retain(ref _edges);
+        return _inner.Retain();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            if (_inner.IsNull)
+            RustHandle<Raw.Bar>? inner = _inner;
+            if (inner is null)
             {
                 return;
             }
 
-            // Releases this wrapper's own reference. If nothing ever
-            // retained a dependency on this handle, this runs the Rust
-            // destructor directly; otherwise it defers to the shared state's
-            // own refcounted release (see `RustHandle.cs.jinja`).
-            _inner.Release();
-            _inner = default;
-
-            // Whatever this wrapper itself still holds — its own pins and/or
-            // dependency tokens — only if `DiplomatRetainDependency()` was
-            // never called (otherwise these already moved into the shared
-            // state above, and this array is empty).
-            object[] edges = _edges;
-            _edges = System.Array.Empty<object>();
-            foreach (object edge in edges)
-            {
-                (edge as IDisposable)?.Dispose();
-                (edge as IRustHandleDependency)?.Release();
-            }
+            _inner = null;
+            // Drops this wrapper's owner ref. Native destruction (and edge
+            // disposal) wait until every retain token is gone too.
+            inner.Release();
         }
     }
     ~Bar()

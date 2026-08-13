@@ -9,7 +9,7 @@
             unsafe
             {
 {%- if is_opaque && method.is_instance() %}
-                if (_inner.IsNull)
+                if (_inner is null || _inner.IsNull)
                 {
                     throw new ObjectDisposedException("{{ name }}");
                 }
@@ -25,7 +25,7 @@
             unsafe
             {
 {%- if is_opaque && method.is_instance() %}
-                if (_inner.IsNull)
+                if (_inner is null || _inner.IsNull)
                 {
                     throw new ObjectDisposedException("{{ name }}");
                 }

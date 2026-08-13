@@ -8,20 +8,14 @@ namespace Somelib;
 
 #nullable enable
 
-// PROTOTYPE: every opaque uses the same lazily-promotable `RustHandle<T>`
-// (see `RustHandle.cs.jinja`) plus one combined `_edges` array holding both
-// this wrapper's own pins and any retained `IRustHandleDependency` tokens.
-// There is no separate "borrow source" lane: `DiplomatRetainDependency()` is
-// always available, and only actually allocates shared state the first time
-// something else borrows from this instance.
+// PROTOTYPE: every opaque is backed by a reference-counted `RustHandle<T>`
+// (see `RustHandle.cs.jinja`). Pins and retain tokens live on that handle,
+// not on a separate wrapper field. `DiplomatRetainDependency()` is always
+// available.
 
 public partial class RcSource: IDisposable
 {
-    private unsafe RustHandle<Raw.RcSource> _inner;
-    /// This value's own pinned input buffers and/or retained borrow-dependency
-    /// tokens, released (in that order) right after `_inner`'s own cleanup —
-    /// see `Cleanup()` below.
-    private object[] _edges = System.Array.Empty<object>();
+    private unsafe RustHandle<Raw.RcSource>? _inner;
 
     private static readonly unsafe RustDestructor<Raw.RcSource> _destroy = Raw.RcSource.Destroy;
 
@@ -41,15 +35,14 @@ public partial class RcSource: IDisposable
 
     /// <summary>
     /// Owned construction that also holds pinned input buffers and/or
-    /// retained borrow-dependency tokens (<paramref name="edges"/>) — released
+    /// retained borrow-dependency tokens (<paramref name="edges"/>) — disposed
     /// right after this value's own Rust destructor actually runs, even when
     /// that destructor call itself ends up deferred behind an outstanding
     /// dependent (see <c>RustHandle.cs.jinja</c>).
     /// </summary>
     internal unsafe RcSource(Raw.RcSource* handle, object[] edges)
     {
-        _inner = RustHandle<Raw.RcSource>.Owned(handle, _destroy);
-        _edges = edges;
+        _inner = RustHandle<Raw.RcSource>.Owned(handle, _destroy, edges);
     }
 
     /// <summary>
@@ -60,16 +53,6 @@ public partial class RcSource: IDisposable
     internal unsafe RcSource(RustHandle<Raw.RcSource> inner)
     {
         _inner = inner;
-    }
-
-    /// <summary>
-    /// Wraps a borrowed, non-owning handle that also holds pinned input
-    /// buffers and/or retained borrow-dependency tokens.
-    /// </summary>
-    internal unsafe RcSource(RustHandle<Raw.RcSource> inner, object[] edges)
-    {
-        _inner = inner;
-        _edges = edges;
     }
 
     /// <returns>
@@ -88,7 +71,7 @@ public partial class RcSource: IDisposable
     {
         unsafe
         {
-            if (_inner.IsNull)
+            if (_inner is null || _inner.IsNull)
             {
                 throw new ObjectDisposedException("RcSource");
             }
@@ -109,13 +92,13 @@ public partial class RcSource: IDisposable
     {
         unsafe
         {
-            if (_inner.IsNull)
+            if (_inner is null || _inner.IsNull)
             {
                 throw new ObjectDisposedException("RcSource");
             }
             Raw.RcSource* result = Raw.RcSource.View(AsFFI());
             GC.KeepAlive(this);
-            return new RcSource(RustHandle<Raw.RcSource>.Borrowed(result), new object[] { this.DiplomatRetainDependency() });
+            return new RcSource(RustHandle<Raw.RcSource>.Borrowed(result, new object[] { this.DiplomatRetainDependency() }));
         }
     }
 
@@ -130,7 +113,7 @@ public partial class RcSource: IDisposable
     {
         unsafe
         {
-            if (_inner.IsNull)
+            if (_inner is null || _inner.IsNull)
             {
                 throw new ObjectDisposedException("RcSource");
             }
@@ -169,58 +152,43 @@ public partial class RcSource: IDisposable
     /// </summary>
     internal unsafe Raw.RcSource* AsFFI()
     {
-        return _inner.Ptr;
+        return _inner!.Ptr;
     }
 
     /// <summary>
     /// Retains this value's native resource for a new direct dependent (a
     /// value another generated wrapper is about to construct by borrowing
-    /// from this one). The caller must release the returned dependency
+    /// from this one). The caller must dispose the returned dependency token
     /// exactly once, from its own cleanup — see <c>RustHandle.cs.jinja</c>
-    /// for the full contract. Lazily allocates this handle's shared state on
-    /// the FIRST call; every earlier call (and every instance nothing ever
-    /// borrows from) pays nothing extra over the plain handle.
+    /// for the full contract.
     /// </summary>
     /// <exception cref="ObjectDisposedException">
     /// This <c>RcSource</c> was already disposed/finalized, so there is
     /// nothing left to lend a dependent.
     /// </exception>
-    internal unsafe IRustHandleDependency DiplomatRetainDependency()
+    internal unsafe IDisposable DiplomatRetainDependency()
     {
-        if (_inner.IsNull)
+        if (_inner is null || _inner.IsNull)
         {
             throw new ObjectDisposedException("RcSource");
         }
-        return _inner.Retain(ref _edges);
+        return _inner.Retain();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            if (_inner.IsNull)
+            RustHandle<Raw.RcSource>? inner = _inner;
+            if (inner is null)
             {
                 return;
             }
 
-            // Releases this wrapper's own reference. If nothing ever
-            // retained a dependency on this handle, this runs the Rust
-            // destructor directly; otherwise it defers to the shared state's
-            // own refcounted release (see `RustHandle.cs.jinja`).
-            _inner.Release();
-            _inner = default;
-
-            // Whatever this wrapper itself still holds — its own pins and/or
-            // dependency tokens — only if `DiplomatRetainDependency()` was
-            // never called (otherwise these already moved into the shared
-            // state above, and this array is empty).
-            object[] edges = _edges;
-            _edges = System.Array.Empty<object>();
-            foreach (object edge in edges)
-            {
-                (edge as IDisposable)?.Dispose();
-                (edge as IRustHandleDependency)?.Release();
-            }
+            _inner = null;
+            // Drops this wrapper's owner ref. Native destruction (and edge
+            // disposal) wait until every retain token is gone too.
+            inner.Release();
         }
     }
     /// <summary>

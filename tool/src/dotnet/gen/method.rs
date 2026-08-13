@@ -48,19 +48,19 @@ impl Display for RawExprParseError {
 
 /// Builds the C# expression that retains every direct opaque borrow source
 /// for one arm (success or error) of a method's output, right where a
-/// generated constructor call for that output needs it — an array literal
-/// of freshly-retained dependency tokens, one call to
+/// generated constructor call for that output needs it — an `object[]`
+/// literal of freshly-retained dependency tokens, one call to
 /// `{expr}.DiplomatRetainDependency()` per source in `sources`, or
-/// `"System.Array.Empty<IRustHandleDependency>()"` when there are none.
+/// `"System.Array.Empty<object>()"` when there are none.
 pub(crate) fn dependencies_array_expr(sources: &[String]) -> String {
     if sources.is_empty() {
-        "System.Array.Empty<IRustHandleDependency>()".to_string()
+        "System.Array.Empty<object>()".to_string()
     } else {
         let args: Vec<String> = sources
             .iter()
             .map(|s| format!("{s}.DiplomatRetainDependency()"))
             .collect();
-        format!("new IRustHandleDependency[] {{ {} }}", args.join(", "))
+        format!("new object[] {{ {} }}", args.join(", "))
     }
 }
 
@@ -488,7 +488,7 @@ impl DotnetReturnType {
                     format!("new {name}(RustHandle<Raw.{name}>.Borrowed({raw_expr}))")
                 } else {
                     format!(
-                        "new {name}(RustHandle<Raw.{name}>.Borrowed({raw_expr}), {})",
+                        "new {name}(RustHandle<Raw.{name}>.Borrowed({raw_expr}, {}))",
                         Self::opaque_edges_expr(dependencies, pins)
                     )
                 }
@@ -732,7 +732,7 @@ pub(super) struct MethodInfo<'ctx> {
     pub(super) lifetime_warning: bool,
     /// Direct opaque-param/`this` borrow edges the returned wrapper retains
     /// via the non-atomic RC mechanism (`DiplomatRetainDependency()` /
-    /// `RustHandleState<T>` — see `RustHandle.cs.jinja`): the source's
+    /// `RustHandle<T>` — see `RustHandle.cs.jinja`): the source's
     /// physical Rust destructor is deferred until this dependent (and every
     /// other holder) has released its reference, regardless of which
     /// wrapper's managed lifetime ends first. Each entry is the bare C#

@@ -92,24 +92,20 @@ and runs it on release; a **borrowed** handle carries none, so releasing it is a
 because Rust still owns (and will free) that memory. This means methods returning `&T` or
 `Option<&T>` are safe to wrap without risking a double-free.
 
-`RustHandle<T>` starts as a bare pointer/destructor pair with no heap allocation at all. The
-first time anything actually retains a dependency on it (a dependent borrowing from it, via
-`DiplomatRetainDependency()`), it lazily promotes itself into a shared `RustHandleState<T>`
-that outlives this wrapper's own managed lifetime, moving the wrapper's own edges (pinned
-input buffers and/or retained dependency tokens) into that state. A wrapper nothing ever
-borrows from never allocates this state. This is what lets a source wrapper be disposed (or
-finalized) *before* every dependent has let go of it without either use-after-free or an
-early native destructor call: once promoted, the source's physical native destruction is
-deferred until its own wrapper reference **and** every dependent's retained reference have
-all been released, however many dependents there are or in whatever order their managed
-lifetimes end. Cleanup always runs the native destructor first, then disposes/releases the
-moved-in edges.
+Every `RustHandle<T>` is a small reference-counted class: pointer, destructor, edges, and
+refcount live in exactly one place. Construction starts the count at 1 (the owning wrapper).
+`DiplomatRetainDependency()` bumps the count and returns a token the dependent disposes from
+its own cleanup. That is what lets a source wrapper be disposed (or finalized) *before* every
+dependent has let go of it without either use-after-free or an early native destructor call:
+physical native destruction waits until the owner reference **and** every dependent token are
+gone, in whatever order managed lifetimes end. Cleanup always runs the native destructor
+first, then disposes every edge (pins and retain tokens).
 
 This reference count is a plain, non-atomic `int` — no lock, no `SafeHandle`, no
 `Interlocked` — a deliberate prototype simplification: generated code assumes
 consumer-thread-confined usage and does not guard against concurrent calls or a concurrent
-`Dispose()`/finalizer race on the same handle. See `RustHandle.cs.jinja`'s `RustHandleState<T>`
-doc comments for the exact contract.
+`Dispose()`/finalizer race on the same handle. See `RustHandle.cs.jinja` for the exact
+contract.
 
 By default, generated opaques are **finalizer-only**: no public `Dispose()`, cleanup runs
 through a private idempotent path invoked by the finalizer. Add
