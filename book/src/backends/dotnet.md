@@ -101,8 +101,9 @@ physical native destruction waits until the owner reference **and** every depend
 gone, in whatever order managed lifetimes end. Cleanup always runs the native destructor
 first, then disposes every edge (pins and retain tokens).
 
-The reference count is non-atomic. Lifecycle operations on the same handle must be
-thread-confined; generated wrappers do not synchronize concurrent calls or disposal.
+The reference count is updated with `Interlocked` so a user-thread retain can
+race a finalizer-thread token release on the same handle without lost updates.
+Teardown still runs only on the thread that drives the count to zero.
 
 By default, generated opaques are **finalizer-only**: no public `Dispose()`, cleanup runs
 through a private idempotent path invoked by the finalizer. Add

@@ -725,7 +725,7 @@ pub(super) struct MethodInfo<'ctx> {
     pub(super) return_type: DotnetReturnType,
     pub(super) lifetime_warning: bool,
     /// Direct opaque-param/`this` borrow edges the returned wrapper retains
-    /// via the non-atomic RC mechanism (`DiplomatRetainDependency()` /
+    /// via the RC mechanism (`DiplomatRetainDependency()` /
     /// `RustHandle<T>` — see `RustHandle.cs.jinja`): the source's
     /// physical Rust destructor is deferred until this dependent (and every
     /// other holder) has released its reference, regardless of which
@@ -1307,7 +1307,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
     /// from a parameter.
     ///
     /// An `OpaqueParam` edge is a real cross-wrapper native dependency —
-    /// retained via the non-atomic RC mechanism (see `dependencies_array_expr`)
+    /// retained via the RC mechanism (see `dependencies_array_expr`)
     /// so the source's physical destruction is deferred correctly. A
     /// `&[u8]`/`&[u32]` param the success value borrows contributes its own
     /// pin holder instead — an unrelated, this-wrapper-only concern (see

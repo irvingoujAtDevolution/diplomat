@@ -79,10 +79,11 @@
 //! `internal unsafe IDisposable DiplomatRetainDependency()`.
 //!
 //! `RustHandle<T>` is always a small reference-counted class: pointer,
-//! destructor, edges, and a plain non-atomic `int _refCount` starting at 1.
-//! No `lock`, no `Interlocked`, no `SafeHandle`. Generated wrappers make no
-//! promise of thread safety; do not call into, `Dispose()`, or finalize the
-//! same handle from two threads at once.
+//! destructor, edges, and an `Interlocked`-updated `int _refCount` starting at 1.
+//! Retain uses a CAS loop so a user-thread retain cannot resurrect a handle
+//! the finalizer thread already drove to zero; Decrement uses
+//! `Interlocked.Decrement` so only one thread runs teardown. No `lock`, no
+//! `SafeHandle`.
 //!
 //! Cleanup order in `RustHandle<T>.Decrement()` (once the refcount reaches
 //! zero): run the native destructor/Rust `Drop` first, then dispose every
@@ -977,7 +978,7 @@ mod test {
         // refcount-reaches-zero branch — never unconditionally on every
         // release call.
         let refcount_zero_branch = rust_handle
-            .find("if (--_refCount != 0)")
+            .find("if (Interlocked.Decrement(ref _refCount) != 0)")
             .expect("Decrement() should early-return unless the refcount just hit zero");
         let destructor_at = rust_handle
             .find("_destructor(ptr);")

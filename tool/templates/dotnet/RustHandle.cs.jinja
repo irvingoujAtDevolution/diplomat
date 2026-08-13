@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 
 namespace {{ namespace }}.Diplomat;
 
@@ -13,7 +14,11 @@ internal unsafe delegate void RustDestructor<T>(T* ptr) where T : unmanaged;
 /// count reaches zero this runs the native destructor first, then disposes
 /// every edge — never the other way around.
 /// </summary>
-/// <remarks>Lifecycle operations on the same handle must be thread-confined.</remarks>
+/// <remarks>
+/// The refcount is updated with <see cref="Interlocked"/> so a user-thread
+/// <see cref="Retain"/> can race a GC finalizer thread releasing another
+/// dependent's token on the same handle without lost updates.
+/// </remarks>
 internal sealed unsafe class RustHandle<T> where T : unmanaged
 {
     private T* _ptr;
@@ -54,13 +59,19 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
     /// The caller must dispose the token exactly once from its own cleanup.
     internal IDisposable Retain()
     {
-        if (IsNull)
+        while (true)
         {
-            throw new ObjectDisposedException(typeof(T).Name);
-        }
+            int current = Volatile.Read(ref _refCount);
+            if (current == 0)
+            {
+                throw new ObjectDisposedException(typeof(T).Name);
+            }
 
-        _refCount++;
-        return new DependencyToken(this);
+            if (Interlocked.CompareExchange(ref _refCount, current + 1, current) == current)
+            {
+                return new DependencyToken(this);
+            }
+        }
     }
 
     /// Releases this wrapper's own owner reference.
@@ -68,7 +79,7 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
 
     private void Decrement()
     {
-        if (--_refCount != 0)
+        if (Interlocked.Decrement(ref _refCount) != 0)
         {
             return;
         }
