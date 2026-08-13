@@ -6,15 +6,16 @@ namespace {{ namespace }}.Diplomat;
 
 /// <summary>
 /// Frees a Rust-owned <typeparamref name="T"/> by calling its native
-/// destructor. Held by an owned <see cref="RustHandle{T}"/> so the handle can
-/// release the pointer without knowing the concrete type.
+/// destructor. Held by an owned handle (<see cref="RustHandle{T}"/> or
+/// <see cref="RcRustHandle{T}"/>) so it can release the pointer without
+/// knowing the concrete type.
 /// </summary>
 internal unsafe delegate void RustDestructor<T>(T* ptr) where T : unmanaged;
 
 /// <summary>
 /// A single retained borrow-dependency token: a dependent's native resource
-/// state holds one of these per direct source it borrows from (see
-/// <see cref="RustHandleState{T}.Retain"/>), and releases it - exactly
+/// holds one of these per direct source it borrows from (see
+/// <see cref="RcRustHandleState{T}.Retain"/>), and releases it - exactly
 /// once, after running its own Rust destructor if it has one - from its own
 /// cleanup. This is what defers a source's physical destruction until every
 /// direct dependent (and the source's own wrapper) has let go of it.
@@ -22,8 +23,8 @@ internal unsafe delegate void RustDestructor<T>(T* ptr) where T : unmanaged;
 /// <remarks>
 /// Calling <see cref="Release"/> is a lifecycle edge (dependent construction/
 /// cleanup), not a per-call operation, so implementations may synchronize it
-/// internally. See <see cref="RustHandleState{T}"/> for the full contract and
-/// what is (and is not) synchronized.
+/// internally. See <see cref="RcRustHandleState{T}"/> for the full contract
+/// and what is (and is not) synchronized.
 /// </remarks>
 internal interface IRustHandleDependency
 {
@@ -31,8 +32,93 @@ internal interface IRustHandleDependency
 }
 
 /// <summary>
-/// The reference-counted native resource state shared by a
-/// <see cref="RustHandle{T}"/> and every dependent that borrows from it.
+/// A raw pointer plus the Rust destructor that frees it, with no reference
+/// counting at all. This is the plain, zero-allocation lane every opaque
+/// wrapper uses UNLESS the generator's selective borrow-source analysis
+/// classified it as an actual RC source (see <see cref="RcRustHandle{T}"/>
+/// and <c>lifetime.rs</c> in the generator) - i.e. the overwhelming majority
+/// of opaque types in a typical run, since most opaques are never borrowed
+/// from by anything else.
+/// </summary>
+/// <remarks>
+/// A type that itself borrows from another opaque (or pins one of its own
+/// input buffers) but that nothing else ever borrows FROM still uses this
+/// plain handle for its own pointer - it just carries a couple of extra
+/// fields alongside it to hold/release what it borrowed (see the generated
+/// wrapper's own <c>_dependencies</c>/<c>_pins</c> fields in
+/// <c>opaque.impl.cs.jinja</c>), rather than allocating a shared, retainable
+/// <see cref="RcRustHandleState{T}"/> nothing will ever actually retain.
+/// </remarks>
+internal readonly unsafe struct RustHandle<T> where T : unmanaged
+{
+    private readonly T* _ptr;
+    private readonly RustDestructor<T>? _destructor;
+
+    private RustHandle(T* ptr, RustDestructor<T>? destructor)
+    {
+        _ptr = ptr;
+        _destructor = destructor;
+    }
+
+    /// <summary>The C# side owns the pointer and will run its destructor on release.</summary>
+    internal static RustHandle<T> Owned(T* ptr, RustDestructor<T> destructor) =>
+        new RustHandle<T>(ptr, destructor);
+
+    /// <summary>Rust still owns the pointer; release never runs a destructor.</summary>
+    internal static RustHandle<T> Borrowed(T* ptr) => new RustHandle<T>(ptr, null);
+
+    internal T* Ptr => _ptr;
+
+    /// <summary>True once this handle has been released (or was never assigned).</summary>
+    internal bool IsNull => _ptr is null;
+
+    /// <summary>
+    /// Runs the destructor (if this handle owns one). Not reference-counted
+    /// and not internally synchronized in any way: this method itself
+    /// performs no locking, and calling it twice concurrently for the same
+    /// live handle value - e.g. two genuinely overlapping <c>Dispose()</c>
+    /// calls, or a <c>Dispose()</c> that races the finalizer rather than
+    /// merely following it - is a double-destroy; there is no internal guard
+    /// here (or in the owning wrapper's own, non-RC <c>Cleanup()</c>) that
+    /// would catch that.
+    /// </summary>
+    /// <remarks>
+    /// Ordinary sequential use is safe only because of a CONSUMER contract,
+    /// not an implementation guarantee: every opaque wrapper built on this
+    /// plain handle (i.e. every type the generator's selective borrow-source
+    /// analysis did NOT classify as an actual RC source - see
+    /// <c>lifetime.rs</c>) thread-confines its own lifecycle - do not call
+    /// <c>Dispose()</c> for the same instance from two threads at once, and
+    /// do not let the finalizer thread race an in-flight <c>Dispose()</c>
+    /// call for that instance. Repeated <c>Dispose()</c> calls made one after
+    /// another (including a clean finalizer pass once <c>Dispose()</c> has
+    /// already returned) work because the wrapper's <c>Cleanup()</c> checks
+    /// <see cref="IsNull"/> before calling this and clears its own field to
+    /// <c>default</c> right afterwards - but that check-then-clear is not
+    /// atomic, so it does not make a genuinely concurrent call safe. This is
+    /// intentional: we do NOT add any lock-free or lock-based cleanup guard
+    /// to this plain lane. That cost belongs only on the actual RC lifecycle
+    /// edges (see <see cref="RcRustHandleState{T}"/>), where a finalizer
+    /// racing the application thread is inherent to finalization itself, not
+    /// a threading choice the consumer could avoid by construction.
+    /// </remarks>
+    internal void Release()
+    {
+        if (_destructor != null && _ptr != null)
+        {
+            _destructor(_ptr);
+        }
+    }
+}
+
+/// <summary>
+/// The reference-counted native resource state shared by an
+/// <see cref="RcRustHandle{T}"/> and every dependent that borrows from it.
+/// Allocated only for opaque types the generator's selective borrow-source
+/// analysis classified as an actual RC source - i.e. at least one OTHER
+/// generated wrapper's return value retains a borrow of this type (see
+/// <c>lifetime.rs</c> in the generator). Every other opaque type uses the
+/// plain, non-allocating <see cref="RustHandle{T}"/> instead.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -138,7 +224,7 @@ internal interface IRustHandleDependency
 /// a user threading choice.
 /// </para>
 /// </remarks>
-internal sealed unsafe class RustHandleState<T> where T : unmanaged
+internal sealed unsafe class RcRustHandleState<T> where T : unmanaged
 {
     private readonly object _gate = new object();
     private T* _ptr;
@@ -148,7 +234,7 @@ internal sealed unsafe class RustHandleState<T> where T : unmanaged
     private int _refCount;
     private bool _ownerReleased;
 
-    internal RustHandleState(T* ptr, RustDestructor<T>? destructor, IRustHandleDependency[] dependencies, object[] pins)
+    internal RcRustHandleState(T* ptr, RustDestructor<T>? destructor, IRustHandleDependency[] dependencies, object[] pins)
     {
         _ptr = ptr;
         _destructor = destructor;
@@ -170,19 +256,26 @@ internal sealed unsafe class RustHandleState<T> where T : unmanaged
     /// <summary>
     /// Bumps the reference count for one new direct dependent and returns a
     /// token that dependent must release exactly once. Throws if the count
-    /// has already reached zero (the source's native resource is already
-    /// gone) - this can only race with <see cref="ReleaseOwner"/> or another
-    /// token's release reaching zero at the same instant, which the lock
-    /// below resolves the same way a single-threaded caller would expect:
-    /// either this retain is ordered first (and the racing release is
-    /// deferred, exactly as if it had lost a single-threaded race) or the
-    /// resource is already gone (and this call throws).
+    /// has already reached zero OR the owner has already logically released
+    /// its reference (<see cref="_ownerReleased"/>) - the source's native
+    /// resource is already gone, or is unavoidably about to be. In practice
+    /// every generated call site already guards this the same way one level
+    /// up (a wrapper's own `DiplomatRetainDependency()` checks its own handle
+    /// first - see `opaque.impl.cs.jinja`), so this check is defense in
+    /// depth against ever reaching a retain through some other path once
+    /// this state's owner has logically let go. This can only race with
+    /// <see cref="ReleaseOwner"/> or another token's release reaching zero at
+    /// the same instant, which the lock below resolves the same way a
+    /// single-threaded caller would expect: either this retain is ordered
+    /// first (and the racing release is deferred, exactly as if it had lost
+    /// a single-threaded race) or the resource is already gone/going (and
+    /// this call throws).
     /// </summary>
     internal IRustHandleDependency Retain()
     {
         lock (_gate)
         {
-            if (_refCount <= 0)
+            if (_ownerReleased || _refCount <= 0)
             {
                 throw new ObjectDisposedException(typeof(T).Name);
             }
@@ -288,6 +381,7 @@ internal sealed unsafe class RustHandleState<T> where T : unmanaged
         }
     }
 
+
     /// <summary>
     /// The token handed back by <see cref="Retain"/> for exactly one direct
     /// dependent. Its own <c>Release()</c> is one-shot-guarded independently
@@ -298,16 +392,16 @@ internal sealed unsafe class RustHandleState<T> where T : unmanaged
     private sealed class DependencyToken : IRustHandleDependency
     {
         private readonly object _gate = new object();
-        private RustHandleState<T>? _owner;
+        private RcRustHandleState<T>? _owner;
 
-        internal DependencyToken(RustHandleState<T> owner)
+        internal DependencyToken(RcRustHandleState<T> owner)
         {
             _owner = owner;
         }
 
         public void Release()
         {
-            RustHandleState<T>? owner;
+            RcRustHandleState<T>? owner;
             lock (_gate)
             {
                 owner = _owner;
@@ -321,29 +415,32 @@ internal sealed unsafe class RustHandleState<T> where T : unmanaged
 
 /// <summary>
 /// A raw pointer plus the shared, reference-counted state
-/// (<see cref="RustHandleState{T}"/>) that decides when it's actually safe to
-/// run Rust's destructor on it. An owned handle carries the Rust destructor;
-/// a borrowed handle carries none, so its release step never frees memory
-/// Rust still owns - it only releases whatever dependencies it retained.
+/// (<see cref="RcRustHandleState{T}"/>) that decides when it's actually safe
+/// to run Rust's destructor on it. An owned handle carries the Rust
+/// destructor; a borrowed handle carries none, so its release step never
+/// frees memory Rust still owns - it only releases whatever dependencies it
+/// retained. Used only by opaque types the generator classified as an actual
+/// borrow source - see <see cref="RustHandle{T}"/> for the plain,
+/// non-allocating lane every other opaque type uses instead.
 /// </summary>
 /// <remarks>
 /// <see cref="IsNull"/> tracks whether <em>this specific handle instance</em>
 /// has been released - it says nothing about whether the underlying native
 /// resource has been physically destroyed, which instead depends on every
 /// holder of the shared state (this handle's owner and every dependent)
-/// having released their reference. See <see cref="RustHandleState{T}"/>.
+/// having released their reference. See <see cref="RcRustHandleState{T}"/>.
 /// </remarks>
-internal readonly unsafe struct RustHandle<T> where T : unmanaged
+internal readonly unsafe struct RcRustHandle<T> where T : unmanaged
 {
-    private readonly RustHandleState<T>? _state;
+    private readonly RcRustHandleState<T>? _state;
 
-    private RustHandle(RustHandleState<T>? state)
+    private RcRustHandle(RcRustHandleState<T>? state)
     {
         _state = state;
     }
 
     /// <summary>The C# side owns the pointer, with no direct dependencies.</summary>
-    internal static RustHandle<T> Owned(T* ptr, RustDestructor<T> destructor) =>
+    internal static RcRustHandle<T> Owned(T* ptr, RustDestructor<T> destructor) =>
         Owned(ptr, destructor, System.Array.Empty<IRustHandleDependency>(), System.Array.Empty<object>());
 
     /// <summary>
@@ -352,18 +449,18 @@ internal readonly unsafe struct RustHandle<T> where T : unmanaged
     /// <paramref name="dependencies"/> was already retained by the caller
     /// (see <see cref="Retain"/>) before this call.
     /// </summary>
-    internal static RustHandle<T> Owned(T* ptr, RustDestructor<T> destructor, IRustHandleDependency[] dependencies) =>
+    internal static RcRustHandle<T> Owned(T* ptr, RustDestructor<T> destructor, IRustHandleDependency[] dependencies) =>
         Owned(ptr, destructor, dependencies, System.Array.Empty<object>());
 
     /// <summary>
     /// The C# side owns the pointer and this wrapper pins one or more of its
     /// OWN input buffers (e.g. a <c>ReadOnlyMemory</c> parameter it borrows -
     /// see the <paramref name="pins"/> parameter on
-    /// <see cref="RustHandleState{T}"/> for the ordering guarantee: these are
-    /// only unpinned after this value's own Rust destructor actually runs,
-    /// however long that is deferred by an outstanding dependent).
+    /// <see cref="RcRustHandleState{T}"/> for the ordering guarantee: these
+    /// are only unpinned after this value's own Rust destructor actually
+    /// runs, however long that is deferred by an outstanding dependent).
     /// </summary>
-    internal static RustHandle<T> Owned(T* ptr, RustDestructor<T> destructor, object[] pins) =>
+    internal static RcRustHandle<T> Owned(T* ptr, RustDestructor<T> destructor, object[] pins) =>
         Owned(ptr, destructor, System.Array.Empty<IRustHandleDependency>(), pins);
 
     /// <summary>
@@ -371,24 +468,24 @@ internal readonly unsafe struct RustHandle<T> where T : unmanaged
     /// other wrappers, AND pins one or more of its own input buffers - the
     /// combination of both prior overloads.
     /// </summary>
-    internal static RustHandle<T> Owned(T* ptr, RustDestructor<T> destructor, IRustHandleDependency[] dependencies, object[] pins) =>
-        new RustHandle<T>(new RustHandleState<T>(ptr, destructor, dependencies, pins));
+    internal static RcRustHandle<T> Owned(T* ptr, RustDestructor<T> destructor, IRustHandleDependency[] dependencies, object[] pins) =>
+        new RcRustHandle<T>(new RcRustHandleState<T>(ptr, destructor, dependencies, pins));
 
     /// <summary>Rust still owns the pointer, with no direct dependencies.</summary>
-    internal static RustHandle<T> Borrowed(T* ptr) =>
+    internal static RcRustHandle<T> Borrowed(T* ptr) =>
         Borrowed(ptr, System.Array.Empty<IRustHandleDependency>());
 
     /// <summary>
     /// Rust still owns the pointer, but this view itself also borrows from
     /// one or more other wrappers. Releasing this handle never touches
-    /// <paramref name="ptr"/> - it only releases the retained dependencies.
-    /// A borrowed handle never carries its own pins: Rust still owns
+    /// <paramref name="ptr"/> - it only releases the retained dependencies. A
+    /// borrowed handle never carries its own pins: Rust still owns
     /// <paramref name="ptr"/>, so there is no destructor here to defer an
     /// unpin behind (see `gen::method::output_keep_alive_edges`: a borrowed
     /// return structurally never produces pins).
     /// </summary>
-    internal static RustHandle<T> Borrowed(T* ptr, IRustHandleDependency[] dependencies) =>
-        new RustHandle<T>(new RustHandleState<T>(ptr, null, dependencies, System.Array.Empty<object>()));
+    internal static RcRustHandle<T> Borrowed(T* ptr, IRustHandleDependency[] dependencies) =>
+        new RcRustHandle<T>(new RcRustHandleState<T>(ptr, null, dependencies, System.Array.Empty<object>()));
 
     internal T* Ptr => _state is null ? null : _state.Ptr;
 
@@ -404,7 +501,7 @@ internal readonly unsafe struct RustHandle<T> where T : unmanaged
     /// </summary>
     internal IRustHandleDependency Retain()
     {
-        RustHandleState<T>? state = _state;
+        RcRustHandleState<T>? state = _state;
         if (state is null)
         {
             throw new ObjectDisposedException(typeof(T).Name);
@@ -416,9 +513,9 @@ internal readonly unsafe struct RustHandle<T> where T : unmanaged
     /// <summary>
     /// Releases this handle's own ("owner") reference to the shared state.
     /// Idempotent at the state level (see
-    /// <see cref="RustHandleState{T}.ReleaseOwner"/>): physical Rust
+    /// <see cref="RcRustHandleState{T}.ReleaseOwner"/>): physical Rust
     /// destruction only happens once every reference - this one and every
-    /// dependent's - has been released; see <see cref="RustHandleState{T}"/>.
+    /// dependent's - has been released; see <see cref="RcRustHandleState{T}"/>.
     /// </summary>
     internal void Release()
     {

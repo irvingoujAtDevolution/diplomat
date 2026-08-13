@@ -10,10 +10,9 @@ namespace Somelib;
 
 public partial class RcSource: IDisposable
 {
-    private unsafe RustHandle<Raw.RcSource> _inner;
+    private unsafe RcRustHandle<Raw.RcSource> _inner;
 
     private static readonly unsafe RustDestructor<Raw.RcSource> _destroy = Raw.RcSource.Destroy;
-
     /// <summary>
     /// Creates a managed <c>RcSource</c> from a raw handle.
     /// </summary>
@@ -25,14 +24,15 @@ public partial class RcSource: IDisposable
     /// </remarks>
     internal unsafe RcSource(Raw.RcSource* handle)
     {
-        _inner = RustHandle<Raw.RcSource>.Owned(handle, _destroy);
+        _inner = RcRustHandle<Raw.RcSource>.Owned(handle, _destroy);
     }
 
     /// <summary>
     /// Owned construction that also borrows from one or more other opaque
     /// wrappers (an "owned-borrowing" dependent, e.g. a value borrowing
-    /// <c>&amp;'a self</c> or a borrowed parameter). Each dependency was
-    /// already retained (<c>DiplomatRetainDependency()</c>) by the caller.
+    /// <c>&amp;'a self</c> or a borrowed parameter). Each entry in
+    /// <paramref name="dependencies"/> was already retained by the caller
+    /// before the native call ran.
     /// </summary>
     /// <remarks>
     /// This wrapper's own <c>Cleanup()</c> runs its Rust destructor and
@@ -42,14 +42,14 @@ public partial class RcSource: IDisposable
     /// </remarks>
     internal unsafe RcSource(Raw.RcSource* handle, IRustHandleDependency[] dependencies)
     {
-        _inner = RustHandle<Raw.RcSource>.Owned(handle, _destroy, dependencies);
+        _inner = RcRustHandle<Raw.RcSource>.Owned(handle, _destroy, dependencies);
     }
 
     /// <summary>
     /// Owned construction that also pins one or more of this value's own
     /// input buffers (e.g. a <c>ReadOnlyMemory</c> parameter it borrows).
     /// The pins are threaded straight into <c>_inner</c>'s own
-    /// <c>RustHandleState</c> (see <c>RustHandle.cs.jinja</c>) rather than
+    /// <c>RcRustHandleState</c> (see <c>RustHandle.cs.jinja</c>) rather than
     /// held in a field of this class, so they are only ever unpinned right
     /// after this value's own Rust destructor actually runs — even when
     /// that destructor call itself is deferred behind an outstanding RC
@@ -58,7 +58,7 @@ public partial class RcSource: IDisposable
     /// </summary>
     internal unsafe RcSource(Raw.RcSource* handle, object[] pins)
     {
-        _inner = RustHandle<Raw.RcSource>.Owned(handle, _destroy, pins);
+        _inner = RcRustHandle<Raw.RcSource>.Owned(handle, _destroy, pins);
     }
 
     /// <summary>
@@ -67,7 +67,7 @@ public partial class RcSource: IDisposable
     /// </summary>
     internal unsafe RcSource(Raw.RcSource* handle, IRustHandleDependency[] dependencies, object[] pins)
     {
-        _inner = RustHandle<Raw.RcSource>.Owned(handle, _destroy, dependencies, pins);
+        _inner = RcRustHandle<Raw.RcSource>.Owned(handle, _destroy, dependencies, pins);
     }
 
     /// <summary>
@@ -75,10 +75,10 @@ public partial class RcSource: IDisposable
     /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
     /// pointer alone; any dependency this view borrows from already rides
     /// inside <paramref name="inner"/>'s own state (see
-    /// <c>RustHandle&lt;T&gt;.Borrowed(ptr, dependencies)</c>), so this
+    /// <c>RcRustHandle&lt;T&gt;.Borrowed(ptr, dependencies)</c>), so this
     /// constructor needs nothing extra to keep it alive.
     /// </summary>
-    internal unsafe RcSource(RustHandle<Raw.RcSource> inner)
+    internal unsafe RcSource(RcRustHandle<Raw.RcSource> inner)
     {
         _inner = inner;
     }
@@ -126,7 +126,7 @@ public partial class RcSource: IDisposable
             }
             Raw.RcSource* result = Raw.RcSource.View(AsFFI());
             GC.KeepAlive(this);
-            return new RcSource(RustHandle<Raw.RcSource>.Borrowed(result, new IRustHandleDependency[] { this.DiplomatRetainDependency() }));
+            return new RcSource(RcRustHandle<Raw.RcSource>.Borrowed(result, new IRustHandleDependency[] { this.DiplomatRetainDependency() }));
         }
     }
 
@@ -182,7 +182,6 @@ public partial class RcSource: IDisposable
     {
         return _inner.Ptr;
     }
-
     /// <summary>
     /// Retains this value's native resource for a new direct dependent (a
     /// value another generated wrapper is about to construct by borrowing
@@ -218,7 +217,7 @@ public partial class RcSource: IDisposable
             }
 
             // Releases this wrapper's own ("owner") reference. Idempotent at
-            // the shared-state level (`RustHandleState<T>.ReleaseOwner()`),
+            // the shared-state level (`RcRustHandleState<T>.ReleaseOwner()`),
             // so it's safe no matter how many times — or from how many
             // threads (e.g. a racing repeated `Dispose()`) — this `Cleanup()`
             // ends up running: only the first release actually decrements
@@ -234,7 +233,9 @@ public partial class RcSource: IDisposable
     }
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference. Idempotent:
-    /// safe to call more than once, including racing with the finalizer.
+    /// safe to call more than once, including racing with the finalizer -
+    /// backed by <see cref="RcRustHandleState{T}.ReleaseOwner"/>'s own
+    /// locked, one-shot-guarded release path (see <c>RustHandle.cs.jinja</c>).
     /// </summary>
     /// <remarks>
     /// This only relinquishes THIS wrapper's own reference; the underlying

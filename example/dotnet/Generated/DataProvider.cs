@@ -13,7 +13,6 @@ public partial class DataProvider
     private unsafe RustHandle<Raw.DataProvider> _inner;
 
     private static readonly unsafe RustDestructor<Raw.DataProvider> _destroy = Raw.DataProvider.Destroy;
-
     /// <summary>
     /// Creates a managed <c>DataProvider</c> from a raw handle.
     /// </summary>
@@ -29,54 +28,9 @@ public partial class DataProvider
     }
 
     /// <summary>
-    /// Owned construction that also borrows from one or more other opaque
-    /// wrappers (an "owned-borrowing" dependent, e.g. a value borrowing
-    /// <c>&amp;'a self</c> or a borrowed parameter). Each dependency was
-    /// already retained (<c>DiplomatRetainDependency()</c>) by the caller.
-    /// </summary>
-    /// <remarks>
-    /// This wrapper's own <c>Cleanup()</c> runs its Rust destructor and
-    /// releases these dependencies afterwards — never before — so a source
-    /// this borrows from cannot be physically destroyed while this value is
-    /// still alive, regardless of the source wrapper's own managed lifetime.
-    /// </remarks>
-    internal unsafe DataProvider(Raw.DataProvider* handle, IRustHandleDependency[] dependencies)
-    {
-        _inner = RustHandle<Raw.DataProvider>.Owned(handle, _destroy, dependencies);
-    }
-
-    /// <summary>
-    /// Owned construction that also pins one or more of this value's own
-    /// input buffers (e.g. a <c>ReadOnlyMemory</c> parameter it borrows).
-    /// The pins are threaded straight into <c>_inner</c>'s own
-    /// <c>RustHandleState</c> (see <c>RustHandle.cs.jinja</c>) rather than
-    /// held in a field of this class, so they are only ever unpinned right
-    /// after this value's own Rust destructor actually runs — even when
-    /// that destructor call itself is deferred behind an outstanding RC
-    /// dependent (see the <c>dependencies</c> overload above), never merely
-    /// because THIS wrapper's own <c>Cleanup()</c> happened to run.
-    /// </summary>
-    internal unsafe DataProvider(Raw.DataProvider* handle, object[] pins)
-    {
-        _inner = RustHandle<Raw.DataProvider>.Owned(handle, _destroy, pins);
-    }
-
-    /// <summary>
-    /// Owned construction that both borrows from other opaque wrappers and
-    /// pins one of its own input buffers.
-    /// </summary>
-    internal unsafe DataProvider(Raw.DataProvider* handle, IRustHandleDependency[] dependencies, object[] pins)
-    {
-        _inner = RustHandle<Raw.DataProvider>.Owned(handle, _destroy, dependencies, pins);
-    }
-
-    /// <summary>
     /// Wraps a handle that already knows whether it owns the pointer. A
     /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone; any dependency this view borrows from already rides
-    /// inside <paramref name="inner"/>'s own state (see
-    /// <c>RustHandle&lt;T&gt;.Borrowed(ptr, dependencies)</c>), so this
-    /// constructor needs nothing extra to keep it alive.
+    /// pointer alone.
     /// </summary>
     internal unsafe DataProvider(RustHandle<Raw.DataProvider> inner)
     {
@@ -116,32 +70,6 @@ public partial class DataProvider
     {
         return _inner.Ptr;
     }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent (a
-    /// value another generated wrapper is about to construct by borrowing
-    /// from this one). The caller must release the returned dependency
-    /// exactly once, from its own cleanup, after running its own Rust
-    /// destructor (if it has one) — see <c>RustHandle.cs.jinja</c> for the
-    /// full reference-counting contract. This call, like <c>Dispose()</c>/
-    /// the finalizer, is a lifecycle edge and is synchronized against those
-    /// (a racing release on the same shared state can't corrupt the count);
-    /// ordinary method calls on this wrapper are still not safe to make
-    /// concurrently with each other.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>DataProvider</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IRustHandleDependency DiplomatRetainDependency()
-    {
-        if (_inner.IsNull)
-        {
-            throw new ObjectDisposedException("DataProvider");
-        }
-        return _inner.Retain();
-    }
-
     private void Cleanup()
     {
         unsafe
@@ -150,18 +78,8 @@ public partial class DataProvider
             {
                 return;
             }
-
-            // Releases this wrapper's own ("owner") reference. Idempotent at
-            // the shared-state level (`RustHandleState<T>.ReleaseOwner()`),
-            // so it's safe no matter how many times — or from how many
-            // threads (e.g. a racing repeated `Dispose()`) — this `Cleanup()`
-            // ends up running: only the first release actually decrements
-            // the count. Physically destroying the native value (and, right
-            // after, unpinning any of its own pinned input buffers) is
-            // deferred until every reference — this wrapper's own and every
-            // RC dependent's — has been released; see `RustHandle.cs.jinja`
-            // for the full ordering guarantee. This call site needs to know
-            // nothing about it.
+            // Neither an actual borrow source nor a dependent: this type's
+            // own Rust destructor is all there is to release.
             _inner.Release();
             _inner = default;
         }

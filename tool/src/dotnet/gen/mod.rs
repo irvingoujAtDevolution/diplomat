@@ -35,12 +35,14 @@ mod accessor;
 mod callback;
 pub(super) mod fillable;
 mod impl_struct;
+mod lifetime;
 mod lower;
 mod method;
 mod opaque;
 
 use self::accessor::{AccessorInfo, PropertyInfo};
 use self::impl_struct::StructField;
+use self::lifetime::LifetimePlan;
 use self::method::{MethodInfo, StructMethodContext};
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -106,6 +108,10 @@ enum PreparedType<'tcx> {
     },
     Opaque {
         display_name: String,
+        /// This type's own id — looked up in the run-level [`LifetimePlan`]
+        /// right before rendering to decide which handle lane (`RustHandle<T>`
+        /// vs `RcRustHandle<T>`) and which extra fields this wrapper needs.
+        opaque_id: hir::OpaqueId,
         opaque_def: &'tcx OpaqueDef,
         members: TypeMembers<'tcx>,
     },
@@ -164,6 +170,34 @@ impl PreparedType<'_> {
     /// borrowed span without pinning any input (e.g. borrowing only from `self`).
     fn uses_borrowed_span(&self) -> bool {
         self.all_methods().iter().any(|m| m.returns_borrowed_span())
+    }
+
+    /// Stamp the finished run-level [`LifetimePlan`] onto every clone of
+    /// every lowered method this type carries (`raw_methods`, `methods`, and
+    /// each property's getter/setter) so a method's own return-statement
+    /// builder can pick the right handle lane for whatever opaque type it
+    /// constructs — without reaching sideways into the plan itself at
+    /// render time. A no-op for an already-rendered (enum) type.
+    fn stamp_roles(&mut self, plan: &LifetimePlan) {
+        let members = match self {
+            Self::Prerendered { .. } => return,
+            Self::Opaque { members, .. } | Self::Struct { members, .. } => members,
+        };
+        for method in members
+            .raw_methods
+            .iter_mut()
+            .chain(members.methods.iter_mut())
+        {
+            method.stamp_role(plan);
+        }
+        for property in &mut members.properties {
+            if let Some(getter) = &mut property.getter {
+                getter.stamp_role(plan);
+            }
+            if let Some(setter) = &mut property.setter {
+                setter.stamp_role(plan);
+            }
+        }
     }
 }
 
@@ -239,7 +273,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             let _guard = self.errors.set_context_ty(display_name.clone().into());
             // `None` means an unsupported shape (diagnostic already recorded);
             // the end-gate in `lib.rs` aborts before any file is written.
-            let Some(prepared) = self.prepare_type(display_name, ty) else {
+            let Some(prepared) = self.prepare_type(id, display_name, ty) else {
                 continue;
             };
             uses_pinned_memory |= prepared.uses_pinned_memory();
@@ -248,11 +282,36 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             prepared_types.push(prepared);
         }
 
+        // Classify every opaque type's borrow-source role from the whole
+        // run's already-lowered keep-alive data (see `lifetime.rs`), then
+        // stamp the result back onto each method before any template
+        // renders — a method's own return statement needs to know the
+        // *target* opaque's role (not just its own type's), and that's only
+        // knowable once every type in the run has been lowered once.
+        let mut plan = LifetimePlan::default();
+        for prepared in &prepared_types {
+            for method in prepared.all_methods() {
+                plan.record_output(
+                    method.return_opaque_id,
+                    &method.keep_alive_sources,
+                    !method.keep_alive_pins.is_empty(),
+                );
+                plan.record_output(
+                    method.error_opaque_id,
+                    &method.error_keep_alive_sources,
+                    false,
+                );
+            }
+        }
+        for prepared in &mut prepared_types {
+            prepared.stamp_roles(&plan);
+        }
+
         let rendered = prepared_types
             .into_iter()
             .map(|prepared| {
                 let display_name = prepared.display_name().to_string();
-                let (raw, content) = self.render_prepared(prepared);
+                let (raw, content) = self.render_prepared(prepared, &plan);
                 RenderedType {
                     display_name,
                     raw,
@@ -275,6 +334,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
     /// one. `None` (diagnostic recorded) for an unsupported type shape.
     fn prepare_type(
         &self,
+        id: hir::TypeId,
         display_name: String,
         ty: hir::TypeDef<'tcx>,
     ) -> Option<PreparedType<'tcx>> {
@@ -303,6 +363,12 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                 return None;
             }
             hir::TypeDef::Opaque(opaque_def) => {
+                let opaque_id = match id {
+                    hir::TypeId::Opaque(opaque_id) => opaque_id,
+                    _ => unreachable!(
+                        "a `hir::TypeDef::Opaque` always corresponds to a `hir::TypeId::Opaque`"
+                    ),
+                };
                 let members = self.build_members(
                     &display_name,
                     &opaque_def.methods,
@@ -312,6 +378,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                 );
                 PreparedType::Opaque {
                     display_name,
+                    opaque_id,
                     opaque_def,
                     members,
                 }
@@ -329,12 +396,20 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
         })
     }
 
-    /// Render a prepared type to `(raw, content)`.
-    fn render_prepared(&self, prepared: PreparedType<'tcx>) -> (Option<String>, String) {
+    /// Render a prepared type to `(raw, content)`. `plan` supplies the
+    /// finished run-level borrow-source classification — only the `Opaque`
+    /// arm consults it, to decide which handle lane (`RustHandle<T>` vs
+    /// `RcRustHandle<T>`) and which extra fields this wrapper needs.
+    fn render_prepared(
+        &self,
+        prepared: PreparedType<'tcx>,
+        plan: &LifetimePlan,
+    ) -> (Option<String>, String) {
         match prepared {
             PreparedType::Prerendered { raw, content, .. } => (raw, content),
             PreparedType::Opaque {
                 display_name,
+                opaque_id,
                 opaque_def,
                 members,
             } => {
@@ -343,12 +418,14 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                     methods,
                     properties,
                 } = members;
+                let role = plan.role(opaque_id);
                 let raw = self.gen_opaque_raw(display_name.clone(), opaque_def, raw_methods);
                 let content = self.gen_opaque_impl(
                     display_name,
                     methods,
                     properties,
                     opaque_def.attrs.manually_disposable,
+                    role,
                 );
                 (Some(raw), content)
             }

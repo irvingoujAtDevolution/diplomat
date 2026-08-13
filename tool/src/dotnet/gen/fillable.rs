@@ -11,7 +11,8 @@ use askama::Template;
 use diplomat_core::hir::{OutputOnly, ReturnableStructDef, Type};
 
 use crate::dotnet::r#gen::{
-    method::{DotnetReturnType, RawExpr},
+    lifetime::OpaqueBorrowSource,
+    method::{dependencies_array_expr, DotnetReturnType, RawExpr},
     DotnetPrimitives, ItemGenContext,
 };
 
@@ -176,19 +177,20 @@ pub(crate) struct ErrorInfo {
 }
 
 impl ErrorInfo {
-    /// `dependencies` are the direct opaque-param/`this` borrow edges the
-    /// error arm borrows from — pins are structurally impossible here (a
-    /// thrown exception has no unpin path), so this is always a pure
-    /// dependency list. They're retained via the same non-atomic RC
-    /// mechanism as a success-arm owned-borrowing return: the inner error
-    /// opaque's own `RustHandle` state holds the dependency (see
-    /// `DotnetErrorType::exception_inner_expr`), not a separate array on the
-    /// exception class — so the exception class itself needs no edge
-    /// plumbing at all.
+    /// `dependencies` are the direct opaque borrow sources this error arm
+    /// retains — threaded through to the inner error opaque's own
+    /// construction (see `DotnetErrorType::exception_inner_expr`), not a
+    /// separate array on the exception class — so the exception class
+    /// itself needs no edge plumbing at all. Pins are structurally
+    /// impossible here (a thrown exception has no unpin path). The error
+    /// arm's own construction is always the Owned lane regardless of the
+    /// inner error opaque's classified role (`DotnetErrorType::new` rejects
+    /// borrowed opaque errors outright), so no role parameter is threaded
+    /// through here.
     pub(crate) fn throw_statement_with_edges<R>(
         &self,
         raw_expr: R,
-        dependencies: &[String],
+        dependencies: &[OpaqueBorrowSource],
     ) -> String
     where
         R: TryInto<RawExpr>,
@@ -349,16 +351,21 @@ impl DotnetErrorType {
         format!("{name}Exception")
     }
 
-    fn exception_inner_expr(&self, raw_expr: RawExpr, dependencies: &[String]) -> String {
+    fn exception_inner_expr(
+        &self,
+        raw_expr: RawExpr,
+        dependencies: &[OpaqueBorrowSource],
+    ) -> String {
         match self {
-            DotnetErrorType::Opaque(name) if dependencies.is_empty() => {
-                format!("new {name}({raw_expr})")
-            }
             DotnetErrorType::Opaque(name) => {
-                format!(
-                    "new {name}({raw_expr}, {})",
-                    DotnetReturnType::dependencies_array_expr(dependencies)
-                )
+                if dependencies.is_empty() {
+                    format!("new {name}({raw_expr})")
+                } else {
+                    format!(
+                        "new {name}({raw_expr}, {})",
+                        dependencies_array_expr(dependencies)
+                    )
+                }
             }
             DotnetErrorType::Struct { name, is_zst: true } => format!("new {name}()"),
             DotnetErrorType::Struct {

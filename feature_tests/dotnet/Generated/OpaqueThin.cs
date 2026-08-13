@@ -11,6 +11,17 @@ namespace Somelib;
 public partial class OpaqueThin: IDisposable
 {
     private unsafe RustHandle<Raw.OpaqueThin> _inner;
+    /// <summary>
+    /// Opaque-param/`this` borrows this value retains — never allocated an
+    /// RC state of its own (nothing borrows FROM this type), but still holds
+    /// (and releases, after its own Rust destructor runs — see
+    /// <c>Cleanup()</c>) whatever it borrows from. See <c>lifetime.rs</c> in
+    /// the generator for the classification that put this type on this
+    /// lane instead of <see cref="RcRustHandle{T}"/>.
+    /// </summary>
+    private IRustHandleDependency[] _dependencies = System.Array.Empty<IRustHandleDependency>();
+    /// <summary>This value's own pinned input buffers, unpinned right after its own Rust destructor runs.</summary>
+    private object[] _pins = System.Array.Empty<object>();
 
     private static readonly unsafe RustDestructor<Raw.OpaqueThin> _destroy = Raw.OpaqueThin.Destroy;
 
@@ -72,7 +83,6 @@ public partial class OpaqueThin: IDisposable
             }
         }
     }
-
     /// <summary>
     /// Creates a managed <c>OpaqueThin</c> from a raw handle.
     /// </summary>
@@ -89,35 +99,27 @@ public partial class OpaqueThin: IDisposable
 
     /// <summary>
     /// Owned construction that also borrows from one or more other opaque
-    /// wrappers (an "owned-borrowing" dependent, e.g. a value borrowing
-    /// <c>&amp;'a self</c> or a borrowed parameter). Each dependency was
-    /// already retained (<c>DiplomatRetainDependency()</c>) by the caller.
+    /// wrappers. Unlike an actual RC source, this type never allocates its
+    /// own retainable state — it just holds the retained dependencies in
+    /// <c>_dependencies</c> and releases them from <c>Cleanup()</c>, after
+    /// its own Rust destructor has already run.
     /// </summary>
-    /// <remarks>
-    /// This wrapper's own <c>Cleanup()</c> runs its Rust destructor and
-    /// releases these dependencies afterwards — never before — so a source
-    /// this borrows from cannot be physically destroyed while this value is
-    /// still alive, regardless of the source wrapper's own managed lifetime.
-    /// </remarks>
     internal unsafe OpaqueThin(Raw.OpaqueThin* handle, IRustHandleDependency[] dependencies)
     {
-        _inner = RustHandle<Raw.OpaqueThin>.Owned(handle, _destroy, dependencies);
+        _inner = RustHandle<Raw.OpaqueThin>.Owned(handle, _destroy);
+        _dependencies = dependencies;
     }
 
     /// <summary>
     /// Owned construction that also pins one or more of this value's own
     /// input buffers (e.g. a <c>ReadOnlyMemory</c> parameter it borrows).
-    /// The pins are threaded straight into <c>_inner</c>'s own
-    /// <c>RustHandleState</c> (see <c>RustHandle.cs.jinja</c>) rather than
-    /// held in a field of this class, so they are only ever unpinned right
-    /// after this value's own Rust destructor actually runs — even when
-    /// that destructor call itself is deferred behind an outstanding RC
-    /// dependent (see the <c>dependencies</c> overload above), never merely
-    /// because THIS wrapper's own <c>Cleanup()</c> happened to run.
+    /// Unpinned from <c>Cleanup()</c>, right after this value's own Rust
+    /// destructor runs.
     /// </summary>
     internal unsafe OpaqueThin(Raw.OpaqueThin* handle, object[] pins)
     {
-        _inner = RustHandle<Raw.OpaqueThin>.Owned(handle, _destroy, pins);
+        _inner = RustHandle<Raw.OpaqueThin>.Owned(handle, _destroy);
+        _pins = pins;
     }
 
     /// <summary>
@@ -126,20 +128,29 @@ public partial class OpaqueThin: IDisposable
     /// </summary>
     internal unsafe OpaqueThin(Raw.OpaqueThin* handle, IRustHandleDependency[] dependencies, object[] pins)
     {
-        _inner = RustHandle<Raw.OpaqueThin>.Owned(handle, _destroy, dependencies, pins);
+        _inner = RustHandle<Raw.OpaqueThin>.Owned(handle, _destroy);
+        _dependencies = dependencies;
+        _pins = pins;
     }
 
     /// <summary>
     /// Wraps a handle that already knows whether it owns the pointer. A
     /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone; any dependency this view borrows from already rides
-    /// inside <paramref name="inner"/>'s own state (see
-    /// <c>RustHandle&lt;T&gt;.Borrowed(ptr, dependencies)</c>), so this
-    /// constructor needs nothing extra to keep it alive.
+    /// pointer alone.
     /// </summary>
     internal unsafe OpaqueThin(RustHandle<Raw.OpaqueThin> inner)
     {
         _inner = inner;
+    }
+
+    /// <summary>
+    /// Wraps a borrowed, non-owning handle that also borrows from one or
+    /// more other opaque wrappers.
+    /// </summary>
+    internal unsafe OpaqueThin(RustHandle<Raw.OpaqueThin> inner, IRustHandleDependency[] dependencies)
+    {
+        _inner = inner;
+        _dependencies = dependencies;
     }
 
     /// <summary>
@@ -149,32 +160,6 @@ public partial class OpaqueThin: IDisposable
     {
         return _inner.Ptr;
     }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent (a
-    /// value another generated wrapper is about to construct by borrowing
-    /// from this one). The caller must release the returned dependency
-    /// exactly once, from its own cleanup, after running its own Rust
-    /// destructor (if it has one) — see <c>RustHandle.cs.jinja</c> for the
-    /// full reference-counting contract. This call, like <c>Dispose()</c>/
-    /// the finalizer, is a lifecycle edge and is synchronized against those
-    /// (a racing release on the same shared state can't corrupt the count);
-    /// ordinary method calls on this wrapper are still not safe to make
-    /// concurrently with each other.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>OpaqueThin</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IRustHandleDependency DiplomatRetainDependency()
-    {
-        if (_inner.IsNull)
-        {
-            throw new ObjectDisposedException("OpaqueThin");
-        }
-        return _inner.Retain();
-    }
-
     private void Cleanup()
     {
         unsafe
@@ -183,25 +168,47 @@ public partial class OpaqueThin: IDisposable
             {
                 return;
             }
-
-            // Releases this wrapper's own ("owner") reference. Idempotent at
-            // the shared-state level (`RustHandleState<T>.ReleaseOwner()`),
-            // so it's safe no matter how many times — or from how many
-            // threads (e.g. a racing repeated `Dispose()`) — this `Cleanup()`
-            // ends up running: only the first release actually decrements
-            // the count. Physically destroying the native value (and, right
-            // after, unpinning any of its own pinned input buffers) is
-            // deferred until every reference — this wrapper's own and every
-            // RC dependent's — has been released; see `RustHandle.cs.jinja`
-            // for the full ordering guarantee. This call site needs to know
-            // nothing about it.
+            // This type is not a borrow source (nothing else ever retains a
+            // reference to it), so its own Rust destructor always runs right
+            // here — not deferred by any outstanding dependent. What it
+            // itself borrows FROM is only released afterwards, in this
+            // strict order: own destructor, then own pins, then own
+            // dependencies — mirroring `RcRustHandleState<T>`'s ordering
+            // guarantee (see `RustHandle.cs.jinja`) without needing its own
+            // allocated, retainable state.
             _inner.Release();
             _inner = default;
+
+            IRustHandleDependency[] dependencies = _dependencies;
+            _dependencies = System.Array.Empty<IRustHandleDependency>();
+            object[] pins = _pins;
+            _pins = System.Array.Empty<object>();
+            try
+            {
+                foreach (object pin in pins)
+                {
+                    (pin as IDisposable)?.Dispose();
+                }
+            }
+            finally
+            {
+                foreach (IRustHandleDependency dependency in dependencies)
+                {
+                    dependency.Release();
+                }
+            }
         }
     }
     /// <summary>
-    /// Requests/releases this wrapper's own ownership reference. Idempotent:
-    /// safe to call more than once, including racing with the finalizer.
+    /// Requests/releases this wrapper's own ownership reference. Idempotent
+    /// for repeated, strictly sequential calls (including a clean finalizer
+    /// pass once <c>Dispose()</c> has already returned) - NOT safe to call
+    /// concurrently with the finalizer or with another <c>Dispose()</c> call
+    /// for the SAME instance from another thread. This type is on the plain,
+    /// non-RC lane (see <c>lifetime.rs</c> in the generator), which adds no
+    /// lock-free or lock-based guard of its own; the consumer thread-confines
+    /// ordinary lifecycle use instead - see <see cref="RustHandle{T}.Release"/>'s
+    /// remarks in <c>RustHandle.cs.jinja</c> for the full rationale.
     /// </summary>
     /// <remarks>
     /// This only relinquishes THIS wrapper's own reference; the underlying
@@ -211,9 +218,8 @@ public partial class OpaqueThin: IDisposable
     /// is deferred until that borrower releases its own reference too — so
     /// existing borrowers obtained before this call remain fully valid.
     /// After this call, this <c>OpaqueThin</c> instance itself is unusable:
-    /// its methods (and any attempt to retain a new dependent from it) throw
-    /// <see cref="ObjectDisposedException"/> immediately, regardless of
-    /// whether the physical native destruction happened yet.
+    /// its methods throw <see cref="ObjectDisposedException"/> immediately,
+    /// regardless of whether the physical native destruction happened yet.
     /// </remarks>
     public void Dispose()
     {

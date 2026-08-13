@@ -17,6 +17,7 @@ use askama::Template;
 use diplomat_core::hir::{IdentBuf, OpaqueDef};
 
 use super::accessor::PropertyInfo;
+use super::lifetime::OpaqueLifetimeRole;
 use super::method::MethodInfo;
 use super::ItemGenContext;
 
@@ -48,6 +49,12 @@ struct OpaqueImplTemplate<'ctx> {
     is_opaque: bool,
     /// Per-opaque opt-in for generating a public `IDisposable` surface.
     manually_disposable: bool,
+    /// This type's classified borrow-source role (see `lifetime.rs`) — picks
+    /// which of the three generated lanes this wrapper renders as:
+    /// `RcRustHandle<T>` + `DiplomatRetainDependency()` (source), plain
+    /// `RustHandle<T>` plus extra dependency/pin fields (dependent-only, no
+    /// retain exposed), or the plain #1244-shaped minimal wrapper (neither).
+    role: OpaqueLifetimeRole,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -82,6 +89,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
         methods: Vec<MethodInfo<'tcx>>,
         properties: Vec<PropertyInfo<'tcx>>,
         manually_disposable: bool,
+        role: OpaqueLifetimeRole,
     ) -> String {
         OpaqueImplTemplate {
             name: display_name,
@@ -90,6 +98,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             properties,
             is_opaque: true,
             manually_disposable,
+            role,
         }
         .render()
         .unwrap()

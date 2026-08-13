@@ -10,7 +10,7 @@ namespace Somelib;
 
 public partial class OpaqueThinVec: IDisposable
 {
-    private unsafe RustHandle<Raw.OpaqueThinVec> _inner;
+    private unsafe RcRustHandle<Raw.OpaqueThinVec> _inner;
 
     private static readonly unsafe RustDestructor<Raw.OpaqueThinVec> _destroy = Raw.OpaqueThinVec.Destroy;
 
@@ -33,7 +33,7 @@ public partial class OpaqueThinVec: IDisposable
                 }
                 Raw.OpaqueThin* result = Raw.OpaqueThinVec.First(AsFFI());
                 GC.KeepAlive(this);
-                return result == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result, new IRustHandleDependency[] { this.DiplomatRetainDependency() }));
+                return result == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result), new IRustHandleDependency[] { this.DiplomatRetainDependency() });
             }
         }
     }
@@ -58,7 +58,6 @@ public partial class OpaqueThinVec: IDisposable
             }
         }
     }
-
     /// <summary>
     /// Creates a managed <c>OpaqueThinVec</c> from a raw handle.
     /// </summary>
@@ -70,14 +69,15 @@ public partial class OpaqueThinVec: IDisposable
     /// </remarks>
     internal unsafe OpaqueThinVec(Raw.OpaqueThinVec* handle)
     {
-        _inner = RustHandle<Raw.OpaqueThinVec>.Owned(handle, _destroy);
+        _inner = RcRustHandle<Raw.OpaqueThinVec>.Owned(handle, _destroy);
     }
 
     /// <summary>
     /// Owned construction that also borrows from one or more other opaque
     /// wrappers (an "owned-borrowing" dependent, e.g. a value borrowing
-    /// <c>&amp;'a self</c> or a borrowed parameter). Each dependency was
-    /// already retained (<c>DiplomatRetainDependency()</c>) by the caller.
+    /// <c>&amp;'a self</c> or a borrowed parameter). Each entry in
+    /// <paramref name="dependencies"/> was already retained by the caller
+    /// before the native call ran.
     /// </summary>
     /// <remarks>
     /// This wrapper's own <c>Cleanup()</c> runs its Rust destructor and
@@ -87,14 +87,14 @@ public partial class OpaqueThinVec: IDisposable
     /// </remarks>
     internal unsafe OpaqueThinVec(Raw.OpaqueThinVec* handle, IRustHandleDependency[] dependencies)
     {
-        _inner = RustHandle<Raw.OpaqueThinVec>.Owned(handle, _destroy, dependencies);
+        _inner = RcRustHandle<Raw.OpaqueThinVec>.Owned(handle, _destroy, dependencies);
     }
 
     /// <summary>
     /// Owned construction that also pins one or more of this value's own
     /// input buffers (e.g. a <c>ReadOnlyMemory</c> parameter it borrows).
     /// The pins are threaded straight into <c>_inner</c>'s own
-    /// <c>RustHandleState</c> (see <c>RustHandle.cs.jinja</c>) rather than
+    /// <c>RcRustHandleState</c> (see <c>RustHandle.cs.jinja</c>) rather than
     /// held in a field of this class, so they are only ever unpinned right
     /// after this value's own Rust destructor actually runs — even when
     /// that destructor call itself is deferred behind an outstanding RC
@@ -103,7 +103,7 @@ public partial class OpaqueThinVec: IDisposable
     /// </summary>
     internal unsafe OpaqueThinVec(Raw.OpaqueThinVec* handle, object[] pins)
     {
-        _inner = RustHandle<Raw.OpaqueThinVec>.Owned(handle, _destroy, pins);
+        _inner = RcRustHandle<Raw.OpaqueThinVec>.Owned(handle, _destroy, pins);
     }
 
     /// <summary>
@@ -112,7 +112,7 @@ public partial class OpaqueThinVec: IDisposable
     /// </summary>
     internal unsafe OpaqueThinVec(Raw.OpaqueThinVec* handle, IRustHandleDependency[] dependencies, object[] pins)
     {
-        _inner = RustHandle<Raw.OpaqueThinVec>.Owned(handle, _destroy, dependencies, pins);
+        _inner = RcRustHandle<Raw.OpaqueThinVec>.Owned(handle, _destroy, dependencies, pins);
     }
 
     /// <summary>
@@ -120,10 +120,10 @@ public partial class OpaqueThinVec: IDisposable
     /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
     /// pointer alone; any dependency this view borrows from already rides
     /// inside <paramref name="inner"/>'s own state (see
-    /// <c>RustHandle&lt;T&gt;.Borrowed(ptr, dependencies)</c>), so this
+    /// <c>RcRustHandle&lt;T&gt;.Borrowed(ptr, dependencies)</c>), so this
     /// constructor needs nothing extra to keep it alive.
     /// </summary>
-    internal unsafe OpaqueThinVec(RustHandle<Raw.OpaqueThinVec> inner)
+    internal unsafe OpaqueThinVec(RcRustHandle<Raw.OpaqueThinVec> inner)
     {
         _inner = inner;
     }
@@ -196,7 +196,7 @@ public partial class OpaqueThinVec: IDisposable
             }
             Raw.OpaqueThin* result = Raw.OpaqueThinVec.Get(AsFFI(), idx);
             GC.KeepAlive(this);
-            return result == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result, new IRustHandleDependency[] { this.DiplomatRetainDependency() }));
+            return result == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result), new IRustHandleDependency[] { this.DiplomatRetainDependency() });
         }
     }
 
@@ -222,7 +222,7 @@ public partial class OpaqueThinVec: IDisposable
             {
                 throw new InvalidOperationException("FFI function failed with unit error");
             }
-            return new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result.Ok, new IRustHandleDependency[] { this.DiplomatRetainDependency() }));
+            return new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result.Ok), new IRustHandleDependency[] { this.DiplomatRetainDependency() });
         }
     }
 
@@ -248,7 +248,7 @@ public partial class OpaqueThinVec: IDisposable
             {
                 throw new InvalidOperationException("FFI function failed with unit error");
             }
-            return result.Ok == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result.Ok, new IRustHandleDependency[] { this.DiplomatRetainDependency() }));
+            return result.Ok == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result.Ok), new IRustHandleDependency[] { this.DiplomatRetainDependency() });
         }
     }
 
@@ -325,7 +325,6 @@ public partial class OpaqueThinVec: IDisposable
     {
         return _inner.Ptr;
     }
-
     /// <summary>
     /// Retains this value's native resource for a new direct dependent (a
     /// value another generated wrapper is about to construct by borrowing
@@ -361,7 +360,7 @@ public partial class OpaqueThinVec: IDisposable
             }
 
             // Releases this wrapper's own ("owner") reference. Idempotent at
-            // the shared-state level (`RustHandleState<T>.ReleaseOwner()`),
+            // the shared-state level (`RcRustHandleState<T>.ReleaseOwner()`),
             // so it's safe no matter how many times — or from how many
             // threads (e.g. a racing repeated `Dispose()`) — this `Cleanup()`
             // ends up running: only the first release actually decrements
@@ -377,7 +376,9 @@ public partial class OpaqueThinVec: IDisposable
     }
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference. Idempotent:
-    /// safe to call more than once, including racing with the finalizer.
+    /// safe to call more than once, including racing with the finalizer -
+    /// backed by <see cref="RcRustHandleState{T}.ReleaseOwner"/>'s own
+    /// locked, one-shot-guarded release path (see <c>RustHandle.cs.jinja</c>).
     /// </summary>
     /// <remarks>
     /// This only relinquishes THIS wrapper's own reference; the underlying
