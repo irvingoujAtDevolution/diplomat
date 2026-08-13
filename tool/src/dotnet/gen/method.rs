@@ -18,7 +18,7 @@
 //! * [`MethodInfo`] — one method's render data; consumed by every template.
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet},
     fmt::{self, Display},
 };
 
@@ -33,7 +33,6 @@ use crate::dotnet::r#gen::fillable::{
 };
 
 use super::accessor::{AccessorInfo, AccessorKind, AccessorMarshal, AccessorValue};
-use super::lifetime::{LifetimePlan, OpaqueBorrowSource, OpaqueLifetimeRole};
 use super::{callback::DotnetCallback, DotnetPrimitives, ItemGenContext};
 
 #[derive(Debug, Clone)]
@@ -53,13 +52,13 @@ impl Display for RawExprParseError {
 /// of freshly-retained dependency tokens, one call to
 /// `{expr}.DiplomatRetainDependency()` per source in `sources`, or
 /// `"System.Array.Empty<IRustHandleDependency>()"` when there are none.
-pub(crate) fn dependencies_array_expr(sources: &[OpaqueBorrowSource]) -> String {
+pub(crate) fn dependencies_array_expr(sources: &[String]) -> String {
     if sources.is_empty() {
         "System.Array.Empty<IRustHandleDependency>()".to_string()
     } else {
         let args: Vec<String> = sources
             .iter()
-            .map(|s| format!("{}.DiplomatRetainDependency()", s.expression))
+            .map(|s| format!("{s}.DiplomatRetainDependency()"))
             .collect();
         format!("new IRustHandleDependency[] {{ {} }}", args.join(", "))
     }
@@ -438,127 +437,92 @@ impl DotnetReturnType {
         }
     }
 
+    /// One combined `object[]` literal for an opaque construction's `edges`
+    /// argument: `dependencies` (opaque-param borrow sources, each suffixed
+    /// with `.DiplomatRetainDependency()` so the call retains the source
+    /// right at construction) followed by `pins` (this return's own pinned
+    /// input buffers, rooted bare). Both end up in the same wrapper `_edges`
+    /// field (see `opaque.impl.cs.jinja`), so one array covers both.
+    fn opaque_edges_expr(dependencies: &[String], pins: &[String]) -> String {
+        let combined: Vec<String> = dependencies
+            .iter()
+            .map(|d| format!("{d}.DiplomatRetainDependency()"))
+            .chain(pins.iter().cloned())
+            .collect();
+        Self::edges_array_expr(&combined)
+    }
+
     /// Build the C# expression that wraps a raw opaque pointer. An owned
     /// return uses the owning constructor; a borrowed return uses the
     /// `Borrowed` factory so the wrapper never frees Rust's pointer. The
     /// caller decides which via [`Ownership`] — no `owned` flag leaks into the
     /// generated arguments.
     ///
-    /// `dependencies` (opaque-param borrow edges, retained via the RC
-    /// mechanism — see [`dependencies_array_expr`]) and `pins` (this return's
-    /// own pinned input buffers, unrelated to any other wrapper) are threaded
-    /// separately because they have different overload shapes on the
-    /// generated constructor.
-    ///
-    /// For an **owned** return the call site never spells out a handle type —
-    /// it always hands the raw pointer straight to `new {name}(...)`, so the
-    /// generated text is identical no matter which lane `name` itself renders
-    /// as (see `opaque.impl.cs.jinja`): the constructor decides internally
-    /// whether the pointer/dependencies/pins end up in a `RcRustHandle<T>` or
-    /// in a plain `RustHandle<T>` plus separate fields.
-    ///
-    /// A **borrowed** return does spell out a handle type, because the value
-    /// being wrapped already needs to exist as a `RustHandle<T>` or
-    /// `RcRustHandle<T>` before the wrapper constructor can take it — so this
-    /// needs `target_role` (the *returned* opaque's own classified role, not
-    /// the caller's) to pick the matching one.
+    /// `dependencies` and `pins` both end up in the same combined `edges`
+    /// argument (see [`Self::opaque_edges_expr`]) — there is only ever one
+    /// generated constructor shape to pick between (with or without edges),
+    /// regardless of ownership.
     fn opaque_construction(
         name: &str,
         raw_expr: &RawExpr,
-        dependencies: &[OpaqueBorrowSource],
+        dependencies: &[String],
         pins: &[String],
         ownership: Ownership,
-        target_role: OpaqueLifetimeRole,
     ) -> String {
+        let no_edges = dependencies.is_empty() && pins.is_empty();
         match ownership {
-            Ownership::Owned => match (dependencies.is_empty(), pins.is_empty()) {
-                (true, true) => format!("new {name}({raw_expr})"),
-                (false, true) => format!(
-                    "new {name}({raw_expr}, {})",
-                    dependencies_array_expr(dependencies)
-                ),
-                (true, false) => {
-                    format!("new {name}({raw_expr}, {})", Self::edges_array_expr(pins))
-                }
-                (false, false) => format!(
-                    "new {name}({raw_expr}, {}, {})",
-                    dependencies_array_expr(dependencies),
-                    Self::edges_array_expr(pins)
-                ),
-            },
-            // `new {name}(...)` (not `{name}.Borrowed(...)`) so the type always
-            // resolves even when the wrapper has a same-named method. Pins
-            // never apply to a borrowed return (see `output_keep_alive_edges`),
-            // so any dependency rides inside the handle itself instead of a
-            // separate wrapper-level array — the handle type (and therefore
-            // where the dependency argument goes) depends on whether the
-            // returned opaque is itself an actual RC source.
-            Ownership::Borrowed => {
-                let is_rc = target_role.needs_rc();
-                let handle_ty = if is_rc {
-                    format!("RcRustHandle<Raw.{name}>")
+            Ownership::Owned => {
+                if no_edges {
+                    format!("new {name}({raw_expr})")
                 } else {
-                    format!("RustHandle<Raw.{name}>")
-                };
-                match (dependencies.is_empty(), is_rc) {
-                    (true, _) => format!("new {name}({handle_ty}.Borrowed({raw_expr}))"),
-                    // `RcRustHandle<T>.Borrowed` takes the dependencies
-                    // directly — they live inside the RC state itself.
-                    (false, true) => format!(
-                        "new {name}({handle_ty}.Borrowed({raw_expr}, {}))",
-                        dependencies_array_expr(dependencies)
-                    ),
-                    // Plain `RustHandle<T>.Borrowed` has no dependencies
-                    // overload — the dependent-only lane stores them in the
-                    // wrapper's own `_dependencies` field instead, so they go
-                    // as a second argument to the wrapper constructor.
-                    (false, false) => format!(
-                        "new {name}({handle_ty}.Borrowed({raw_expr}), {})",
-                        dependencies_array_expr(dependencies)
-                    ),
+                    format!(
+                        "new {name}({raw_expr}, {})",
+                        Self::opaque_edges_expr(dependencies, pins)
+                    )
+                }
+            }
+            // `new {name}(...)` (not `{name}.Borrowed(...)`) so the type
+            // always resolves even when the wrapper has a same-named method.
+            Ownership::Borrowed => {
+                if no_edges {
+                    format!("new {name}(RustHandle<Raw.{name}>.Borrowed({raw_expr}))")
+                } else {
+                    format!(
+                        "new {name}(RustHandle<Raw.{name}>.Borrowed({raw_expr}), {})",
+                        Self::opaque_edges_expr(dependencies, pins)
+                    )
                 }
             }
         }
     }
 
     /// Convert a raw FFI value expression into the public C# value
-    /// expression for this return type. `target_role` is only consulted by
-    /// the `Opaque` arm (see [`Self::opaque_construction`]) — every other
-    /// arm ignores it.
+    /// expression for this return type.
     fn idiomatic_value_expr(
         &self,
         raw_expr: RawExpr,
-        dependencies: &[OpaqueBorrowSource],
+        dependencies: &[String],
         pins: &[String],
         ownership: Ownership,
-        target_role: OpaqueLifetimeRole,
     ) -> String {
         match self {
-            Self::Opaque(name) => Self::opaque_construction(
-                name,
-                &raw_expr,
-                dependencies,
-                pins,
-                ownership,
-                target_role,
-            ),
+            Self::Opaque(name) => {
+                Self::opaque_construction(name, &raw_expr, dependencies, pins, ownership)
+            }
             Self::Struct(name) => format!("{name}.FromFFI({raw_expr})"),
             // Rust still owns this memory — no ownership decision needed,
             // unlike opaque construction. Just wrap the pointer/length off
-            // the raw wire struct and root the keep-alive edges. No `Dispose`
-            // hook exists here to ever run a `Release()`, so both borrow
-            // kinds root the same plain GC-keep-alive way (unlike an opaque
-            // return's `dependencies`, which use the RC mechanism instead).
+            // the raw wire struct and root the keep-alive edges bare (no
+            // `.DiplomatRetainDependency()` suffix, and no `Dispose` hook
+            // exists here to ever run a `Release()` — a borrowed span is
+            // plain GC-keep-alive, never RC).
             Self::BorrowedSpan(elem) => {
                 debug_assert!(
                     pins.is_empty(),
                     "a borrowed-span return never has pins of its own"
                 );
-                let combined: Vec<String> = dependencies
-                    .iter()
-                    .map(|d| d.expression.clone())
-                    .chain(pins.iter().cloned())
-                    .collect();
+                let combined: Vec<String> =
+                    dependencies.iter().cloned().chain(pins.iter().cloned()).collect();
                 format!(
                     "new DiplomatBorrowedSpan<{}>({raw_expr}.Ptr, {raw_expr}.Len, {})",
                     elem.element_type(),
@@ -590,21 +554,14 @@ impl DotnetReturnType {
     fn tagged_option_expr(
         &self,
         option_expr: RawExpr,
-        dependencies: &[OpaqueBorrowSource],
+        dependencies: &[String],
         pins: &[String],
         ownership: Ownership,
-        target_role: OpaqueLifetimeRole,
     ) -> String {
         format!(
             "{} ? {} : {}",
             option_expr.is_some_expr(),
-            self.idiomatic_value_expr(
-                option_expr.option_value(),
-                dependencies,
-                pins,
-                ownership,
-                target_role
-            ),
+            self.idiomatic_value_expr(option_expr.option_value(), dependencies, pins, ownership),
             self.option_none_expr()
         )
     }
@@ -612,22 +569,14 @@ impl DotnetReturnType {
     fn nullable_pointer_option_expr(
         &self,
         raw_expr: RawExpr,
-        dependencies: &[OpaqueBorrowSource],
+        dependencies: &[String],
         pins: &[String],
         ownership: Ownership,
-        target_role: OpaqueLifetimeRole,
     ) -> String {
         match self {
             Self::Opaque(name) => format!(
                 "{raw_expr} == null ? null : {}",
-                Self::opaque_construction(
-                    name,
-                    &raw_expr,
-                    dependencies,
-                    pins,
-                    ownership,
-                    target_role
-                )
+                Self::opaque_construction(name, &raw_expr, dependencies, pins, ownership)
             ),
             _ => unreachable!("nullable pointer options only lower from opaque returns"),
         }
@@ -783,14 +732,12 @@ pub(super) struct MethodInfo<'ctx> {
     pub(super) lifetime_warning: bool,
     /// Direct opaque-param/`this` borrow edges the returned wrapper retains
     /// via the non-atomic RC mechanism (`DiplomatRetainDependency()` /
-    /// `RcRustHandleState<T>` — see `RustHandle.cs.jinja`): the source's
+    /// `RustHandleState<T>` — see `RustHandle.cs.jinja`): the source's
     /// physical Rust destructor is deferred until this dependent (and every
     /// other holder) has released its reference, regardless of which
-    /// wrapper's managed lifetime ends first. Structured (id + expression,
-    /// not a bare string) so the run-level `LifetimePlan` (see `lifetime.rs`)
-    /// can classify the source's own opaque type without re-deriving it from
-    /// the call-site text.
-    pub(super) keep_alive_sources: Vec<OpaqueBorrowSource>,
+    /// wrapper's managed lifetime ends first. Each entry is the bare C#
+    /// expression naming the source (`"this"` or a parameter's local name).
+    pub(super) keep_alive_sources: Vec<String>,
     /// This return's own pinned input buffers (`&[u8]`/`&[u32]`/
     /// `&DiplomatStr`/`&DiplomatStr16` params rooted as `DiplomatPinnedMemory`)
     /// — unrelated to `keep_alive_sources`: these are threaded straight
@@ -804,28 +751,10 @@ pub(super) struct MethodInfo<'ctx> {
     /// rather than a separate array on the exception class itself. Pins never
     /// apply to the error arm (an exception has no unpin path), so this is
     /// always a pure dependency list.
-    pub(super) error_keep_alive_sources: Vec<OpaqueBorrowSource>,
+    pub(super) error_keep_alive_sources: Vec<String>,
     /// `Borrowed` for a borrowed opaque return — the wrapper is built
     /// non-owning so it never frees a pointer Rust still owns.
     pub(super) ownership: Ownership,
-    /// The success arm's own opaque type id, when the return (possibly
-    /// through `Option<T>`) is an opaque — `None` for every other return
-    /// shape. Resolved once from the HIR return type (see
-    /// `borrowed_output_keep_alive_edges`), independent of
-    /// `DotnetReturnType`'s own `Opaque(String)` display-name variant, since
-    /// only the id (not the name) is needed to look the role up in the
-    /// run-level `LifetimePlan`.
-    pub(super) return_opaque_id: Option<hir::OpaqueId>,
-    /// The error arm's own opaque type id, when `error_info` is `Some` and
-    /// wraps an opaque — `None` otherwise.
-    pub(super) error_opaque_id: Option<hir::OpaqueId>,
-    /// This method's `return_opaque_id`, classified by the run-level
-    /// `LifetimePlan` — defaults empty at construction (the whole-program
-    /// plan can't exist yet at that point) and is stamped in right before
-    /// any template renders (see `mod.rs::render_all_types`). Consulted by
-    /// `success_return_statement` to pick the right handle type for a
-    /// *borrowed* opaque/nullable-opaque return.
-    pub(super) return_role: OpaqueLifetimeRole,
     /// `Some` iff this method returns `Result<T, E>` with a concrete `E`.
     /// Templates branch on `{% if let Some(info) = method.error_info %}` —
     /// no separate `is_fallible()` predicate needed.
@@ -1147,25 +1076,14 @@ impl MethodInfo<'_> {
         let dependencies = self.keep_alive_sources.as_slice();
         let pins = self.keep_alive_pins.as_slice();
         let ownership = self.ownership;
-        let target_role = self.return_role;
 
         if let Some(option_info) = &self.option_info {
             let expr = if option_info.raw_option_type.is_some() {
-                self.return_type.tagged_option_expr(
-                    raw_expr,
-                    dependencies,
-                    pins,
-                    ownership,
-                    target_role,
-                )
+                self.return_type
+                    .tagged_option_expr(raw_expr, dependencies, pins, ownership)
             } else {
-                self.return_type.nullable_pointer_option_expr(
-                    raw_expr,
-                    dependencies,
-                    pins,
-                    ownership,
-                    target_role,
-                )
+                self.return_type
+                    .nullable_pointer_option_expr(raw_expr, dependencies, pins, ownership)
             };
             return format!("return {expr};");
         }
@@ -1175,13 +1093,8 @@ impl MethodInfo<'_> {
         } else {
             format!(
                 "return {};",
-                self.return_type.idiomatic_value_expr(
-                    raw_expr,
-                    dependencies,
-                    pins,
-                    ownership,
-                    target_role
-                )
+                self.return_type
+                    .idiomatic_value_expr(raw_expr, dependencies, pins, ownership)
             )
         }
     }
@@ -1189,26 +1102,13 @@ impl MethodInfo<'_> {
     /// The `throw new …(result.Err, …);` statement for the error arm, with
     /// `error_keep_alive_sources` retained directly, right at the inner error
     /// opaque's own construction, so its source(s) stay alive for at least as
-    /// long as the error opaque itself does. The error arm's own construction
-    /// is always role-independent (see `DotnetErrorType`'s doc comment), so
-    /// no `return_role`/`error_role` stamping is needed here.
+    /// long as the error opaque itself does.
     pub(super) fn error_throw_statement(&self) -> String {
         let info = self
             .error_info
             .as_ref()
             .expect("error_throw_statement called on a non-fallible method");
         info.throw_statement_with_edges("result.Err", &self.error_keep_alive_sources)
-    }
-
-    /// Stamp this method's own `return_opaque_id`'s classified role from the
-    /// finished run-level [`LifetimePlan`] — called once per method, on every
-    /// clone this method info exists as (see `PreparedType::stamp_roles`),
-    /// right before any template renders.
-    pub(super) fn stamp_role(&mut self, plan: &LifetimePlan) {
-        self.return_role = self
-            .return_opaque_id
-            .map(|id| plan.role(id))
-            .unwrap_or_default();
     }
 }
 
@@ -1232,29 +1132,15 @@ struct ImmutableElementShape<'a> {
 /// One output type's keep-alive edges, split by release path: real
 /// cross-wrapper native dependencies (destined for the RC mechanism) versus
 /// this-wrapper-only pin holders (see `output_keep_alive_edges`).
-type OutputKeepAliveEdges = (Vec<OpaqueBorrowSource>, Vec<String>);
+type OutputKeepAliveEdges = (Vec<String>, Vec<String>);
 
 /// `borrowed_output_keep_alive_edges`'s full result: the success return
-/// wrapper's two keep-alive groups plus its own opaque id (for role
-/// classification — see `lifetime.rs`), and the thrown exception's
-/// dependency list plus the inner error opaque's id. A named struct rather
-/// than a nested tuple, since by this point there are five independent
-/// pieces of data riding together.
+/// wrapper's two keep-alive groups, and the thrown exception's dependency
+/// list.
 struct KeepAliveResult {
-    ok_dependencies: Vec<OpaqueBorrowSource>,
+    ok_dependencies: Vec<String>,
     ok_pins: Vec<String>,
-    return_opaque_id: Option<hir::OpaqueId>,
-    err_dependencies: Vec<OpaqueBorrowSource>,
-    error_opaque_id: Option<hir::OpaqueId>,
-}
-
-/// An opaque-typed output's own `hir::OpaqueId`, or `None` for any other
-/// output shape (struct/enum/primitive/etc, or a `BorrowedSpan`).
-fn output_opaque_id(ty: &hir::OutType) -> Option<hir::OpaqueId> {
-    match ty {
-        hir::Type::Opaque(path) => Some(path.tcx_id),
-        _ => None,
-    }
+    err_dependencies: Vec<String>,
 }
 
 impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
@@ -1290,19 +1176,8 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
         // One visitor pass classifies every param AND yields the borrow map,
         // so the pin<->edge name correlation holds by construction.
         let mut visitor = method.borrowing_param_visitor(self.tcx, false);
-        // Every opaque-typed param/self, by the same local name the borrow
-        // map's `OpaqueParam` edges carry — lets `output_keep_alive_edges`
-        // resolve each edge to the `hir::OpaqueId` of the opaque type it
-        // actually names, for the run-level `LifetimePlan` (see
-        // `lifetime.rs`) to classify. `LifetimeEdgeKind::OpaqueParam` itself
-        // only carries the string name, not the id, so this map is this
-        // method's only place both are available together.
-        let mut param_opaque_ids: HashMap<String, hir::OpaqueId> = HashMap::new();
         if let Some(param_self) = method.param_self.as_ref() {
             visitor.visit_param(&param_self.ty.clone().into(), "this");
-            if let hir::SelfType::Opaque(p) = &param_self.ty {
-                param_opaque_ids.insert("this".to_string(), p.tcx_id);
-            }
         }
         let param_borrows: Vec<(ParamNames, ParamBorrowInfo<'tcx>)> = method
             .params
@@ -1321,9 +1196,6 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                 } else {
                     raw_name.clone()
                 };
-                if let hir::Type::Opaque(p) = &param.ty {
-                    param_opaque_ids.insert(local_name.clone(), p.tcx_id);
-                }
                 // Borrow edges are emitted in the idiomatic body, so they follow
                 // the name that body uses.
                 let borrow_info = visitor.visit_param(&param.ty, &local_name);
@@ -1355,16 +1227,8 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
         let KeepAliveResult {
             ok_dependencies: keep_alive_sources,
             ok_pins: keep_alive_pins,
-            return_opaque_id,
             err_dependencies: error_keep_alive_sources,
-            error_opaque_id,
-        } = self.borrowed_output_keep_alive_edges(
-            method,
-            &inputs,
-            &borrow_map,
-            &param_opaque_ids,
-            ownership,
-        )?;
+        } = self.borrowed_output_keep_alive_edges(method, &inputs, &borrow_map, ownership)?;
         let lifetime_warning = !keep_alive_sources.is_empty() || !keep_alive_pins.is_empty();
 
         // A non-opaque, non-borrowed-span success return drops edges silently
@@ -1430,9 +1294,6 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                 keep_alive_sources,
                 keep_alive_pins,
                 error_keep_alive_sources,
-                return_opaque_id,
-                error_opaque_id,
-                return_role: OpaqueLifetimeRole::default(),
                 ownership,
                 error_info,
                 option_info,
@@ -1458,22 +1319,14 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
     /// gives up and returns `None` with an error, instead of generating code
     /// that could crash.
     ///
-    /// Returns the success return wrapper's two keep-alive groups plus its
-    /// own opaque id, and the thrown exception's dependency list plus the
-    /// inner error opaque's id (pins are structurally impossible on the
-    /// error arm — `OutputArm::pin_for` always returns `None` there, so
-    /// reaching this point with `Some(edges)` for the error arm guarantees
-    /// its pins would have been empty). `param_opaque_ids` resolves each
-    /// `OpaqueParam` edge's bare param name to the `hir::OpaqueId` of the
-    /// opaque type it names — see `build_method_info`, which builds it
-    /// alongside the same param loop that produces the borrow map this
-    /// walks.
+    /// Returns the success return wrapper's two keep-alive groups, and the
+    /// thrown exception's dependency list (pins are structurally impossible
+    /// on the error arm — `OutputArm::pin_for` always returns `None` there).
     fn borrowed_output_keep_alive_edges(
         &self,
         method: &'tcx Method,
         inputs: &DotnetInputs,
         borrow_map: &BTreeMap<hir::Lifetime, BorrowedLifetimeInfo<'tcx>>,
-        param_opaque_ids: &HashMap<String, hir::OpaqueId>,
         ownership: Ownership,
     ) -> Option<KeepAliveResult> {
         // The Ok value's keep-alive edges ride on the returned wrapper, the Err
@@ -1492,18 +1345,15 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             &[]
         };
         let (ok_dependencies, ok_pins) = match ok_ty {
-            Some(ty) => self.output_keep_alive_edges(
-                ty,
-                borrow_map,
-                param_opaque_ids,
-                OutputArm::Ok(ok_pins),
-            )?,
+            Some(ty) => {
+                self.output_keep_alive_edges(ty, borrow_map, OutputArm::Ok(ok_pins))?
+            }
             None => (Vec::new(), Vec::new()),
         };
         let err_dependencies = match err_ty {
             Some(ty) => {
                 let (err_dependencies, err_pins) =
-                    self.output_keep_alive_edges(ty, borrow_map, param_opaque_ids, OutputArm::Err)?;
+                    self.output_keep_alive_edges(ty, borrow_map, OutputArm::Err)?;
                 debug_assert!(
                     err_pins.is_empty(),
                     "the error arm can never pin a slice param — OutputArm::pin_for(Err) is \
@@ -1517,9 +1367,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
         Some(KeepAliveResult {
             ok_dependencies,
             ok_pins,
-            return_opaque_id: ok_ty.and_then(output_opaque_id),
             err_dependencies,
-            error_opaque_id: err_ty.and_then(output_opaque_id),
         })
     }
 
@@ -1535,19 +1383,14 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
     /// native dependencies, destined for the RC mechanism) are kept separate
     /// from `SliceParam` pin holders (this wrapper's own pinned buffer,
     /// unrelated to any other wrapper) because the two have entirely
-    /// different release paths on the C# side. Each dependency pairs its
-    /// call-site expression with the `hir::OpaqueId` of the opaque type it
-    /// names (via `param_opaque_ids`) so the run-level `LifetimePlan` can
-    /// classify that source — an id lookup miss is an internal-invariant
-    /// panic, not a diagnostic: `BorrowingParamVisitor` only ever emits an
-    /// `OpaqueParam` edge for a param it already visited as opaque-typed, so
-    /// `param_opaque_ids` (built from that exact same param set) is
-    /// guaranteed to have an entry.
+    /// different release paths on the C# side. Each dependency is the bare
+    /// call-site expression naming the source (`"this"` or a parameter's
+    /// local name) — no separate id lookup is needed since role
+    /// classification no longer exists.
     fn output_keep_alive_edges(
         &self,
         out_ty: &hir::OutType,
         borrow_map: &BTreeMap<hir::Lifetime, BorrowedLifetimeInfo<'tcx>>,
-        param_opaque_ids: &HashMap<String, hir::OpaqueId>,
         arm: OutputArm<'_>,
     ) -> Option<OutputKeepAliveEdges> {
         let what = arm.what();
@@ -1559,7 +1402,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             })
             .collect();
 
-        let mut dependencies: Vec<OpaqueBorrowSource> = Vec::new();
+        let mut dependencies: Vec<String> = Vec::new();
         let mut pins: Vec<String> = Vec::new();
         for (lt, borrow_info) in borrow_map {
             if !lifetimes.contains(lt) {
@@ -1568,22 +1411,8 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             for edge in &borrow_info.incoming_edges {
                 match &edge.kind {
                     LifetimeEdgeKind::OpaqueParam => {
-                        if !dependencies
-                            .iter()
-                            .any(|dep| dep.expression == edge.param_name)
-                        {
-                            let opaque_id =
-                                *param_opaque_ids.get(&edge.param_name).unwrap_or_else(|| {
-                                    panic!(
-                                        "internal invariant violated: `OpaqueParam` edge for \
-                                     `{}` has no matching entry in `param_opaque_ids`",
-                                        edge.param_name
-                                    )
-                                });
-                            dependencies.push(OpaqueBorrowSource {
-                                opaque_id,
-                                expression: edge.param_name.clone(),
-                            });
+                        if !dependencies.contains(&edge.param_name) {
+                            dependencies.push(edge.param_name.clone());
                         }
                     }
                     // A pinned param roots its holder; any other slice/string

@@ -92,31 +92,24 @@ and runs it on release; a **borrowed** handle carries none, so releasing it is a
 because Rust still owns (and will free) that memory. This means methods returning `&T` or
 `Option<&T>` are safe to wrap without risking a double-free.
 
-A handle that borrows from another wrapper (a method returning `&T`/`Option<&T>`, or an
-owned-but-borrowing dependent) doesn't just root the source object for the GC — it retains
-the source's shared native resource state (`RustHandleState<T>`) for as long as the
-borrowing wrapper is reachable, and releases that retained reference from its own cleanup.
-This is what lets the source wrapper be disposed (or finalized) *before* every dependent
-has let go of it without either use-after-free or an early native destructor call: the
-source's physical native destruction is deferred until its own wrapper reference **and**
-every dependent's retained reference have all been released, however many dependents there
-are or in whatever order their managed lifetimes end. `RustHandleState<T>` also holds any
-of the wrapper's own pinned input buffers, unpinning them only after that wrapper's own
-Rust destructor has actually run (which may itself be deferred by an outstanding dependent).
+`RustHandle<T>` starts as a bare pointer/destructor pair with no heap allocation at all. The
+first time anything actually retains a dependency on it (a dependent borrowing from it, via
+`DiplomatRetainDependency()`), it lazily promotes itself into a shared `RustHandleState<T>`
+that outlives this wrapper's own managed lifetime, moving the wrapper's own edges (pinned
+input buffers and/or retained dependency tokens) into that state. A wrapper nothing ever
+borrows from never allocates this state. This is what lets a source wrapper be disposed (or
+finalized) *before* every dependent has let go of it without either use-after-free or an
+early native destructor call: once promoted, the source's physical native destruction is
+deferred until its own wrapper reference **and** every dependent's retained reference have
+all been released, however many dependents there are or in whatever order their managed
+lifetimes end. Cleanup always runs the native destructor first, then disposes/releases the
+moved-in edges.
 
-This reference count is a plain, lock-guarded `int`, not `SafeHandle` and not an atomic
-`Interlocked` counter, and generated wrappers add zero synchronization to hot per-call code
-(P/Invoke calls, property getters, etc.) — calling ordinary instance methods on the same
-wrapper from two threads at once is still undefined behavior, exactly as for any other
-non-thread-safe .NET type. The one thing that *is* synchronized is the small set of
-lifecycle edges — a dependent retaining its source on construction, a wrapper releasing its
-own reference (`Dispose()` or finalizer), and a dependent releasing its retained reference —
-because those are the only points where two different threads can genuinely be doing
-lifecycle work on the very same shared state at once: finalizers run concurrently with the
-application on a dedicated finalizer thread regardless of how single-threaded the user's own
-code is, so a dependent's finalizer and an explicit `source.Dispose()` call can race even in
-otherwise single-threaded user code. See `RustHandle.cs.jinja`'s `RustHandleState<T>` doc
-comments for the full synchronization contract.
+This reference count is a plain, non-atomic `int` — no lock, no `SafeHandle`, no
+`Interlocked` — a deliberate prototype simplification: generated code assumes
+consumer-thread-confined usage and does not guard against concurrent calls or a concurrent
+`Dispose()`/finalizer race on the same handle. See `RustHandle.cs.jinja`'s `RustHandleState<T>`
+doc comments for the exact contract.
 
 By default, generated opaques are **finalizer-only**: no public `Dispose()`, cleanup runs
 through a private idempotent path invoked by the finalizer. Add

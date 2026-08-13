@@ -8,11 +8,23 @@ namespace Somelib;
 
 #nullable enable
 
+// PROTOTYPE: every opaque uses the same lazily-promotable `RustHandle<T>`
+// (see `RustHandle.cs.jinja`) plus one combined `_edges` array holding both
+// this wrapper's own pins and any retained `IRustHandleDependency` tokens.
+// There is no separate "borrow source" lane: `DiplomatRetainDependency()` is
+// always available, and only actually allocates shared state the first time
+// something else borrows from this instance.
+
 public partial class MyOpaqueEnum: IDisposable
 {
     private unsafe RustHandle<Raw.MyOpaqueEnum> _inner;
+    /// This value's own pinned input buffers and/or retained borrow-dependency
+    /// tokens, released (in that order) right after `_inner`'s own cleanup —
+    /// see `Cleanup()` below.
+    private object[] _edges = System.Array.Empty<object>();
 
     private static readonly unsafe RustDestructor<Raw.MyOpaqueEnum> _destroy = Raw.MyOpaqueEnum.Destroy;
+
     /// <summary>
     /// Creates a managed <c>MyOpaqueEnum</c> from a raw handle.
     /// </summary>
@@ -28,6 +40,19 @@ public partial class MyOpaqueEnum: IDisposable
     }
 
     /// <summary>
+    /// Owned construction that also holds pinned input buffers and/or
+    /// retained borrow-dependency tokens (<paramref name="edges"/>) — released
+    /// right after this value's own Rust destructor actually runs, even when
+    /// that destructor call itself ends up deferred behind an outstanding
+    /// dependent (see <c>RustHandle.cs.jinja</c>).
+    /// </summary>
+    internal unsafe MyOpaqueEnum(Raw.MyOpaqueEnum* handle, object[] edges)
+    {
+        _inner = RustHandle<Raw.MyOpaqueEnum>.Owned(handle, _destroy);
+        _edges = edges;
+    }
+
+    /// <summary>
     /// Wraps a handle that already knows whether it owns the pointer. A
     /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
     /// pointer alone.
@@ -35,6 +60,16 @@ public partial class MyOpaqueEnum: IDisposable
     internal unsafe MyOpaqueEnum(RustHandle<Raw.MyOpaqueEnum> inner)
     {
         _inner = inner;
+    }
+
+    /// <summary>
+    /// Wraps a borrowed, non-owning handle that also holds pinned input
+    /// buffers and/or retained borrow-dependency tokens.
+    /// </summary>
+    internal unsafe MyOpaqueEnum(RustHandle<Raw.MyOpaqueEnum> inner, object[] edges)
+    {
+        _inner = inner;
+        _edges = edges;
     }
 
     /// <returns>
@@ -78,6 +113,29 @@ public partial class MyOpaqueEnum: IDisposable
     {
         return _inner.Ptr;
     }
+
+    /// <summary>
+    /// Retains this value's native resource for a new direct dependent (a
+    /// value another generated wrapper is about to construct by borrowing
+    /// from this one). The caller must release the returned dependency
+    /// exactly once, from its own cleanup — see <c>RustHandle.cs.jinja</c>
+    /// for the full contract. Lazily allocates this handle's shared state on
+    /// the FIRST call; every earlier call (and every instance nothing ever
+    /// borrows from) pays nothing extra over the plain handle.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">
+    /// This <c>MyOpaqueEnum</c> was already disposed/finalized, so there is
+    /// nothing left to lend a dependent.
+    /// </exception>
+    internal unsafe IRustHandleDependency DiplomatRetainDependency()
+    {
+        if (_inner.IsNull)
+        {
+            throw new ObjectDisposedException("MyOpaqueEnum");
+        }
+        return _inner.Retain(ref _edges);
+    }
+
     private void Cleanup()
     {
         unsafe
@@ -86,22 +144,29 @@ public partial class MyOpaqueEnum: IDisposable
             {
                 return;
             }
-            // Neither an actual borrow source nor a dependent: this type's
-            // own Rust destructor is all there is to release.
+
+            // Releases this wrapper's own reference. If nothing ever
+            // retained a dependency on this handle, this runs the Rust
+            // destructor directly; otherwise it defers to the shared state's
+            // own refcounted release (see `RustHandle.cs.jinja`).
             _inner.Release();
             _inner = default;
+
+            // Whatever this wrapper itself still holds — its own pins and/or
+            // dependency tokens — only if `DiplomatRetainDependency()` was
+            // never called (otherwise these already moved into the shared
+            // state above, and this array is empty).
+            object[] edges = _edges;
+            _edges = System.Array.Empty<object>();
+            foreach (object edge in edges)
+            {
+                (edge as IDisposable)?.Dispose();
+                (edge as IRustHandleDependency)?.Release();
+            }
         }
     }
     /// <summary>
-    /// Requests/releases this wrapper's own ownership reference. Idempotent
-    /// for repeated, strictly sequential calls (including a clean finalizer
-    /// pass once <c>Dispose()</c> has already returned) - NOT safe to call
-    /// concurrently with the finalizer or with another <c>Dispose()</c> call
-    /// for the SAME instance from another thread. This type is on the plain,
-    /// non-RC lane (see <c>lifetime.rs</c> in the generator), which adds no
-    /// lock-free or lock-based guard of its own; the consumer thread-confines
-    /// ordinary lifecycle use instead - see <see cref="RustHandle{T}.Release"/>'s
-    /// remarks in <c>RustHandle.cs.jinja</c> for the full rationale.
+    /// Requests/releases this wrapper's own ownership reference.
     /// </summary>
     /// <remarks>
     /// This only relinquishes THIS wrapper's own reference; the underlying
@@ -111,8 +176,9 @@ public partial class MyOpaqueEnum: IDisposable
     /// is deferred until that borrower releases its own reference too — so
     /// existing borrowers obtained before this call remain fully valid.
     /// After this call, this <c>MyOpaqueEnum</c> instance itself is unusable:
-    /// its methods throw <see cref="ObjectDisposedException"/> immediately,
-    /// regardless of whether the physical native destruction happened yet.
+    /// its methods (and any attempt to retain a new dependent from it) throw
+    /// <see cref="ObjectDisposedException"/> immediately, regardless of
+    /// whether the physical native destruction happened yet.
     /// </remarks>
     public void Dispose()
     {

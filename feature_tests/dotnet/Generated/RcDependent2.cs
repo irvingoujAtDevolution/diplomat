@@ -8,22 +8,23 @@ namespace Somelib;
 
 #nullable enable
 
+// PROTOTYPE: every opaque uses the same lazily-promotable `RustHandle<T>`
+// (see `RustHandle.cs.jinja`) plus one combined `_edges` array holding both
+// this wrapper's own pins and any retained `IRustHandleDependency` tokens.
+// There is no separate "borrow source" lane: `DiplomatRetainDependency()` is
+// always available, and only actually allocates shared state the first time
+// something else borrows from this instance.
+
 public partial class RcDependent2: IDisposable
 {
     private unsafe RustHandle<Raw.RcDependent2> _inner;
-    /// <summary>
-    /// Opaque-param/`this` borrows this value retains — never allocated an
-    /// RC state of its own (nothing borrows FROM this type), but still holds
-    /// (and releases, after its own Rust destructor runs — see
-    /// <c>Cleanup()</c>) whatever it borrows from. See <c>lifetime.rs</c> in
-    /// the generator for the classification that put this type on this
-    /// lane instead of <see cref="RcRustHandle{T}"/>.
-    /// </summary>
-    private IRustHandleDependency[] _dependencies = System.Array.Empty<IRustHandleDependency>();
-    /// <summary>This value's own pinned input buffers, unpinned right after its own Rust destructor runs.</summary>
-    private object[] _pins = System.Array.Empty<object>();
+    /// This value's own pinned input buffers and/or retained borrow-dependency
+    /// tokens, released (in that order) right after `_inner`'s own cleanup —
+    /// see `Cleanup()` below.
+    private object[] _edges = System.Array.Empty<object>();
 
     private static readonly unsafe RustDestructor<Raw.RcDependent2> _destroy = Raw.RcDependent2.Destroy;
+
     /// <summary>
     /// Creates a managed <c>RcDependent2</c> from a raw handle.
     /// </summary>
@@ -39,39 +40,16 @@ public partial class RcDependent2: IDisposable
     }
 
     /// <summary>
-    /// Owned construction that also borrows from one or more other opaque
-    /// wrappers. Unlike an actual RC source, this type never allocates its
-    /// own retainable state — it just holds the retained dependencies in
-    /// <c>_dependencies</c> and releases them from <c>Cleanup()</c>, after
-    /// its own Rust destructor has already run.
+    /// Owned construction that also holds pinned input buffers and/or
+    /// retained borrow-dependency tokens (<paramref name="edges"/>) — released
+    /// right after this value's own Rust destructor actually runs, even when
+    /// that destructor call itself ends up deferred behind an outstanding
+    /// dependent (see <c>RustHandle.cs.jinja</c>).
     /// </summary>
-    internal unsafe RcDependent2(Raw.RcDependent2* handle, IRustHandleDependency[] dependencies)
+    internal unsafe RcDependent2(Raw.RcDependent2* handle, object[] edges)
     {
         _inner = RustHandle<Raw.RcDependent2>.Owned(handle, _destroy);
-        _dependencies = dependencies;
-    }
-
-    /// <summary>
-    /// Owned construction that also pins one or more of this value's own
-    /// input buffers (e.g. a <c>ReadOnlyMemory</c> parameter it borrows).
-    /// Unpinned from <c>Cleanup()</c>, right after this value's own Rust
-    /// destructor runs.
-    /// </summary>
-    internal unsafe RcDependent2(Raw.RcDependent2* handle, object[] pins)
-    {
-        _inner = RustHandle<Raw.RcDependent2>.Owned(handle, _destroy);
-        _pins = pins;
-    }
-
-    /// <summary>
-    /// Owned construction that both borrows from other opaque wrappers and
-    /// pins one of its own input buffers.
-    /// </summary>
-    internal unsafe RcDependent2(Raw.RcDependent2* handle, IRustHandleDependency[] dependencies, object[] pins)
-    {
-        _inner = RustHandle<Raw.RcDependent2>.Owned(handle, _destroy);
-        _dependencies = dependencies;
-        _pins = pins;
+        _edges = edges;
     }
 
     /// <summary>
@@ -85,13 +63,13 @@ public partial class RcDependent2: IDisposable
     }
 
     /// <summary>
-    /// Wraps a borrowed, non-owning handle that also borrows from one or
-    /// more other opaque wrappers.
+    /// Wraps a borrowed, non-owning handle that also holds pinned input
+    /// buffers and/or retained borrow-dependency tokens.
     /// </summary>
-    internal unsafe RcDependent2(RustHandle<Raw.RcDependent2> inner, IRustHandleDependency[] dependencies)
+    internal unsafe RcDependent2(RustHandle<Raw.RcDependent2> inner, object[] edges)
     {
         _inner = inner;
-        _dependencies = dependencies;
+        _edges = edges;
     }
 
     public ulong Id()
@@ -139,6 +117,29 @@ public partial class RcDependent2: IDisposable
     {
         return _inner.Ptr;
     }
+
+    /// <summary>
+    /// Retains this value's native resource for a new direct dependent (a
+    /// value another generated wrapper is about to construct by borrowing
+    /// from this one). The caller must release the returned dependency
+    /// exactly once, from its own cleanup — see <c>RustHandle.cs.jinja</c>
+    /// for the full contract. Lazily allocates this handle's shared state on
+    /// the FIRST call; every earlier call (and every instance nothing ever
+    /// borrows from) pays nothing extra over the plain handle.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">
+    /// This <c>RcDependent2</c> was already disposed/finalized, so there is
+    /// nothing left to lend a dependent.
+    /// </exception>
+    internal unsafe IRustHandleDependency DiplomatRetainDependency()
+    {
+        if (_inner.IsNull)
+        {
+            throw new ObjectDisposedException("RcDependent2");
+        }
+        return _inner.Retain(ref _edges);
+    }
+
     private void Cleanup()
     {
         unsafe
@@ -147,47 +148,29 @@ public partial class RcDependent2: IDisposable
             {
                 return;
             }
-            // This type is not a borrow source (nothing else ever retains a
-            // reference to it), so its own Rust destructor always runs right
-            // here — not deferred by any outstanding dependent. What it
-            // itself borrows FROM is only released afterwards, in this
-            // strict order: own destructor, then own pins, then own
-            // dependencies — mirroring `RcRustHandleState<T>`'s ordering
-            // guarantee (see `RustHandle.cs.jinja`) without needing its own
-            // allocated, retainable state.
+
+            // Releases this wrapper's own reference. If nothing ever
+            // retained a dependency on this handle, this runs the Rust
+            // destructor directly; otherwise it defers to the shared state's
+            // own refcounted release (see `RustHandle.cs.jinja`).
             _inner.Release();
             _inner = default;
 
-            IRustHandleDependency[] dependencies = _dependencies;
-            _dependencies = System.Array.Empty<IRustHandleDependency>();
-            object[] pins = _pins;
-            _pins = System.Array.Empty<object>();
-            try
+            // Whatever this wrapper itself still holds — its own pins and/or
+            // dependency tokens — only if `DiplomatRetainDependency()` was
+            // never called (otherwise these already moved into the shared
+            // state above, and this array is empty).
+            object[] edges = _edges;
+            _edges = System.Array.Empty<object>();
+            foreach (object edge in edges)
             {
-                foreach (object pin in pins)
-                {
-                    (pin as IDisposable)?.Dispose();
-                }
-            }
-            finally
-            {
-                foreach (IRustHandleDependency dependency in dependencies)
-                {
-                    dependency.Release();
-                }
+                (edge as IDisposable)?.Dispose();
+                (edge as IRustHandleDependency)?.Release();
             }
         }
     }
     /// <summary>
-    /// Requests/releases this wrapper's own ownership reference. Idempotent
-    /// for repeated, strictly sequential calls (including a clean finalizer
-    /// pass once <c>Dispose()</c> has already returned) - NOT safe to call
-    /// concurrently with the finalizer or with another <c>Dispose()</c> call
-    /// for the SAME instance from another thread. This type is on the plain,
-    /// non-RC lane (see <c>lifetime.rs</c> in the generator), which adds no
-    /// lock-free or lock-based guard of its own; the consumer thread-confines
-    /// ordinary lifecycle use instead - see <see cref="RustHandle{T}.Release"/>'s
-    /// remarks in <c>RustHandle.cs.jinja</c> for the full rationale.
+    /// Requests/releases this wrapper's own ownership reference.
     /// </summary>
     /// <remarks>
     /// This only relinquishes THIS wrapper's own reference; the underlying
@@ -197,8 +180,9 @@ public partial class RcDependent2: IDisposable
     /// is deferred until that borrower releases its own reference too — so
     /// existing borrowers obtained before this call remain fully valid.
     /// After this call, this <c>RcDependent2</c> instance itself is unusable:
-    /// its methods throw <see cref="ObjectDisposedException"/> immediately,
-    /// regardless of whether the physical native destruction happened yet.
+    /// its methods (and any attempt to retain a new dependent from it) throw
+    /// <see cref="ObjectDisposedException"/> immediately, regardless of
+    /// whether the physical native destruction happened yet.
     /// </remarks>
     public void Dispose()
     {

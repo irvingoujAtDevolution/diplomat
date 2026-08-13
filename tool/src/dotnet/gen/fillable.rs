@@ -11,7 +11,6 @@ use askama::Template;
 use diplomat_core::hir::{OutputOnly, ReturnableStructDef, Type};
 
 use crate::dotnet::r#gen::{
-    lifetime::OpaqueBorrowSource,
     method::{dependencies_array_expr, DotnetReturnType, RawExpr},
     DotnetPrimitives, ItemGenContext,
 };
@@ -190,7 +189,7 @@ impl ErrorInfo {
     pub(crate) fn throw_statement_with_edges<R>(
         &self,
         raw_expr: R,
-        dependencies: &[OpaqueBorrowSource],
+        dependencies: &[String],
     ) -> String
     where
         R: TryInto<RawExpr>,
@@ -351,11 +350,7 @@ impl DotnetErrorType {
         format!("{name}Exception")
     }
 
-    fn exception_inner_expr(
-        &self,
-        raw_expr: RawExpr,
-        dependencies: &[OpaqueBorrowSource],
-    ) -> String {
+    fn exception_inner_expr(&self, raw_expr: RawExpr, dependencies: &[String]) -> String {
         match self {
             DotnetErrorType::Opaque(name) => {
                 if dependencies.is_empty() {
