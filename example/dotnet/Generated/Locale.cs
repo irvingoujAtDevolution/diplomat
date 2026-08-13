@@ -68,7 +68,11 @@ public partial class Locale
     /// </summary>
     internal unsafe Raw.Locale* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("Locale");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

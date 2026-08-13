@@ -52,7 +52,11 @@ public partial class RenamedAttrOpaque2
     /// </summary>
     internal unsafe Raw.RenamedAttrOpaque2* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedAttrOpaque2");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

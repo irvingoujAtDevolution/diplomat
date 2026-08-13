@@ -73,7 +73,11 @@ public partial class BorrowingError
     /// </summary>
     internal unsafe Raw.BorrowingError* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("BorrowingError");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

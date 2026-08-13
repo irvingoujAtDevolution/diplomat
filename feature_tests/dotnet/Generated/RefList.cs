@@ -72,7 +72,11 @@ public partial class RefList
     /// </summary>
     internal unsafe Raw.RefList* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("RefList");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

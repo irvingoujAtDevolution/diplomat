@@ -78,7 +78,11 @@ public partial class GcRaceProbe
     /// </summary>
     internal unsafe Raw.GcRaceProbe* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("GcRaceProbe");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

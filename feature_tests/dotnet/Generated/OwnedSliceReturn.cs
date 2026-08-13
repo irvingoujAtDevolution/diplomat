@@ -61,7 +61,11 @@ public partial class OwnedSliceReturn
     /// </summary>
     internal unsafe Raw.OwnedSliceReturn* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("OwnedSliceReturn");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

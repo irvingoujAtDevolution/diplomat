@@ -7,7 +7,7 @@ namespace Somelib.FeatureTests;
 
 // Regression coverage for the pin-lifetime bug: an opaque wrapper's own
 // pinned input buffer(s) must only be unpinned once the SHARED
-// RustHandleState refcount actually reaches zero — i.e. strictly after this
+// RustHandle refcount actually reaches zero — i.e. strictly after this
 // wrapper's own Rust destructor runs — even when that destructor call is
 // deferred behind a still-outstanding RC dependent rather than triggered by
 // this wrapper's own `Dispose()`/finalizer.
@@ -55,7 +55,7 @@ public class PinLifetimeTests
     // Builds the source/dependent pair from a freshly-allocated buffer and
     // returns a WeakReference to that buffer without holding any other
     // strong managed reference to it. Only the (still-live) pin inside the
-    // source's RustHandleState can keep it rooted/unmovable from here on.
+    // source's RustHandle can keep it rooted/unmovable from here on.
     [MethodImpl(MethodImplOptions.NoInlining
 #if !NETFRAMEWORK
         | MethodImplOptions.AggressiveOptimization
@@ -87,7 +87,7 @@ public class PinLifetimeTests
         Assert.Equal(0ul, PinnedRcSource.DropCount());
 
         // Force a full GC/compaction pass. If the fix is correct, the pin
-        // is still held inside the (still-outstanding) RustHandleState, so
+        // is still held inside the (still-outstanding) RustHandle, so
         // the buffer must remain alive and reachable via the WeakReference
         // — a deterministic signal, not a probabilistic one. Under the old
         // buggy implementation, the pin would already have been disposed

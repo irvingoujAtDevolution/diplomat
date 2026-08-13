@@ -103,7 +103,11 @@ public partial class FixedDecimalFormatter
     /// </summary>
     internal unsafe Raw.FixedDecimalFormatter* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("FixedDecimalFormatter");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

@@ -95,7 +95,11 @@ public partial class OptionString: IDisposable
     /// </summary>
     internal unsafe Raw.OptionString* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("OptionString");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>
@@ -135,7 +139,7 @@ public partial class OptionString: IDisposable
     /// This only relinquishes THIS wrapper's own reference; the underlying
     /// native resource is not necessarily destroyed when this method
     /// returns. If another wrapper still holds a live borrow-dependency on
-    /// it (see <c>RustHandle.cs.jinja</c>), the actual Rust destructor call
+    /// it (see <c>RustHandle.cs</c>), the actual Rust destructor call
     /// is deferred until that borrower releases its own reference too — so
     /// existing borrowers obtained before this call remain fully valid.
     /// After this call, this <c>OptionString</c> instance itself is unusable:

@@ -52,7 +52,11 @@ public partial class RenamedTestOpaque
     /// </summary>
     internal unsafe Raw.RenamedTestOpaque* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedTestOpaque");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

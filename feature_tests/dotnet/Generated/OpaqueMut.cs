@@ -64,7 +64,11 @@ public partial class OpaqueMut
     /// </summary>
     internal unsafe Raw.OpaqueMut* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("OpaqueMut");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

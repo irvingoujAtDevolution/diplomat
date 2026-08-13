@@ -165,7 +165,6 @@ impl PreparedType<'_> {
     fn uses_borrowed_span(&self) -> bool {
         self.all_methods().iter().any(|m| m.returns_borrowed_span())
     }
-
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -240,7 +239,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             let _guard = self.errors.set_context_ty(display_name.clone().into());
             // `None` means an unsupported shape (diagnostic already recorded);
             // the end-gate in `lib.rs` aborts before any file is written.
-            let Some(prepared) = self.prepare_type(id, display_name, ty) else {
+            let Some(prepared) = self.prepare_type(display_name, ty) else {
                 continue;
             };
             uses_pinned_memory |= prepared.uses_pinned_memory();
@@ -276,7 +275,6 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
     /// one. `None` (diagnostic recorded) for an unsupported type shape.
     fn prepare_type(
         &self,
-        _id: hir::TypeId,
         display_name: String,
         ty: hir::TypeDef<'tcx>,
     ) -> Option<PreparedType<'tcx>> {

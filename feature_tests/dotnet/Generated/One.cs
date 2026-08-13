@@ -384,7 +384,11 @@ public partial class One
     /// </summary>
     internal unsafe Raw.One* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("One");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

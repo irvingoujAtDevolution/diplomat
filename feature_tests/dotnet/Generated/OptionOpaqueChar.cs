@@ -65,7 +65,11 @@ public partial class OptionOpaqueChar
     /// </summary>
     internal unsafe Raw.OptionOpaqueChar* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("OptionOpaqueChar");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

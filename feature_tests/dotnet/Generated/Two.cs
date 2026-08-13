@@ -52,7 +52,11 @@ public partial class Two
     /// </summary>
     internal unsafe Raw.Two* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("Two");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

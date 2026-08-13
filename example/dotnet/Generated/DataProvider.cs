@@ -78,7 +78,11 @@ public partial class DataProvider
     /// </summary>
     internal unsafe Raw.DataProvider* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("DataProvider");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

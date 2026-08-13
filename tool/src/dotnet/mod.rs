@@ -48,11 +48,10 @@
 //!   uses. It exposes `WithSpan(...)` (scoped, zero-copy, read-only access)
 //!   and `Clone()` (an explicit, independent `T[]`) — never a bare
 //!   `Span`-returning property, since nothing would keep the view's
-//!   dependencies retained once the span escaped it. `DiplomatBorrowedSpan<T>`
-//!   itself has no `Dispose`/`Cleanup` hook — its rooted dependencies live
-//!   only as long as the span value itself (a struct, not a disposable
-//!   wrapper), which is why it can only ever carry bare managed references,
-//!   never pins (`Ownership::Borrowed` structurally never produces pins; see
+//!   dependencies retained once the span escaped it. The sealed span wrapper
+//!   releases its retained opaque dependencies from its finalizer. Borrowed
+//!   spans still cannot own pins: their release would be deferred until
+//!   finalization (`Ownership::Borrowed` structurally never produces pins; see
 //!   `gen::method::output_keep_alive_edges`). Wrapping one in `Result`/`Option`
 //!   isn't supported yet.
 //! * An owned `Box<[u8]>` return wraps the `DiplomatOwnedSliceU8` `(ptr, len)`
@@ -907,9 +906,7 @@ mod test {
             .get("Dependent.cs")
             .expect("expected Dependent.cs output");
         assert!(
-            dependent.contains(
-                "internal unsafe Dependent(Raw.Dependent* handle, object[] edges)"
-            ),
+            dependent.contains("internal unsafe Dependent(Raw.Dependent* handle, object[] edges)"),
             "the owned-borrowing wrapper should accept its retained \
              dependencies through the same combined `edges` constructor \
              parameter every opaque uses:\n{dependent}"
@@ -2173,10 +2170,9 @@ mod test {
         );
     }
 
-    // A borrowed string return (`&'a str` family) has no `IDisposable`
-    // wrapper of its own — Rust still owns the memory — so it's a
-    // zero-copy `DiplomatBorrowedSpan<byte>` rooting `this` as a keep-alive
-    // edge, the same mechanism a borrowed opaque return already uses.
+    // A borrowed string return (`&'a str` family) is a zero-copy
+    // `DiplomatBorrowedSpan<byte>` that retains its opaque source until the
+    // span wrapper is finalized.
     #[test]
     fn borrowed_string_return_generates_diplomat_borrowed_span() {
         let tk_stream = quote! {
@@ -2211,19 +2207,17 @@ mod test {
         );
         assert!(
             my_string.contains(
-                "new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { this })"
+                "new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { this.DiplomatRetainDependency() })"
             ),
-            "the returned view should root `this` as a plain GC-keep-alive \
-             edge, not an RC dependency:\n{my_string}"
+            "the returned view should retain `this` as an RC dependency:\n{my_string}"
         );
 
         let span = files
             .get("DiplomatBorrowedSpan.cs")
             .expect("DiplomatBorrowedSpan.cs should be emitted when a run returns one");
         assert!(
-            span.contains("public readonly unsafe struct DiplomatBorrowedSpan<T>"),
-            "the view must be a plain struct (not a ref struct, not a class) so it can be \
-             stored anywhere and keep `edges` reachable:\n{span}"
+            span.contains("public sealed unsafe class DiplomatBorrowedSpan<T>"),
+            "the view must be a sealed reference type so aliases share one finalizer:\n{span}"
         );
         assert!(
             span.contains("public void WithSpan(DiplomatBorrowedSpanAction<T> action)"),
@@ -2237,6 +2231,10 @@ mod test {
         assert!(
             !span.contains("void Dispose()"),
             "the view never owns the memory, so it shouldn't be IDisposable:\n{span}"
+        );
+        assert!(
+            span.contains("~DiplomatBorrowedSpan()"),
+            "the view finalizer must release retained source dependencies:\n{span}"
         );
     }
 
@@ -2272,10 +2270,9 @@ mod test {
         );
         assert!(
             buffer.contains(
-                "new DiplomatBorrowedSpan<uint>(result.Ptr, result.Len, new object[] { this })"
+                "new DiplomatBorrowedSpan<uint>(result.Ptr, result.Len, new object[] { this.DiplomatRetainDependency() })"
             ),
-            "the returned view should root `this` as a plain GC-keep-alive \
-             edge, not an RC dependency:\n{buffer}"
+            "the returned view should retain `this` as an RC dependency:\n{buffer}"
         );
     }
 

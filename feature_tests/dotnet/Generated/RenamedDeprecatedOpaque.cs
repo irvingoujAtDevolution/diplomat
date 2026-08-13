@@ -52,7 +52,11 @@ public partial class RenamedDeprecatedOpaque
     /// </summary>
     internal unsafe Raw.RenamedDeprecatedOpaque* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedDeprecatedOpaque");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

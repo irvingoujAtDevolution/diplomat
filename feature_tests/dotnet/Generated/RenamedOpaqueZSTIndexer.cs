@@ -81,7 +81,11 @@ public partial class RenamedOpaqueZSTIndexer
     /// </summary>
     internal unsafe Raw.RenamedOpaqueZSTIndexer* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedOpaqueZSTIndexer");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

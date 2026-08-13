@@ -90,7 +90,11 @@ public partial class RcFinalizerDependent
     /// </summary>
     internal unsafe Raw.RcFinalizerDependent* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("RcFinalizerDependent");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

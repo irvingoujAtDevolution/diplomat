@@ -104,7 +104,11 @@ public partial class FixedDecimal
     /// </summary>
     internal unsafe Raw.FixedDecimal* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("FixedDecimal");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

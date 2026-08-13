@@ -80,7 +80,11 @@ public partial class DefaultDropProbe
     /// </summary>
     internal unsafe Raw.DefaultDropProbe* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("DefaultDropProbe");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

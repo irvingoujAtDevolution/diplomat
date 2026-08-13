@@ -52,7 +52,11 @@ public partial class RenamedNested2
     /// </summary>
     internal unsafe Raw.RenamedNested2* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedNested2");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

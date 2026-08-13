@@ -52,7 +52,11 @@ public partial class SliceParseError
     /// </summary>
     internal unsafe Raw.SliceParseError* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("SliceParseError");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

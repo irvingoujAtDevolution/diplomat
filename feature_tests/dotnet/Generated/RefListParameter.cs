@@ -52,7 +52,11 @@ public partial class RefListParameter
     /// </summary>
     internal unsafe Raw.RefListParameter* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("RefListParameter");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

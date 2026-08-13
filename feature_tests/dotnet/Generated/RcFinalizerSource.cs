@@ -123,7 +123,11 @@ public partial class RcFinalizerSource
     /// </summary>
     internal unsafe Raw.RcFinalizerSource* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("RcFinalizerSource");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

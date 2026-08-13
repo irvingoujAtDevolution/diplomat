@@ -1076,8 +1076,12 @@ impl MethodInfo<'_> {
                 self.return_type
                     .tagged_option_expr(raw_expr, dependencies, pins, ownership)
             } else {
-                self.return_type
-                    .nullable_pointer_option_expr(raw_expr, dependencies, pins, ownership)
+                self.return_type.nullable_pointer_option_expr(
+                    raw_expr,
+                    dependencies,
+                    pins,
+                    ownership,
+                )
             };
             return format!("return {expr};");
         }
@@ -1339,9 +1343,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             &[]
         };
         let (ok_dependencies, ok_pins) = match ok_ty {
-            Some(ty) => {
-                self.output_keep_alive_edges(ty, borrow_map, OutputArm::Ok(ok_pins))?
-            }
+            Some(ty) => self.output_keep_alive_edges(ty, borrow_map, OutputArm::Ok(ok_pins))?,
             None => (Vec::new(), Vec::new()),
         };
         let err_dependencies = match err_ty {
@@ -1411,9 +1413,8 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                     }
                     // A pinned param roots its holder; any other slice/string
                     // param is call-scoped, so a borrowing return would dangle.
-                    // BorrowedSpan is intentionally not a pin owner: it has no
-                    // Dispose, so a span return borrowing a slice/string param
-                    // is rejected here (only owned opaque success may root pins).
+                    // BorrowedSpan is intentionally not a pin owner: it would
+                    // keep the input pinned until nondeterministic finalization.
                     LifetimeEdgeKind::SliceParam => match arm.pin_for(&edge.param_name) {
                         Some(pin) => {
                             if !pins.contains(&pin.pin_local) {
@@ -1425,9 +1426,9 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                                 "[.NET backend] {what} borrows from slice/string parameter \
                                      `{}`; only owned opaque success returns borrowing from \
                                      `&[u8]`/`&[u32]`/`&DiplomatStr`/`&DiplomatStr16` parameters \
-                                     are supported — a borrowed span (`&str`/`&[T]`) has no \
-                                     Dispose path to unpin, and other positions still pin only \
-                                     for the duration of the call",
+                                     are supported — a borrowed span (`&str`/`&[T]`) would defer \
+                                     unpinning until finalization, and other positions still pin \
+                                     only for the duration of the call",
                                 edge.param_name
                             ));
                             return None;

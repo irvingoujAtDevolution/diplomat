@@ -13,20 +13,14 @@ namespace Somelib.FeatureTests;
 // This defers the source's physical native destruction correctly regardless
 // of the order in which the managed wrappers are disposed/finalized.
 //
-// These tests are single-threaded by design (each test method's own
-// Dispose()/finalizer calls happen sequentially on one thread) — for
-// GENUINE concurrent-Dispose/finalizer-race coverage of the same underlying
-// mechanism, see `RcRaceStressTests`.
-//
-// Both this class and `RcRaceStressTests` read/reset the SAME global Rust
-// drop-count/drop-seq statics (`RC_SOURCE_DROPS`, `RC_DEPENDENT_DROPS`, ...
-// in `feature_tests/src/lifetimes.rs`) via `RcSource`/`RcDependent`'s static
-// methods — there is exactly one of each counter per process, not one per
-// test. Grouping both classes into the same non-parallelized xUnit
-// collection (see `RcSharedNativeStateCollection` below) keeps xUnit from
-// running them concurrently against each other, which would otherwise
-// corrupt each test's own view of "how many times did X drop" with counts
-// from a completely unrelated test's objects.
+// The native drop counters are process-global, so these tests use a
+// non-parallelized collection to keep their observations isolated.
+[CollectionDefinition(Name, DisableParallelization = true)]
+public class RcSharedNativeStateCollection
+{
+    public const string Name = "RcSharedNativeState";
+}
+
 [Collection(RcSharedNativeStateCollection.Name)]
 public class RcBorrowDependencyTests
 {

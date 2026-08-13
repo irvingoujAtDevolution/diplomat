@@ -76,7 +76,11 @@ public partial class Bar
     /// </summary>
     internal unsafe Raw.Bar* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("Bar");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

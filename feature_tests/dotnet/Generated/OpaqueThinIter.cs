@@ -73,7 +73,11 @@ public partial class OpaqueThinIter
     /// </summary>
     internal unsafe Raw.OpaqueThinIter* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("OpaqueThinIter");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>

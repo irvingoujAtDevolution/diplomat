@@ -69,7 +69,11 @@ public partial class RenamedMixinTest
     /// </summary>
     internal unsafe Raw.RenamedMixinTest* AsFFI()
     {
-        return _inner!.Ptr;
+        if (_inner is null || _inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedMixinTest");
+        }
+        return _inner.Ptr;
     }
 
     /// <summary>
