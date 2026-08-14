@@ -35,6 +35,20 @@ public sealed unsafe class DiplomatBorrowedSpan<T> where T : unmanaged
 
     internal DiplomatBorrowedSpan(T* ptr, nuint len, object[] edges)
     {
+        // Mirror RustVec: .NET Span/Memory lengths are int-sized. Call sites
+        // build retain-token edges before construction; on the oversize path
+        // release them and suppress this incomplete finalizer before throwing.
+        // Otherwise ~DiplomatBorrowedSpan NREs on the still-null `_edges`
+        // field, catch {} swallows it, and the parent retain leaks.
+        if (len > (nuint)int.MaxValue)
+        {
+            foreach (object edge in edges)
+            {
+                (edge as IDisposable)?.Dispose();
+            }
+            GC.SuppressFinalize(this);
+            throw new IndexOutOfRangeException("Borrowed Rust slice is too large for a .NET Span/Memory");
+        }
         _ptr = ptr;
         _len = (int)len;
         _edges = edges;

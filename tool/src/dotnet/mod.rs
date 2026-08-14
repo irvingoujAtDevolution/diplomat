@@ -2237,10 +2237,27 @@ mod test {
             span.contains("~DiplomatBorrowedSpan()"),
             "the view finalizer must release retained source dependencies:\n{span}"
         );
-    }
+                // Oversize construction must free caller-built retain tokens and
+                // suppress the incomplete finalizer before throwing — same shape as
+                // RustVec. Throwing with `_edges` still null leaves the finalizer to
+                // NRE (swallowed) and leak the parent native retain.
+                assert!(
+                    span.contains("if (len > (nuint)int.MaxValue)"),
+                    "borrowed views must reject lengths that don't fit a .NET Span:\n{span}"
+                );
+                assert!(
+                    span.contains("(edge as IDisposable)?.Dispose()")
+                        && span.contains("GC.SuppressFinalize(this)")
+                        && span.contains(
+                            "throw new IndexOutOfRangeException(\"Borrowed Rust slice is too large for a .NET Span/Memory\")"
+                        ),
+                    "oversize construction must dispose retain-token edges and suppress \
+                     the partial finalizer before throwing:\n{span}"
+                );
+            }
 
-    // The same view type covers a borrowed primitive slice return, not just
-    // strings — `lower_return` previously had no `Type::Slice` arm at all.
+            // The same view type covers a borrowed primitive slice return, not just
+            // strings — `lower_return` previously had no `Type::Slice` arm at all.
     #[test]
     fn borrowed_u32_slice_return_generates_diplomat_borrowed_span() {
         let tk_stream = quote! {
