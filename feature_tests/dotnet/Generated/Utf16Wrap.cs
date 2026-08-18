@@ -32,19 +32,17 @@ public partial class Utf16Wrap: IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe Utf16Wrap(Raw.Utf16Wrap* handle, object[] edges)
+    internal unsafe Utf16Wrap(Raw.Utf16Wrap* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.Utf16Wrap>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe Utf16Wrap(RustHandle<Raw.Utf16Wrap> inner)
+    internal unsafe Utf16Wrap(
+        Raw.Utf16Wrap* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.Utf16Wrap>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -71,7 +69,7 @@ public partial class Utf16Wrap: IDisposable
             {
                 throw new ObjectDisposedException("Utf16Wrap");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.Utf16Wrap> selfLease = BorrowShared())
             {
                 DiplomatWrite writeable = new DiplomatWrite();
                 try
@@ -100,11 +98,11 @@ public partial class Utf16Wrap: IDisposable
             {
                 throw new ObjectDisposedException("Utf16Wrap");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.Utf16Wrap> selfLease = BorrowShared())
             {
                 var result = Raw.Utf16Wrap.BorrowCont(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new DiplomatBorrowedSpan<char>(result.Ptr, result.Len, new object[] { this.DiplomatRetainDependency() });
+                return new DiplomatBorrowedSpan<char>(result.Ptr, result.Len, new object[] { selfLease.Transfer() });
             }
         }
     }
@@ -121,54 +119,33 @@ public partial class Utf16Wrap: IDisposable
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.Utf16Wrap> AcquireShared()
+    internal unsafe BorrowLease<Raw.Utf16Wrap> BorrowShared()
     {
         RustHandle<Raw.Utf16Wrap>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("Utf16Wrap");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.Utf16Wrap> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.Utf16Wrap> BorrowExclusive()
     {
         RustHandle<Raw.Utf16Wrap>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("Utf16Wrap");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>Utf16Wrap</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("Utf16Wrap");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.Utf16Wrap>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.Utf16Wrap>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     /// <summary>
@@ -182,7 +159,7 @@ public partial class Utf16Wrap: IDisposable
     /// is deferred until that borrower releases its own reference too — so
     /// existing borrowers obtained before this call remain fully valid.
     /// After this call, this <c>Utf16Wrap</c> instance itself is unusable:
-    /// its methods (and any attempt to retain a new dependent from it) throw
+    /// its methods (and any attempt to start a new borrow from it) throw
     /// <see cref="ObjectDisposedException"/> immediately, regardless of
     /// whether the physical native destruction happened yet.
     /// </remarks>

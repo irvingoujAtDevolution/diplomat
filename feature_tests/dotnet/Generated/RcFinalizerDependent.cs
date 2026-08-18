@@ -32,19 +32,17 @@ public partial class RcFinalizerDependent
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RcFinalizerDependent(Raw.RcFinalizerDependent* handle, object[] edges)
+    internal unsafe RcFinalizerDependent(Raw.RcFinalizerDependent* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.RcFinalizerDependent>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe RcFinalizerDependent(RustHandle<Raw.RcFinalizerDependent> inner)
+    internal unsafe RcFinalizerDependent(
+        Raw.RcFinalizerDependent* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.RcFinalizerDependent>.Borrowed(handle, capability, edges);
     }
 
     public ulong Id()
@@ -55,7 +53,7 @@ public partial class RcFinalizerDependent
             {
                 throw new ObjectDisposedException("RcFinalizerDependent");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.RcFinalizerDependent> selfLease = BorrowShared())
             {
                 var result = Raw.RcFinalizerDependent.Id(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -100,54 +98,33 @@ public partial class RcFinalizerDependent
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.RcFinalizerDependent> AcquireShared()
+    internal unsafe BorrowLease<Raw.RcFinalizerDependent> BorrowShared()
     {
         RustHandle<Raw.RcFinalizerDependent>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RcFinalizerDependent");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.RcFinalizerDependent> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.RcFinalizerDependent> BorrowExclusive()
     {
         RustHandle<Raw.RcFinalizerDependent>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RcFinalizerDependent");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>RcFinalizerDependent</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("RcFinalizerDependent");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.RcFinalizerDependent>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.RcFinalizerDependent>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     ~RcFinalizerDependent()

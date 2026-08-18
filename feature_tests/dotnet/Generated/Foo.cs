@@ -31,11 +31,11 @@ public partial class Foo
                 {
                     throw new ObjectDisposedException("Foo");
                 }
-                using (var selfLease = AcquireShared())
+                using (BorrowLease<Raw.Foo> selfLease = BorrowShared())
                 {
                     Raw.Bar* result = Raw.Foo.GetBar(selfLease.Ptr);
                     GC.KeepAlive(this);
-                    return new Bar(result, new object[] { this.DiplomatRetainDependency() });
+                    return new Bar(result, selfLease);
                 }
             }
         }
@@ -59,19 +59,17 @@ public partial class Foo
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe Foo(Raw.Foo* handle, object[] edges)
+    internal unsafe Foo(Raw.Foo* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.Foo>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe Foo(RustHandle<Raw.Foo> inner)
+    internal unsafe Foo(
+        Raw.Foo* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.Foo>.Borrowed(handle, capability, edges);
     }
 
     /// <summary>
@@ -86,54 +84,33 @@ public partial class Foo
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.Foo> AcquireShared()
+    internal unsafe BorrowLease<Raw.Foo> BorrowShared()
     {
         RustHandle<Raw.Foo>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("Foo");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.Foo> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.Foo> BorrowExclusive()
     {
         RustHandle<Raw.Foo>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("Foo");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>Foo</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("Foo");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.Foo>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.Foo>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     ~Foo()

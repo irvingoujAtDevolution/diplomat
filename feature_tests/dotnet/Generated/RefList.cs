@@ -32,19 +32,17 @@ public partial class RefList
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RefList(Raw.RefList* handle, object[] edges)
+    internal unsafe RefList(Raw.RefList* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.RefList>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe RefList(RustHandle<Raw.RefList> inner)
+    internal unsafe RefList(
+        Raw.RefList* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.RefList>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -59,11 +57,11 @@ public partial class RefList
         unsafe
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            using (var dataLease = data.AcquireShared())
+            using (BorrowLease<Raw.RefListParameter> dataLease = data.BorrowShared())
             {
                 Raw.RefList* result = Raw.RefList.Node(dataLease.Ptr);
                 GC.KeepAlive(data);
-                return new RefList(result, new object[] { data.DiplomatRetainDependency() });
+                return new RefList(result, dataLease);
             }
         }
     }
@@ -80,54 +78,33 @@ public partial class RefList
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.RefList> AcquireShared()
+    internal unsafe BorrowLease<Raw.RefList> BorrowShared()
     {
         RustHandle<Raw.RefList>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RefList");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.RefList> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.RefList> BorrowExclusive()
     {
         RustHandle<Raw.RefList>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RefList");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>RefList</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("RefList");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.RefList>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.RefList>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     ~RefList()

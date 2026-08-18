@@ -32,19 +32,17 @@ public partial class RenamedNested
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RenamedNested(Raw.RenamedNested* handle, object[] edges)
+    internal unsafe RenamedNested(Raw.RenamedNested* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.RenamedNested>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe RenamedNested(RustHandle<Raw.RenamedNested> inner)
+    internal unsafe RenamedNested(
+        Raw.RenamedNested* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.RenamedNested>.Borrowed(handle, capability, edges);
     }
 
     /// <summary>
@@ -59,54 +57,33 @@ public partial class RenamedNested
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.RenamedNested> AcquireShared()
+    internal unsafe BorrowLease<Raw.RenamedNested> BorrowShared()
     {
         RustHandle<Raw.RenamedNested>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RenamedNested");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.RenamedNested> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.RenamedNested> BorrowExclusive()
     {
         RustHandle<Raw.RenamedNested>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RenamedNested");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>RenamedNested</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedNested");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.RenamedNested>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.RenamedNested>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     ~RenamedNested()

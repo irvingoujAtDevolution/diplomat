@@ -32,19 +32,17 @@ public partial class DefaultDropProbe
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe DefaultDropProbe(Raw.DefaultDropProbe* handle, object[] edges)
+    internal unsafe DefaultDropProbe(Raw.DefaultDropProbe* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.DefaultDropProbe>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe DefaultDropProbe(RustHandle<Raw.DefaultDropProbe> inner)
+    internal unsafe DefaultDropProbe(
+        Raw.DefaultDropProbe* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.DefaultDropProbe>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -87,54 +85,33 @@ public partial class DefaultDropProbe
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.DefaultDropProbe> AcquireShared()
+    internal unsafe BorrowLease<Raw.DefaultDropProbe> BorrowShared()
     {
         RustHandle<Raw.DefaultDropProbe>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("DefaultDropProbe");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.DefaultDropProbe> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.DefaultDropProbe> BorrowExclusive()
     {
         RustHandle<Raw.DefaultDropProbe>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("DefaultDropProbe");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>DefaultDropProbe</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("DefaultDropProbe");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.DefaultDropProbe>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.DefaultDropProbe>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     ~DefaultDropProbe()

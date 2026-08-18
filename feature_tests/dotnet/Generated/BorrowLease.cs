@@ -1,0 +1,86 @@
+using System;
+using System.Threading;
+
+namespace Somelib.Diplomat;
+
+#nullable enable
+
+internal enum BorrowKind
+{
+    Shared,
+    Exclusive,
+}
+
+internal interface IBorrowLease
+{
+    IDisposable Transfer();
+}
+
+internal sealed unsafe class BorrowLease<T> : IBorrowLease, IDisposable where T : unmanaged
+{
+    private RustHandle<T>? _owner;
+    private readonly BorrowKind _kind;
+
+    internal BorrowLease(RustHandle<T> owner, BorrowKind kind)
+    {
+        _owner = owner;
+        _kind = kind;
+        Ptr = owner.Ptr;
+    }
+
+    internal T* Ptr { get; }
+
+    internal IDisposable Transfer()
+    {
+        BorrowToken token = new BorrowToken(_kind);
+        RustHandle<T>? owner = Interlocked.Exchange(ref _owner, null);
+        if (owner is null)
+        {
+            throw new ObjectDisposedException(nameof(BorrowLease<T>));
+        }
+
+        token.Attach(owner);
+        return token;
+    }
+
+    IDisposable IBorrowLease.Transfer() => Transfer();
+
+    public void Dispose()
+    {
+        RustHandle<T>? owner = Interlocked.Exchange(ref _owner, null);
+        owner?.ReleaseBorrow(_kind);
+    }
+
+    private sealed class BorrowToken : IDisposable
+    {
+        private RustHandle<T>? _owner;
+        private readonly BorrowKind _kind;
+
+        internal BorrowToken(BorrowKind kind)
+        {
+            _kind = kind;
+        }
+
+        internal void Attach(RustHandle<T> owner)
+        {
+            _owner = owner;
+        }
+
+        ~BorrowToken()
+        {
+            Release();
+        }
+
+        public void Dispose()
+        {
+            Release();
+            GC.SuppressFinalize(this);
+        }
+
+        private void Release()
+        {
+            RustHandle<T>? owner = Interlocked.Exchange(ref _owner, null);
+            owner?.ReleaseBorrow(_kind);
+        }
+    }
+}

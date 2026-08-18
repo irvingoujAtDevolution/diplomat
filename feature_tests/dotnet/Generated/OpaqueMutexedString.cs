@@ -32,19 +32,17 @@ public partial class OpaqueMutexedString: IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe OpaqueMutexedString(Raw.OpaqueMutexedString* handle, object[] edges)
+    internal unsafe OpaqueMutexedString(Raw.OpaqueMutexedString* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.OpaqueMutexedString>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe OpaqueMutexedString(RustHandle<Raw.OpaqueMutexedString> inner)
+    internal unsafe OpaqueMutexedString(
+        Raw.OpaqueMutexedString* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.OpaqueMutexedString>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -67,7 +65,7 @@ public partial class OpaqueMutexedString: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueMutexedString");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.OpaqueMutexedString> selfLease = BorrowShared())
             {
                 Raw.OpaqueMutexedString.Change(selfLease.Ptr, number);
                 GC.KeepAlive(this);
@@ -83,7 +81,7 @@ public partial class OpaqueMutexedString: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueMutexedString");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.OpaqueMutexedString> selfLease = BorrowShared())
             {
                 var result = Raw.OpaqueMutexedString.GetLenAndAdd(selfLease.Ptr, other);
                 GC.KeepAlive(this);
@@ -104,11 +102,11 @@ public partial class OpaqueMutexedString: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueMutexedString");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.OpaqueMutexedString> selfLease = BorrowShared())
             {
                 var result = Raw.OpaqueMutexedString.DummyStr(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { this.DiplomatRetainDependency() });
+                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { selfLease.Transfer() });
             }
         }
     }
@@ -124,7 +122,7 @@ public partial class OpaqueMutexedString: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueMutexedString");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.OpaqueMutexedString> selfLease = BorrowShared())
             {
                 Raw.Utf16Wrap* result = Raw.OpaqueMutexedString.Wrapper(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -141,7 +139,7 @@ public partial class OpaqueMutexedString: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueMutexedString");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.OpaqueMutexedString> selfLease = BorrowShared())
             {
                 var result = Raw.OpaqueMutexedString.ToUnsignedFromUnsigned(selfLease.Ptr, input);
                 GC.KeepAlive(this);
@@ -162,54 +160,33 @@ public partial class OpaqueMutexedString: IDisposable
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.OpaqueMutexedString> AcquireShared()
+    internal unsafe BorrowLease<Raw.OpaqueMutexedString> BorrowShared()
     {
         RustHandle<Raw.OpaqueMutexedString>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("OpaqueMutexedString");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.OpaqueMutexedString> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.OpaqueMutexedString> BorrowExclusive()
     {
         RustHandle<Raw.OpaqueMutexedString>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("OpaqueMutexedString");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>OpaqueMutexedString</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("OpaqueMutexedString");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.OpaqueMutexedString>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.OpaqueMutexedString>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     /// <summary>
@@ -223,7 +200,7 @@ public partial class OpaqueMutexedString: IDisposable
     /// is deferred until that borrower releases its own reference too — so
     /// existing borrowers obtained before this call remain fully valid.
     /// After this call, this <c>OpaqueMutexedString</c> instance itself is unusable:
-    /// its methods (and any attempt to retain a new dependent from it) throw
+    /// its methods (and any attempt to start a new borrow from it) throw
     /// <see cref="ObjectDisposedException"/> immediately, regardless of
     /// whether the physical native destruction happened yet.
     /// </remarks>

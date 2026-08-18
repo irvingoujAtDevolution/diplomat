@@ -32,19 +32,17 @@ public partial class Unnamespaced: IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe Unnamespaced(Raw.Unnamespaced* handle, object[] edges)
+    internal unsafe Unnamespaced(Raw.Unnamespaced* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.Unnamespaced>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe Unnamespaced(RustHandle<Raw.Unnamespaced> inner)
+    internal unsafe Unnamespaced(
+        Raw.Unnamespaced* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.Unnamespaced>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -68,8 +66,8 @@ public partial class Unnamespaced: IDisposable
                 throw new ObjectDisposedException("Unnamespaced");
             }
             if (n == null) throw new ArgumentNullException(nameof(n));
-            using (var selfLease = AcquireShared())
-            using (var nLease = n.AcquireShared())
+            using (BorrowLease<Raw.Unnamespaced> selfLease = BorrowShared())
+            using (BorrowLease<Raw.AttrOpaque1Renamed> nLease = n.BorrowShared())
             {
                 Raw.Unnamespaced.UseNamespaced(selfLease.Ptr, nLease.Ptr);
                 GC.KeepAlive(this);
@@ -90,54 +88,33 @@ public partial class Unnamespaced: IDisposable
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.Unnamespaced> AcquireShared()
+    internal unsafe BorrowLease<Raw.Unnamespaced> BorrowShared()
     {
         RustHandle<Raw.Unnamespaced>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("Unnamespaced");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.Unnamespaced> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.Unnamespaced> BorrowExclusive()
     {
         RustHandle<Raw.Unnamespaced>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("Unnamespaced");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>Unnamespaced</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("Unnamespaced");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.Unnamespaced>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.Unnamespaced>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     /// <summary>
@@ -151,7 +128,7 @@ public partial class Unnamespaced: IDisposable
     /// is deferred until that borrower releases its own reference too — so
     /// existing borrowers obtained before this call remain fully valid.
     /// After this call, this <c>Unnamespaced</c> instance itself is unusable:
-    /// its methods (and any attempt to retain a new dependent from it) throw
+    /// its methods (and any attempt to start a new borrow from it) throw
     /// <see cref="ObjectDisposedException"/> immediately, regardless of
     /// whether the physical native destruction happened yet.
     /// </remarks>

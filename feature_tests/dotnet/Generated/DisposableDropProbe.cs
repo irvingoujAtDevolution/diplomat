@@ -32,19 +32,17 @@ public partial class DisposableDropProbe: IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe DisposableDropProbe(Raw.DisposableDropProbe* handle, object[] edges)
+    internal unsafe DisposableDropProbe(Raw.DisposableDropProbe* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.DisposableDropProbe>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe DisposableDropProbe(RustHandle<Raw.DisposableDropProbe> inner)
+    internal unsafe DisposableDropProbe(
+        Raw.DisposableDropProbe* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.DisposableDropProbe>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -67,7 +65,7 @@ public partial class DisposableDropProbe: IDisposable
             {
                 throw new ObjectDisposedException("DisposableDropProbe");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.DisposableDropProbe> selfLease = BorrowShared())
             {
                 var result = Raw.DisposableDropProbe.IsAlive(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -104,54 +102,33 @@ public partial class DisposableDropProbe: IDisposable
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.DisposableDropProbe> AcquireShared()
+    internal unsafe BorrowLease<Raw.DisposableDropProbe> BorrowShared()
     {
         RustHandle<Raw.DisposableDropProbe>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("DisposableDropProbe");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.DisposableDropProbe> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.DisposableDropProbe> BorrowExclusive()
     {
         RustHandle<Raw.DisposableDropProbe>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("DisposableDropProbe");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>DisposableDropProbe</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("DisposableDropProbe");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.DisposableDropProbe>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.DisposableDropProbe>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     /// <summary>
@@ -165,7 +142,7 @@ public partial class DisposableDropProbe: IDisposable
     /// is deferred until that borrower releases its own reference too — so
     /// existing borrowers obtained before this call remain fully valid.
     /// After this call, this <c>DisposableDropProbe</c> instance itself is unusable:
-    /// its methods (and any attempt to retain a new dependent from it) throw
+    /// its methods (and any attempt to start a new borrow from it) throw
     /// <see cref="ObjectDisposedException"/> immediately, regardless of
     /// whether the physical native destruction happened yet.
     /// </remarks>

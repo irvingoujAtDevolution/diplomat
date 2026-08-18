@@ -32,19 +32,17 @@ public partial class RenamedOpaqueZSTIndexer
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RenamedOpaqueZSTIndexer(Raw.RenamedOpaqueZSTIndexer* handle, object[] edges)
+    internal unsafe RenamedOpaqueZSTIndexer(Raw.RenamedOpaqueZSTIndexer* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.RenamedOpaqueZSTIndexer>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe RenamedOpaqueZSTIndexer(RustHandle<Raw.RenamedOpaqueZSTIndexer> inner)
+    internal unsafe RenamedOpaqueZSTIndexer(
+        Raw.RenamedOpaqueZSTIndexer* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.RenamedOpaqueZSTIndexer>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -70,7 +68,7 @@ public partial class RenamedOpaqueZSTIndexer
             {
                 throw new ObjectDisposedException("RenamedOpaqueZSTIndexer");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.RenamedOpaqueZSTIndexer> selfLease = BorrowShared())
             {
                 Raw.RenamedOpaqueZSTIndexer* result = Raw.RenamedOpaqueZSTIndexer.Index(selfLease.Ptr, idx);
                 GC.KeepAlive(this);
@@ -91,54 +89,33 @@ public partial class RenamedOpaqueZSTIndexer
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.RenamedOpaqueZSTIndexer> AcquireShared()
+    internal unsafe BorrowLease<Raw.RenamedOpaqueZSTIndexer> BorrowShared()
     {
         RustHandle<Raw.RenamedOpaqueZSTIndexer>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RenamedOpaqueZSTIndexer");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.RenamedOpaqueZSTIndexer> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.RenamedOpaqueZSTIndexer> BorrowExclusive()
     {
         RustHandle<Raw.RenamedOpaqueZSTIndexer>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RenamedOpaqueZSTIndexer");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>RenamedOpaqueZSTIndexer</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedOpaqueZSTIndexer");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.RenamedOpaqueZSTIndexer>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.RenamedOpaqueZSTIndexer>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     ~RenamedOpaqueZSTIndexer()

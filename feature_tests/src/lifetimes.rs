@@ -561,7 +561,7 @@ pub mod ffi {
 
     #[diplomat::attr(not(dotnet), disable)]
     #[diplomat::attr(dotnet, manually_disposable)]
-    #[diplomat::opaque]
+    #[diplomat::opaque_mut]
     pub struct RcSource(u64);
 
     impl RcSource {
@@ -578,6 +578,14 @@ pub mod ffi {
         /// decrements `self`'s refcount.
         pub fn view<'b>(&'b self) -> &'b Self {
             self
+        }
+
+        pub fn view_mut<'b>(&'b mut self) -> &'b mut Self {
+            self
+        }
+
+        pub fn ping_mutable(&mut self) -> bool {
+            true
         }
 
         /// An owned wrapper with its own Rust destructor that also borrows
@@ -667,6 +675,14 @@ pub mod ffi {
     impl BorrowSafetyProbe {
         pub fn create() -> Box<Self> {
             Box::new(Self)
+        }
+
+        pub fn reset_drop_count() {
+            super::BORROW_SAFETY_DROPS.store(0, super::Ordering::SeqCst);
+        }
+
+        pub fn drop_count() -> u64 {
+            super::BORROW_SAFETY_DROPS.load(super::Ordering::SeqCst)
         }
 
         pub fn reset_shared_call() {
@@ -874,6 +890,8 @@ pub(crate) static BORROW_SAFETY_MUTABLE_ENTERED: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 pub(crate) static BORROW_SAFETY_MUTABLE_RELEASE: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
+pub(crate) static BORROW_SAFETY_DROPS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
 pub(crate) static RC_DEPENDENT_DROPS: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
 pub(crate) static RC_DEPENDENT_DROP_SEQ: std::sync::atomic::AtomicU64 =
@@ -918,6 +936,12 @@ impl Drop for ffi::DefaultDropProbe {
 impl Drop for ffi::DisposableDropProbe {
     fn drop(&mut self) {
         DISPOSABLE_DROP_PROBE_DROPS.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+impl Drop for ffi::BorrowSafetyProbe {
+    fn drop(&mut self) {
+        BORROW_SAFETY_DROPS.fetch_add(1, Ordering::SeqCst);
     }
 }
 

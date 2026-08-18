@@ -32,19 +32,17 @@ public partial class OpaqueSliceView: IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe OpaqueSliceView(Raw.OpaqueSliceView* handle, object[] edges)
+    internal unsafe OpaqueSliceView(Raw.OpaqueSliceView* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.OpaqueSliceView>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe OpaqueSliceView(RustHandle<Raw.OpaqueSliceView> inner)
+    internal unsafe OpaqueSliceView(
+        Raw.OpaqueSliceView* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.OpaqueSliceView>.Borrowed(handle, capability, edges);
     }
 
     /// <exception cref="SliceParseErrorException"></exception>
@@ -70,7 +68,7 @@ public partial class OpaqueSliceView: IDisposable
                 {
                     throw new SliceParseErrorException(new SliceParseError(result.Err));
                 }
-                return new OpaqueSliceView(result.Ok, new object[] { dataPin });
+                return new OpaqueSliceView(result.Ok, dataPin);
             }
             catch
             {
@@ -103,7 +101,7 @@ public partial class OpaqueSliceView: IDisposable
                 {
                     throw new SliceParseErrorException(new SliceParseError(result.Err));
                 }
-                return new OpaqueSliceView(result.Ok, new object[] { dataPin });
+                return new OpaqueSliceView(result.Ok, dataPin);
             }
             catch
             {
@@ -131,7 +129,7 @@ public partial class OpaqueSliceView: IDisposable
             {
                 dataPin = DiplomatPinnedMemory.Pin(data);
                 Raw.OpaqueSliceView* result = Raw.OpaqueSliceView.Wrap(new DiplomatSliceU8 { Ptr = (byte*)dataPin.Pointer, Len = (nuint)data.Length });
-                return new OpaqueSliceView(result, new object[] { dataPin });
+                return new OpaqueSliceView(result, dataPin);
             }
             catch
             {
@@ -149,7 +147,7 @@ public partial class OpaqueSliceView: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueSliceView");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.OpaqueSliceView> selfLease = BorrowShared())
             {
                 var result = Raw.OpaqueSliceView.Length(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -166,7 +164,7 @@ public partial class OpaqueSliceView: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueSliceView");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.OpaqueSliceView> selfLease = BorrowShared())
             {
                 var result = Raw.OpaqueSliceView.Get(selfLease.Ptr, index);
                 GC.KeepAlive(this);
@@ -183,7 +181,7 @@ public partial class OpaqueSliceView: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueSliceView");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.OpaqueSliceView> selfLease = BorrowShared())
             {
                 var result = Raw.OpaqueSliceView.Sum(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -204,54 +202,33 @@ public partial class OpaqueSliceView: IDisposable
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.OpaqueSliceView> AcquireShared()
+    internal unsafe BorrowLease<Raw.OpaqueSliceView> BorrowShared()
     {
         RustHandle<Raw.OpaqueSliceView>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("OpaqueSliceView");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.OpaqueSliceView> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.OpaqueSliceView> BorrowExclusive()
     {
         RustHandle<Raw.OpaqueSliceView>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("OpaqueSliceView");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>OpaqueSliceView</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("OpaqueSliceView");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.OpaqueSliceView>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.OpaqueSliceView>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     /// <summary>
@@ -265,7 +242,7 @@ public partial class OpaqueSliceView: IDisposable
     /// is deferred until that borrower releases its own reference too — so
     /// existing borrowers obtained before this call remain fully valid.
     /// After this call, this <c>OpaqueSliceView</c> instance itself is unusable:
-    /// its methods (and any attempt to retain a new dependent from it) throw
+    /// its methods (and any attempt to start a new borrow from it) throw
     /// <see cref="ObjectDisposedException"/> immediately, regardless of
     /// whether the physical native destruction happened yet.
     /// </remarks>

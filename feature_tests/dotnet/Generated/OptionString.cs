@@ -32,19 +32,17 @@ public partial class OptionString: IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe OptionString(Raw.OptionString* handle, object[] edges)
+    internal unsafe OptionString(Raw.OptionString* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.OptionString>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe OptionString(RustHandle<Raw.OptionString> inner)
+    internal unsafe OptionString(
+        Raw.OptionString* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.OptionString>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -72,7 +70,7 @@ public partial class OptionString: IDisposable
             {
                 throw new ObjectDisposedException("OptionString");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.OptionString> selfLease = BorrowShared())
             {
                 DiplomatWrite writeable = new DiplomatWrite();
                 try
@@ -105,54 +103,33 @@ public partial class OptionString: IDisposable
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.OptionString> AcquireShared()
+    internal unsafe BorrowLease<Raw.OptionString> BorrowShared()
     {
         RustHandle<Raw.OptionString>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("OptionString");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.OptionString> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.OptionString> BorrowExclusive()
     {
         RustHandle<Raw.OptionString>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("OptionString");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>OptionString</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("OptionString");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.OptionString>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.OptionString>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     /// <summary>
@@ -166,7 +143,7 @@ public partial class OptionString: IDisposable
     /// is deferred until that borrower releases its own reference too — so
     /// existing borrowers obtained before this call remain fully valid.
     /// After this call, this <c>OptionString</c> instance itself is unusable:
-    /// its methods (and any attempt to retain a new dependent from it) throw
+    /// its methods (and any attempt to start a new borrow from it) throw
     /// <see cref="ObjectDisposedException"/> immediately, regardless of
     /// whether the physical native destruction happened yet.
     /// </remarks>

@@ -24,7 +24,7 @@ public partial class MyString: IDisposable
                 {
                     throw new ObjectDisposedException("MyString");
                 }
-                using (var selfLease = AcquireShared())
+                using (BorrowLease<Raw.MyString> selfLease = BorrowShared())
                 {
                     DiplomatWrite writeable = new DiplomatWrite();
                     try
@@ -50,7 +50,7 @@ public partial class MyString: IDisposable
                 }
                 if (value == null) throw new ArgumentNullException(nameof(value));
                 byte[] valueBytes = Diplomat.Utf8.Clone(value);
-                using (var selfLease = AcquireExclusive())
+                using (BorrowLease<Raw.MyString> selfLease = BorrowExclusive())
                 {
                     fixed (byte* valuePtr = valueBytes)
                     {
@@ -80,19 +80,17 @@ public partial class MyString: IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe MyString(Raw.MyString* handle, object[] edges)
+    internal unsafe MyString(Raw.MyString* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.MyString>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe MyString(RustHandle<Raw.MyString> inner)
+    internal unsafe MyString(
+        Raw.MyString* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.MyString>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -162,11 +160,11 @@ public partial class MyString: IDisposable
             {
                 throw new ObjectDisposedException("MyString");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.MyString> selfLease = BorrowShared())
             {
                 var result = Raw.MyString.Borrow(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { this.DiplomatRetainDependency() });
+                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { selfLease.Transfer() });
             }
         }
     }
@@ -183,54 +181,33 @@ public partial class MyString: IDisposable
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.MyString> AcquireShared()
+    internal unsafe BorrowLease<Raw.MyString> BorrowShared()
     {
         RustHandle<Raw.MyString>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("MyString");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.MyString> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.MyString> BorrowExclusive()
     {
         RustHandle<Raw.MyString>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("MyString");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>MyString</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("MyString");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.MyString>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.MyString>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     /// <summary>
@@ -244,7 +221,7 @@ public partial class MyString: IDisposable
     /// is deferred until that borrower releases its own reference too — so
     /// existing borrowers obtained before this call remain fully valid.
     /// After this call, this <c>MyString</c> instance itself is unusable:
-    /// its methods (and any attempt to retain a new dependent from it) throw
+    /// its methods (and any attempt to start a new borrow from it) throw
     /// <see cref="ObjectDisposedException"/> immediately, regardless of
     /// whether the physical native destruction happened yet.
     /// </remarks>

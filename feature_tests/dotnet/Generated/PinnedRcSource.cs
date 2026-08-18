@@ -32,19 +32,17 @@ public partial class PinnedRcSource: IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe PinnedRcSource(Raw.PinnedRcSource* handle, object[] edges)
+    internal unsafe PinnedRcSource(Raw.PinnedRcSource* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.PinnedRcSource>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe PinnedRcSource(RustHandle<Raw.PinnedRcSource> inner)
+    internal unsafe PinnedRcSource(
+        Raw.PinnedRcSource* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.PinnedRcSource>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -65,7 +63,7 @@ public partial class PinnedRcSource: IDisposable
             {
                 dataPin = DiplomatPinnedMemory.Pin(data);
                 Raw.PinnedRcSource* result = Raw.PinnedRcSource.Create(new DiplomatSliceU8 { Ptr = (byte*)dataPin.Pointer, Len = (nuint)data.Length });
-                return new PinnedRcSource(result, new object[] { dataPin });
+                return new PinnedRcSource(result, dataPin);
             }
             catch
             {
@@ -90,11 +88,11 @@ public partial class PinnedRcSource: IDisposable
             {
                 throw new ObjectDisposedException("PinnedRcSource");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.PinnedRcSource> selfLease = BorrowShared())
             {
                 Raw.PinnedRcDependent* result = Raw.PinnedRcSource.MakeDependent(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new PinnedRcDependent(result, new object[] { this.DiplomatRetainDependency() });
+                return new PinnedRcDependent(result, selfLease);
             }
         }
     }
@@ -143,54 +141,33 @@ public partial class PinnedRcSource: IDisposable
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.PinnedRcSource> AcquireShared()
+    internal unsafe BorrowLease<Raw.PinnedRcSource> BorrowShared()
     {
         RustHandle<Raw.PinnedRcSource>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("PinnedRcSource");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.PinnedRcSource> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.PinnedRcSource> BorrowExclusive()
     {
         RustHandle<Raw.PinnedRcSource>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("PinnedRcSource");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>PinnedRcSource</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("PinnedRcSource");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.PinnedRcSource>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.PinnedRcSource>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     /// <summary>
@@ -204,7 +181,7 @@ public partial class PinnedRcSource: IDisposable
     /// is deferred until that borrower releases its own reference too — so
     /// existing borrowers obtained before this call remain fully valid.
     /// After this call, this <c>PinnedRcSource</c> instance itself is unusable:
-    /// its methods (and any attempt to retain a new dependent from it) throw
+    /// its methods (and any attempt to start a new borrow from it) throw
     /// <see cref="ObjectDisposedException"/> immediately, regardless of
     /// whether the physical native destruction happened yet.
     /// </remarks>

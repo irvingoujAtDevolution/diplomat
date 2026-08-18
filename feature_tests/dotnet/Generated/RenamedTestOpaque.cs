@@ -32,19 +32,17 @@ public partial class RenamedTestOpaque
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RenamedTestOpaque(Raw.RenamedTestOpaque* handle, object[] edges)
+    internal unsafe RenamedTestOpaque(Raw.RenamedTestOpaque* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.RenamedTestOpaque>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe RenamedTestOpaque(RustHandle<Raw.RenamedTestOpaque> inner)
+    internal unsafe RenamedTestOpaque(
+        Raw.RenamedTestOpaque* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.RenamedTestOpaque>.Borrowed(handle, capability, edges);
     }
 
     /// <summary>
@@ -59,54 +57,33 @@ public partial class RenamedTestOpaque
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.RenamedTestOpaque> AcquireShared()
+    internal unsafe BorrowLease<Raw.RenamedTestOpaque> BorrowShared()
     {
         RustHandle<Raw.RenamedTestOpaque>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RenamedTestOpaque");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.RenamedTestOpaque> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.RenamedTestOpaque> BorrowExclusive()
     {
         RustHandle<Raw.RenamedTestOpaque>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RenamedTestOpaque");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>RenamedTestOpaque</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedTestOpaque");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.RenamedTestOpaque>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.RenamedTestOpaque>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     ~RenamedTestOpaque()

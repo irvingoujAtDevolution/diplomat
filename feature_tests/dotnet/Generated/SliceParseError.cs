@@ -32,19 +32,17 @@ public partial class SliceParseError
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe SliceParseError(Raw.SliceParseError* handle, object[] edges)
+    internal unsafe SliceParseError(Raw.SliceParseError* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.SliceParseError>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe SliceParseError(RustHandle<Raw.SliceParseError> inner)
+    internal unsafe SliceParseError(
+        Raw.SliceParseError* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.SliceParseError>.Borrowed(handle, capability, edges);
     }
 
     /// <summary>
@@ -59,54 +57,33 @@ public partial class SliceParseError
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.SliceParseError> AcquireShared()
+    internal unsafe BorrowLease<Raw.SliceParseError> BorrowShared()
     {
         RustHandle<Raw.SliceParseError>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("SliceParseError");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.SliceParseError> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.SliceParseError> BorrowExclusive()
     {
         RustHandle<Raw.SliceParseError>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("SliceParseError");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>SliceParseError</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("SliceParseError");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.SliceParseError>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.SliceParseError>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     ~SliceParseError()

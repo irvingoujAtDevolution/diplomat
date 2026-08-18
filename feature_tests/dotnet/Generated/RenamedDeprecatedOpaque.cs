@@ -32,19 +32,17 @@ public partial class RenamedDeprecatedOpaque
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RenamedDeprecatedOpaque(Raw.RenamedDeprecatedOpaque* handle, object[] edges)
+    internal unsafe RenamedDeprecatedOpaque(Raw.RenamedDeprecatedOpaque* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.RenamedDeprecatedOpaque>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe RenamedDeprecatedOpaque(RustHandle<Raw.RenamedDeprecatedOpaque> inner)
+    internal unsafe RenamedDeprecatedOpaque(
+        Raw.RenamedDeprecatedOpaque* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.RenamedDeprecatedOpaque>.Borrowed(handle, capability, edges);
     }
 
     /// <summary>
@@ -59,54 +57,33 @@ public partial class RenamedDeprecatedOpaque
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.RenamedDeprecatedOpaque> AcquireShared()
+    internal unsafe BorrowLease<Raw.RenamedDeprecatedOpaque> BorrowShared()
     {
         RustHandle<Raw.RenamedDeprecatedOpaque>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RenamedDeprecatedOpaque");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.RenamedDeprecatedOpaque> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.RenamedDeprecatedOpaque> BorrowExclusive()
     {
         RustHandle<Raw.RenamedDeprecatedOpaque>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RenamedDeprecatedOpaque");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>RenamedDeprecatedOpaque</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedDeprecatedOpaque");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.RenamedDeprecatedOpaque>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.RenamedDeprecatedOpaque>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     ~RenamedDeprecatedOpaque()

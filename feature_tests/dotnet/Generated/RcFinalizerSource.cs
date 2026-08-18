@@ -32,19 +32,17 @@ public partial class RcFinalizerSource
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RcFinalizerSource(Raw.RcFinalizerSource* handle, object[] edges)
+    internal unsafe RcFinalizerSource(Raw.RcFinalizerSource* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.RcFinalizerSource>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe RcFinalizerSource(RustHandle<Raw.RcFinalizerSource> inner)
+    internal unsafe RcFinalizerSource(
+        Raw.RcFinalizerSource* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.RcFinalizerSource>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -67,7 +65,7 @@ public partial class RcFinalizerSource
             {
                 throw new ObjectDisposedException("RcFinalizerSource");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.RcFinalizerSource> selfLease = BorrowShared())
             {
                 var result = Raw.RcFinalizerSource.Id(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -91,11 +89,11 @@ public partial class RcFinalizerSource
             {
                 throw new ObjectDisposedException("RcFinalizerSource");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.RcFinalizerSource> selfLease = BorrowShared())
             {
                 Raw.RcFinalizerDependent* result = Raw.RcFinalizerSource.MakeDependent(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new RcFinalizerDependent(result, new object[] { this.DiplomatRetainDependency() });
+                return new RcFinalizerDependent(result, selfLease);
             }
         }
     }
@@ -136,54 +134,33 @@ public partial class RcFinalizerSource
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.RcFinalizerSource> AcquireShared()
+    internal unsafe BorrowLease<Raw.RcFinalizerSource> BorrowShared()
     {
         RustHandle<Raw.RcFinalizerSource>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RcFinalizerSource");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.RcFinalizerSource> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.RcFinalizerSource> BorrowExclusive()
     {
         RustHandle<Raw.RcFinalizerSource>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RcFinalizerSource");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>RcFinalizerSource</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("RcFinalizerSource");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.RcFinalizerSource>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.RcFinalizerSource>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     ~RcFinalizerSource()

@@ -11,7 +11,7 @@ use askama::Template;
 use diplomat_core::hir::{OutputOnly, ReturnableStructDef, Type};
 
 use crate::dotnet::r#gen::{
-    method::{dependencies_array_expr, DotnetReturnType, RawExpr},
+    method::{DotnetReturnType, RawExpr},
     DotnetPrimitives, ItemGenContext,
 };
 
@@ -356,10 +356,7 @@ impl DotnetErrorType {
                 if dependencies.is_empty() {
                     format!("new {name}({raw_expr})")
                 } else {
-                    format!(
-                        "new {name}({raw_expr}, {})",
-                        dependencies_array_expr(dependencies)
-                    )
+                    format!("new {name}({raw_expr}, {})", dependencies.join(", "))
                 }
             }
             DotnetErrorType::Struct { name, is_zst: true } => format!("new {name}()"),

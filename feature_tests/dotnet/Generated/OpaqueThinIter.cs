@@ -32,19 +32,17 @@ public partial class OpaqueThinIter
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe OpaqueThinIter(Raw.OpaqueThinIter* handle, object[] edges)
+    internal unsafe OpaqueThinIter(Raw.OpaqueThinIter* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.OpaqueThinIter>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe OpaqueThinIter(RustHandle<Raw.OpaqueThinIter> inner)
+    internal unsafe OpaqueThinIter(
+        Raw.OpaqueThinIter* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.OpaqueThinIter>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -62,11 +60,11 @@ public partial class OpaqueThinIter
             {
                 throw new ObjectDisposedException("OpaqueThinIter");
             }
-            using (var selfLease = AcquireExclusive())
+            using (BorrowLease<Raw.OpaqueThinIter> selfLease = BorrowExclusive())
             {
                 Raw.OpaqueThin* result = Raw.OpaqueThinIter.Next(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return result == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result, new object[] { this.DiplomatRetainDependency() }));
+                return result == null ? null : new OpaqueThin(result, BorrowKind.Shared, selfLease);
             }
         }
     }
@@ -83,54 +81,33 @@ public partial class OpaqueThinIter
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.OpaqueThinIter> AcquireShared()
+    internal unsafe BorrowLease<Raw.OpaqueThinIter> BorrowShared()
     {
         RustHandle<Raw.OpaqueThinIter>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("OpaqueThinIter");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.OpaqueThinIter> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.OpaqueThinIter> BorrowExclusive()
     {
         RustHandle<Raw.OpaqueThinIter>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("OpaqueThinIter");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>OpaqueThinIter</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("OpaqueThinIter");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.OpaqueThinIter>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.OpaqueThinIter>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     ~OpaqueThinIter()

@@ -71,4 +71,34 @@ public sealed class RuntimeBorrowSafetyTests
 
         Assert.True(probe.PingMutable());
     }
+
+    [Fact]
+    public async Task Dispose_DuringActiveMutableCall_DefersNativeDestruction()
+    {
+        BorrowSafetyProbe.ResetMutableCall();
+        BorrowSafetyProbe.ResetDropCount();
+        BorrowSafetyProbe probe = BorrowSafetyProbe.Create();
+        Task heldCall = Task.Factory.StartNew(
+            probe.HoldMutable,
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default
+        );
+
+        try
+        {
+            Assert.True(
+                SpinWait.SpinUntil(BorrowSafetyProbe.MutableCallEntered, TimeSpan.FromSeconds(5))
+            );
+            probe.Dispose();
+            Assert.Equal(0ul, BorrowSafetyProbe.DropCount());
+        }
+        finally
+        {
+            BorrowSafetyProbe.ReleaseMutableCall();
+            await AwaitWithTimeout(heldCall);
+        }
+
+        Assert.Equal(1ul, BorrowSafetyProbe.DropCount());
+    }
 }

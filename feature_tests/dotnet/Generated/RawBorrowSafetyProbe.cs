@@ -12,6 +12,12 @@ internal partial struct BorrowSafetyProbe
     [DllImport(DiplomatNativeLib.Name, EntryPoint = "BorrowSafetyProbe_create", CallingConvention = CallingConvention.Cdecl)]
     internal static unsafe extern BorrowSafetyProbe* Create();
 
+    [DllImport(DiplomatNativeLib.Name, EntryPoint = "BorrowSafetyProbe_reset_drop_count", CallingConvention = CallingConvention.Cdecl)]
+    internal static unsafe extern void ResetDropCount();
+
+    [DllImport(DiplomatNativeLib.Name, EntryPoint = "BorrowSafetyProbe_drop_count", CallingConvention = CallingConvention.Cdecl)]
+    internal static unsafe extern ulong DropCount();
+
     [DllImport(DiplomatNativeLib.Name, EntryPoint = "BorrowSafetyProbe_reset_shared_call", CallingConvention = CallingConvention.Cdecl)]
     internal static unsafe extern void ResetSharedCall();
 

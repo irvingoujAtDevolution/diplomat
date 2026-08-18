@@ -32,19 +32,17 @@ public partial class MyOpaqueEnum: IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe MyOpaqueEnum(Raw.MyOpaqueEnum* handle, object[] edges)
+    internal unsafe MyOpaqueEnum(Raw.MyOpaqueEnum* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.MyOpaqueEnum>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe MyOpaqueEnum(RustHandle<Raw.MyOpaqueEnum> inner)
+    internal unsafe MyOpaqueEnum(
+        Raw.MyOpaqueEnum* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.MyOpaqueEnum>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -67,7 +65,7 @@ public partial class MyOpaqueEnum: IDisposable
             {
                 throw new ObjectDisposedException("MyOpaqueEnum");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.MyOpaqueEnum> selfLease = BorrowShared())
             {
                 DiplomatWrite writeable = new DiplomatWrite();
                 try
@@ -96,54 +94,33 @@ public partial class MyOpaqueEnum: IDisposable
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.MyOpaqueEnum> AcquireShared()
+    internal unsafe BorrowLease<Raw.MyOpaqueEnum> BorrowShared()
     {
         RustHandle<Raw.MyOpaqueEnum>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("MyOpaqueEnum");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.MyOpaqueEnum> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.MyOpaqueEnum> BorrowExclusive()
     {
         RustHandle<Raw.MyOpaqueEnum>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("MyOpaqueEnum");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>MyOpaqueEnum</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("MyOpaqueEnum");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.MyOpaqueEnum>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.MyOpaqueEnum>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     /// <summary>
@@ -157,7 +134,7 @@ public partial class MyOpaqueEnum: IDisposable
     /// is deferred until that borrower releases its own reference too — so
     /// existing borrowers obtained before this call remain fully valid.
     /// After this call, this <c>MyOpaqueEnum</c> instance itself is unusable:
-    /// its methods (and any attempt to retain a new dependent from it) throw
+    /// its methods (and any attempt to start a new borrow from it) throw
     /// <see cref="ObjectDisposedException"/> immediately, regardless of
     /// whether the physical native destruction happened yet.
     /// </remarks>

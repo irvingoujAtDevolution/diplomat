@@ -32,19 +32,17 @@ public partial class MethodOverloading: IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe MethodOverloading(Raw.MethodOverloading* handle, object[] edges)
+    internal unsafe MethodOverloading(Raw.MethodOverloading* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.MethodOverloading>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe MethodOverloading(RustHandle<Raw.MethodOverloading> inner)
+    internal unsafe MethodOverloading(
+        Raw.MethodOverloading* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.MethodOverloading>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -95,54 +93,33 @@ public partial class MethodOverloading: IDisposable
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.MethodOverloading> AcquireShared()
+    internal unsafe BorrowLease<Raw.MethodOverloading> BorrowShared()
     {
         RustHandle<Raw.MethodOverloading>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("MethodOverloading");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.MethodOverloading> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.MethodOverloading> BorrowExclusive()
     {
         RustHandle<Raw.MethodOverloading>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("MethodOverloading");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>MethodOverloading</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("MethodOverloading");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.MethodOverloading>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.MethodOverloading>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     /// <summary>
@@ -156,7 +133,7 @@ public partial class MethodOverloading: IDisposable
     /// is deferred until that borrower releases its own reference too — so
     /// existing borrowers obtained before this call remain fully valid.
     /// After this call, this <c>MethodOverloading</c> instance itself is unusable:
-    /// its methods (and any attempt to retain a new dependent from it) throw
+    /// its methods (and any attempt to start a new borrow from it) throw
     /// <see cref="ObjectDisposedException"/> immediately, regardless of
     /// whether the physical native destruction happened yet.
     /// </remarks>

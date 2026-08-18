@@ -32,19 +32,17 @@ public partial class OptionOpaqueChar
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe OptionOpaqueChar(Raw.OptionOpaqueChar* handle, object[] edges)
+    internal unsafe OptionOpaqueChar(Raw.OptionOpaqueChar* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.OptionOpaqueChar>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe OptionOpaqueChar(RustHandle<Raw.OptionOpaqueChar> inner)
+    internal unsafe OptionOpaqueChar(
+        Raw.OptionOpaqueChar* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.OptionOpaqueChar>.Borrowed(handle, capability, edges);
     }
 
     public void AssertChar(uint ch)
@@ -55,7 +53,7 @@ public partial class OptionOpaqueChar
             {
                 throw new ObjectDisposedException("OptionOpaqueChar");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.OptionOpaqueChar> selfLease = BorrowShared())
             {
                 Raw.OptionOpaqueChar.AssertChar(selfLease.Ptr, ch);
                 GC.KeepAlive(this);
@@ -75,54 +73,33 @@ public partial class OptionOpaqueChar
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.OptionOpaqueChar> AcquireShared()
+    internal unsafe BorrowLease<Raw.OptionOpaqueChar> BorrowShared()
     {
         RustHandle<Raw.OptionOpaqueChar>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("OptionOpaqueChar");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.OptionOpaqueChar> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.OptionOpaqueChar> BorrowExclusive()
     {
         RustHandle<Raw.OptionOpaqueChar>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("OptionOpaqueChar");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>OptionOpaqueChar</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("OptionOpaqueChar");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.OptionOpaqueChar>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.OptionOpaqueChar>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     ~OptionOpaqueChar()

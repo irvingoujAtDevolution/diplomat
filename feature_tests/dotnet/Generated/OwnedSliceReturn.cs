@@ -32,19 +32,17 @@ public partial class OwnedSliceReturn
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe OwnedSliceReturn(Raw.OwnedSliceReturn* handle, object[] edges)
+    internal unsafe OwnedSliceReturn(Raw.OwnedSliceReturn* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.OwnedSliceReturn>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe OwnedSliceReturn(RustHandle<Raw.OwnedSliceReturn> inner)
+    internal unsafe OwnedSliceReturn(
+        Raw.OwnedSliceReturn* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.OwnedSliceReturn>.Borrowed(handle, capability, edges);
     }
 
     public static RustVec MakeBytes(uint len)
@@ -68,54 +66,33 @@ public partial class OwnedSliceReturn
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.OwnedSliceReturn> AcquireShared()
+    internal unsafe BorrowLease<Raw.OwnedSliceReturn> BorrowShared()
     {
         RustHandle<Raw.OwnedSliceReturn>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("OwnedSliceReturn");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.OwnedSliceReturn> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.OwnedSliceReturn> BorrowExclusive()
     {
         RustHandle<Raw.OwnedSliceReturn>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("OwnedSliceReturn");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>OwnedSliceReturn</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("OwnedSliceReturn");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.OwnedSliceReturn>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.OwnedSliceReturn>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     ~OwnedSliceReturn()

@@ -32,19 +32,17 @@ public partial class One
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe One(Raw.One* handle, object[] edges)
+    internal unsafe One(Raw.One* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.One>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe One(RustHandle<Raw.One> inner)
+    internal unsafe One(
+        Raw.One* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.One>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -60,13 +58,13 @@ public partial class One
         {
             if (hold == null) throw new ArgumentNullException(nameof(hold));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            using (var holdLease = hold.AcquireShared())
-            using (var noholdLease = nohold.AcquireShared())
+            using (BorrowLease<Raw.One> holdLease = hold.BorrowShared())
+            using (BorrowLease<Raw.One> noholdLease = nohold.BorrowShared())
             {
                 Raw.One* result = Raw.One.Transitivity(holdLease.Ptr, noholdLease.Ptr);
                 GC.KeepAlive(hold);
                 GC.KeepAlive(nohold);
-                return new One(result, new object[] { hold.DiplomatRetainDependency() });
+                return new One(result, holdLease);
             }
         }
     }
@@ -84,13 +82,13 @@ public partial class One
         {
             if (hold == null) throw new ArgumentNullException(nameof(hold));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            using (var holdLease = hold.AcquireShared())
-            using (var noholdLease = nohold.AcquireShared())
+            using (BorrowLease<Raw.Two> holdLease = hold.BorrowShared())
+            using (BorrowLease<Raw.One> noholdLease = nohold.BorrowShared())
             {
                 Raw.One* result = Raw.One.Cycle(holdLease.Ptr, noholdLease.Ptr);
                 GC.KeepAlive(hold);
                 GC.KeepAlive(nohold);
-                return new One(result, new object[] { hold.DiplomatRetainDependency() });
+                return new One(result, holdLease);
             }
         }
     }
@@ -111,11 +109,11 @@ public partial class One
             if (c == null) throw new ArgumentNullException(nameof(c));
             if (d == null) throw new ArgumentNullException(nameof(d));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            using (var aLease = a.AcquireShared())
-            using (var bLease = b.AcquireShared())
-            using (var cLease = c.AcquireShared())
-            using (var dLease = d.AcquireShared())
-            using (var noholdLease = nohold.AcquireShared())
+            using (BorrowLease<Raw.One> aLease = a.BorrowShared())
+            using (BorrowLease<Raw.One> bLease = b.BorrowShared())
+            using (BorrowLease<Raw.Two> cLease = c.BorrowShared())
+            using (BorrowLease<Raw.Two> dLease = d.BorrowShared())
+            using (BorrowLease<Raw.Two> noholdLease = nohold.BorrowShared())
             {
                 Raw.One* result = Raw.One.ManyDependents(aLease.Ptr, bLease.Ptr, cLease.Ptr, dLease.Ptr, noholdLease.Ptr);
                 GC.KeepAlive(a);
@@ -123,7 +121,7 @@ public partial class One
                 GC.KeepAlive(c);
                 GC.KeepAlive(d);
                 GC.KeepAlive(nohold);
-                return new One(result, new object[] { a.DiplomatRetainDependency(), b.DiplomatRetainDependency(), c.DiplomatRetainDependency(), d.DiplomatRetainDependency() });
+                return new One(result, aLease, bLease, cLease, dLease);
             }
         }
     }
@@ -141,13 +139,13 @@ public partial class One
         {
             if (hold == null) throw new ArgumentNullException(nameof(hold));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            using (var holdLease = hold.AcquireShared())
-            using (var noholdLease = nohold.AcquireShared())
+            using (BorrowLease<Raw.Two> holdLease = hold.BorrowShared())
+            using (BorrowLease<Raw.One> noholdLease = nohold.BorrowShared())
             {
                 Raw.One* result = Raw.One.ReturnOutlivesParam(holdLease.Ptr, noholdLease.Ptr);
                 GC.KeepAlive(hold);
                 GC.KeepAlive(nohold);
-                return new One(result, new object[] { hold.DiplomatRetainDependency() });
+                return new One(result, holdLease);
             }
         }
     }
@@ -167,17 +165,17 @@ public partial class One
             if (left == null) throw new ArgumentNullException(nameof(left));
             if (right == null) throw new ArgumentNullException(nameof(right));
             if (bottom == null) throw new ArgumentNullException(nameof(bottom));
-            using (var topLease = top.AcquireShared())
-            using (var leftLease = left.AcquireShared())
-            using (var rightLease = right.AcquireShared())
-            using (var bottomLease = bottom.AcquireShared())
+            using (BorrowLease<Raw.One> topLease = top.BorrowShared())
+            using (BorrowLease<Raw.One> leftLease = left.BorrowShared())
+            using (BorrowLease<Raw.One> rightLease = right.BorrowShared())
+            using (BorrowLease<Raw.One> bottomLease = bottom.BorrowShared())
             {
                 Raw.One* result = Raw.One.DiamondTop(topLease.Ptr, leftLease.Ptr, rightLease.Ptr, bottomLease.Ptr);
                 GC.KeepAlive(top);
                 GC.KeepAlive(left);
                 GC.KeepAlive(right);
                 GC.KeepAlive(bottom);
-                return new One(result, new object[] { top.DiplomatRetainDependency(), left.DiplomatRetainDependency(), right.DiplomatRetainDependency(), bottom.DiplomatRetainDependency() });
+                return new One(result, topLease, leftLease, rightLease, bottomLease);
             }
         }
     }
@@ -197,17 +195,17 @@ public partial class One
             if (left == null) throw new ArgumentNullException(nameof(left));
             if (right == null) throw new ArgumentNullException(nameof(right));
             if (bottom == null) throw new ArgumentNullException(nameof(bottom));
-            using (var topLease = top.AcquireShared())
-            using (var leftLease = left.AcquireShared())
-            using (var rightLease = right.AcquireShared())
-            using (var bottomLease = bottom.AcquireShared())
+            using (BorrowLease<Raw.One> topLease = top.BorrowShared())
+            using (BorrowLease<Raw.One> leftLease = left.BorrowShared())
+            using (BorrowLease<Raw.One> rightLease = right.BorrowShared())
+            using (BorrowLease<Raw.One> bottomLease = bottom.BorrowShared())
             {
                 Raw.One* result = Raw.One.DiamondLeft(topLease.Ptr, leftLease.Ptr, rightLease.Ptr, bottomLease.Ptr);
                 GC.KeepAlive(top);
                 GC.KeepAlive(left);
                 GC.KeepAlive(right);
                 GC.KeepAlive(bottom);
-                return new One(result, new object[] { left.DiplomatRetainDependency(), bottom.DiplomatRetainDependency() });
+                return new One(result, leftLease, bottomLease);
             }
         }
     }
@@ -227,17 +225,17 @@ public partial class One
             if (left == null) throw new ArgumentNullException(nameof(left));
             if (right == null) throw new ArgumentNullException(nameof(right));
             if (bottom == null) throw new ArgumentNullException(nameof(bottom));
-            using (var topLease = top.AcquireShared())
-            using (var leftLease = left.AcquireShared())
-            using (var rightLease = right.AcquireShared())
-            using (var bottomLease = bottom.AcquireShared())
+            using (BorrowLease<Raw.One> topLease = top.BorrowShared())
+            using (BorrowLease<Raw.One> leftLease = left.BorrowShared())
+            using (BorrowLease<Raw.One> rightLease = right.BorrowShared())
+            using (BorrowLease<Raw.One> bottomLease = bottom.BorrowShared())
             {
                 Raw.One* result = Raw.One.DiamondRight(topLease.Ptr, leftLease.Ptr, rightLease.Ptr, bottomLease.Ptr);
                 GC.KeepAlive(top);
                 GC.KeepAlive(left);
                 GC.KeepAlive(right);
                 GC.KeepAlive(bottom);
-                return new One(result, new object[] { right.DiplomatRetainDependency(), bottom.DiplomatRetainDependency() });
+                return new One(result, rightLease, bottomLease);
             }
         }
     }
@@ -257,17 +255,17 @@ public partial class One
             if (left == null) throw new ArgumentNullException(nameof(left));
             if (right == null) throw new ArgumentNullException(nameof(right));
             if (bottom == null) throw new ArgumentNullException(nameof(bottom));
-            using (var topLease = top.AcquireShared())
-            using (var leftLease = left.AcquireShared())
-            using (var rightLease = right.AcquireShared())
-            using (var bottomLease = bottom.AcquireShared())
+            using (BorrowLease<Raw.One> topLease = top.BorrowShared())
+            using (BorrowLease<Raw.One> leftLease = left.BorrowShared())
+            using (BorrowLease<Raw.One> rightLease = right.BorrowShared())
+            using (BorrowLease<Raw.One> bottomLease = bottom.BorrowShared())
             {
                 Raw.One* result = Raw.One.DiamondBottom(topLease.Ptr, leftLease.Ptr, rightLease.Ptr, bottomLease.Ptr);
                 GC.KeepAlive(top);
                 GC.KeepAlive(left);
                 GC.KeepAlive(right);
                 GC.KeepAlive(bottom);
-                return new One(result, new object[] { bottom.DiplomatRetainDependency() });
+                return new One(result, bottomLease);
             }
         }
     }
@@ -288,11 +286,11 @@ public partial class One
             if (c == null) throw new ArgumentNullException(nameof(c));
             if (d == null) throw new ArgumentNullException(nameof(d));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            using (var aLease = a.AcquireShared())
-            using (var bLease = b.AcquireShared())
-            using (var cLease = c.AcquireShared())
-            using (var dLease = d.AcquireShared())
-            using (var noholdLease = nohold.AcquireShared())
+            using (BorrowLease<Raw.One> aLease = a.BorrowShared())
+            using (BorrowLease<Raw.One> bLease = b.BorrowShared())
+            using (BorrowLease<Raw.One> cLease = c.BorrowShared())
+            using (BorrowLease<Raw.One> dLease = d.BorrowShared())
+            using (BorrowLease<Raw.One> noholdLease = nohold.BorrowShared())
             {
                 Raw.One* result = Raw.One.DiamondAndNestedTypes(aLease.Ptr, bLease.Ptr, cLease.Ptr, dLease.Ptr, noholdLease.Ptr);
                 GC.KeepAlive(a);
@@ -300,7 +298,7 @@ public partial class One
                 GC.KeepAlive(c);
                 GC.KeepAlive(d);
                 GC.KeepAlive(nohold);
-                return new One(result, new object[] { a.DiplomatRetainDependency(), b.DiplomatRetainDependency(), c.DiplomatRetainDependency(), d.DiplomatRetainDependency() });
+                return new One(result, aLease, bLease, cLease, dLease);
             }
         }
     }
@@ -319,15 +317,15 @@ public partial class One
             if (explicitHold == null) throw new ArgumentNullException(nameof(explicitHold));
             if (implicitHold == null) throw new ArgumentNullException(nameof(implicitHold));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            using (var explicitHoldLease = explicitHold.AcquireShared())
-            using (var implicitHoldLease = implicitHold.AcquireShared())
-            using (var noholdLease = nohold.AcquireShared())
+            using (BorrowLease<Raw.One> explicitHoldLease = explicitHold.BorrowShared())
+            using (BorrowLease<Raw.One> implicitHoldLease = implicitHold.BorrowShared())
+            using (BorrowLease<Raw.One> noholdLease = nohold.BorrowShared())
             {
                 Raw.One* result = Raw.One.ImplicitBounds(explicitHoldLease.Ptr, implicitHoldLease.Ptr, noholdLease.Ptr);
                 GC.KeepAlive(explicitHold);
                 GC.KeepAlive(implicitHold);
                 GC.KeepAlive(nohold);
-                return new One(result, new object[] { explicitHold.DiplomatRetainDependency(), implicitHold.DiplomatRetainDependency() });
+                return new One(result, explicitHoldLease, implicitHoldLease);
             }
         }
     }
@@ -347,17 +345,17 @@ public partial class One
             if (implicit1 == null) throw new ArgumentNullException(nameof(implicit1));
             if (implicit2 == null) throw new ArgumentNullException(nameof(implicit2));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            using (var explicitLease = @explicit.AcquireShared())
-            using (var implicit1lease = implicit1.AcquireShared())
-            using (var implicit2lease = implicit2.AcquireShared())
-            using (var noholdLease = nohold.AcquireShared())
+            using (BorrowLease<Raw.One> explicitLease = @explicit.BorrowShared())
+            using (BorrowLease<Raw.One> implicit1lease = implicit1.BorrowShared())
+            using (BorrowLease<Raw.One> implicit2lease = implicit2.BorrowShared())
+            using (BorrowLease<Raw.One> noholdLease = nohold.BorrowShared())
             {
                 Raw.One* result = Raw.One.ImplicitBoundsDeep(explicitLease.Ptr, implicit1lease.Ptr, implicit2lease.Ptr, noholdLease.Ptr);
                 GC.KeepAlive(@explicit);
                 GC.KeepAlive(implicit1);
                 GC.KeepAlive(implicit2);
                 GC.KeepAlive(nohold);
-                return new One(result, new object[] { @explicit.DiplomatRetainDependency(), implicit1.DiplomatRetainDependency(), implicit2.DiplomatRetainDependency() });
+                return new One(result, explicitLease, implicit1lease, implicit2lease);
             }
         }
     }
@@ -374,54 +372,33 @@ public partial class One
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.One> AcquireShared()
+    internal unsafe BorrowLease<Raw.One> BorrowShared()
     {
         RustHandle<Raw.One>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("One");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.One> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.One> BorrowExclusive()
     {
         RustHandle<Raw.One>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("One");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>One</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("One");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.One>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.One>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     ~One()

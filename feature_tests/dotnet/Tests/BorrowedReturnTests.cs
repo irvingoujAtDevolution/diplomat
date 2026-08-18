@@ -42,21 +42,18 @@ public class BorrowedReturnTests
     }
 
     [Fact]
-    public void First_AliasesOwnerStorage_StringField()
+    public void First_BlocksOwnerMutationUntilReleased()
     {
         using OpaqueThinVec vec = OpaqueThinVec.CreateSingle(7, 1.5f, Utf8("before"));
 
-        // The borrow is taken BEFORE the mutation and never refreshed.
-        using OpaqueThin borrow = vec.First!;
+        OpaqueThin borrow = vec.First!;
         Assert.Equal("before", borrow.C);
+        Assert.Throws<InvalidOperationException>(() => vec.FirstC = "after");
 
-        // Replacing the heap-backed `String` on the owner (which drops the old
-        // buffer) is observed through the same outstanding borrow, which
-        // re-reads the field. If `First()` had handed back a copy, the borrow
-        // would still read "before"; seeing "after" proves it is an interior
-        // reference into the same Vec slot the owner just wrote.
+        borrow.Dispose();
         vec.FirstC = "after";
-        Assert.Equal("after", borrow.C);
+        using OpaqueThin refreshed = vec.First!;
+        Assert.Equal("after", refreshed.C);
     }
 
     [Fact]
@@ -219,8 +216,10 @@ public class BorrowedReturnTests
         // Reading through the iterator touches the Vec; the only thing keeping
         // that Vec alive is the owned iterator's edges. If they weren't wired,
         // the Vec would be finalized and this a UAF.
-        using OpaqueThin first = iter.Next()!;
-        Assert.Equal(42, first.A);
+        using (OpaqueThin first = iter.Next()!)
+        {
+            Assert.Equal(42, first.A);
+        }
         Assert.Null(iter.Next()); // single-element vec: exhausted after first Next()
         GC.KeepAlive(iter);
     }
@@ -241,8 +240,10 @@ public class BorrowedReturnTests
             GC.WaitForPendingFinalizers();
         }
 
-        using OpaqueThin view = iter.Next()!;
-        Assert.NotNull(view);
+        using (OpaqueThin view = iter.Next()!)
+        {
+            Assert.NotNull(view);
+        }
         Assert.Null(iter.Next());
         GC.KeepAlive(iter);
     }
@@ -276,9 +277,11 @@ public class BorrowedReturnTests
             GC.WaitForPendingFinalizers();
         }
 
-        using OpaqueThin first = iter.Next()!;
-        Assert.Equal(42, first.A);
-        Assert.Equal("rooted", first.C);
+        using (OpaqueThin first = iter.Next()!)
+        {
+            Assert.Equal(42, first.A);
+            Assert.Equal("rooted", first.C);
+        }
         Assert.Null(iter.Next());
         GC.KeepAlive(iter);
     }

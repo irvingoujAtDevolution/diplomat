@@ -32,19 +32,17 @@ public partial class RenamedMixinTest
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RenamedMixinTest(Raw.RenamedMixinTest* handle, object[] edges)
+    internal unsafe RenamedMixinTest(Raw.RenamedMixinTest* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.RenamedMixinTest>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe RenamedMixinTest(RustHandle<Raw.RenamedMixinTest> inner)
+    internal unsafe RenamedMixinTest(
+        Raw.RenamedMixinTest* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.RenamedMixinTest>.Borrowed(handle, capability, edges);
     }
 
     public static string Hello()
@@ -76,54 +74,33 @@ public partial class RenamedMixinTest
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.RenamedMixinTest> AcquireShared()
+    internal unsafe BorrowLease<Raw.RenamedMixinTest> BorrowShared()
     {
         RustHandle<Raw.RenamedMixinTest>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RenamedMixinTest");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.RenamedMixinTest> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.RenamedMixinTest> BorrowExclusive()
     {
         RustHandle<Raw.RenamedMixinTest>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RenamedMixinTest");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>RenamedMixinTest</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedMixinTest");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.RenamedMixinTest>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.RenamedMixinTest>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     ~RenamedMixinTest()

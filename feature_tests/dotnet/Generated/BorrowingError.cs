@@ -32,19 +32,17 @@ public partial class BorrowingError
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe BorrowingError(Raw.BorrowingError* handle, object[] edges)
+    internal unsafe BorrowingError(Raw.BorrowingError* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.BorrowingError>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe BorrowingError(RustHandle<Raw.BorrowingError> inner)
+    internal unsafe BorrowingError(
+        Raw.BorrowingError* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.BorrowingError>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -62,11 +60,11 @@ public partial class BorrowingError
             {
                 throw new ObjectDisposedException("BorrowingError");
             }
-            using (var selfLease = AcquireShared())
+            using (BorrowLease<Raw.BorrowingError> selfLease = BorrowShared())
             {
                 Raw.OpaqueThin* result = Raw.BorrowingError.OwnerFirst(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return result == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result, new object[] { this.DiplomatRetainDependency() }));
+                return result == null ? null : new OpaqueThin(result, BorrowKind.Shared, selfLease);
             }
         }
     }
@@ -83,54 +81,33 @@ public partial class BorrowingError
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.BorrowingError> AcquireShared()
+    internal unsafe BorrowLease<Raw.BorrowingError> BorrowShared()
     {
         RustHandle<Raw.BorrowingError>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("BorrowingError");
         }
-        return inner.AcquireShared();
+        return inner.BorrowShared();
     }
 
-    internal unsafe OperationLease<Raw.BorrowingError> AcquireExclusive()
+    internal unsafe BorrowLease<Raw.BorrowingError> BorrowExclusive()
     {
         RustHandle<Raw.BorrowingError>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("BorrowingError");
         }
-        return inner.AcquireExclusive();
-    }
-
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>BorrowingError</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
-    {
-        if (_inner is null || _inner.IsNull)
-        {
-            throw new ObjectDisposedException("BorrowingError");
-        }
-        return _inner.Retain();
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.BorrowingError>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.BorrowingError>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
     }
     ~BorrowingError()

@@ -8,82 +8,131 @@ namespace Somelib.Diplomat;
 /// Frees a Rust-owned <typeparamref name="T"/> by calling its native destructor.
 internal unsafe delegate void RustDestructor<T>(T* ptr) where T : unmanaged;
 
-internal enum BorrowKind
-{
-    Shared,
-    Exclusive,
-}
-
-internal readonly unsafe ref struct OperationLease<T> where T : unmanaged
-{
-    private readonly RustHandle<T>? _owner;
-    private readonly BorrowKind _kind;
-
-    internal OperationLease(RustHandle<T> owner, BorrowKind kind)
-    {
-        _owner = owner;
-        _kind = kind;
-        Ptr = owner.Ptr;
-    }
-
-    internal T* Ptr { get; }
-
-    public void Dispose() => _owner?.ReleaseBorrow(_kind);
-}
-
 /// <summary>
-/// Reference-counted native handle for one opaque. Starts at refcount 1 (the
-/// owning wrapper). <see cref="Retain"/> hands a dependent a token; when the
-/// count reaches zero this runs the native destructor first, then disposes
-/// every edge — never the other way around.
+/// Tracks the native lifetime and active borrow mode for one opaque value.
+/// The initial claim belongs to the wrapper. Each borrow lease adds one claim.
 /// </summary>
 /// <remarks>
-/// The refcount is updated with <see cref="Interlocked"/> so a user-thread
-/// <see cref="Retain"/> can race a GC finalizer thread releasing another
-/// dependent's token on the same handle without lost updates.
+/// When the last claim ends, this runs the native destructor before releasing
+/// the value's dependency edges.
 /// </remarks>
 internal sealed unsafe class RustHandle<T> where T : unmanaged
 {
     private T* _ptr;
     private readonly RustDestructor<T>? _destructor;
     private object[] _edges;
+    private readonly BorrowKind _capability;
     private int _refCount = 1;
     private int _borrowState;
 
-    private RustHandle(T* ptr, RustDestructor<T>? destructor, object[] edges)
+    private RustHandle(
+        T* ptr,
+        RustDestructor<T>? destructor,
+        BorrowKind capability,
+        object[] edges
+    )
     {
         _ptr = ptr;
         _destructor = destructor;
-        _edges = edges;
+        _capability = capability;
+        _edges = CaptureEdges(edges);
     }
 
     /// The C# side owns the pointer and will run its destructor on release.
     internal static RustHandle<T> Owned(T* ptr, RustDestructor<T> destructor) =>
-        new RustHandle<T>(ptr, destructor, System.Array.Empty<object>());
+        new RustHandle<T>(ptr, destructor, BorrowKind.Exclusive, System.Array.Empty<object>());
 
-    /// Owned handle that also roots pins and/or retain tokens in <paramref name="edges"/>.
+    /// Owned handle that also roots pins and/or borrow leases in <paramref name="edges"/>.
     internal static RustHandle<T> Owned(T* ptr, RustDestructor<T> destructor, object[] edges) =>
-        new RustHandle<T>(ptr, destructor, edges);
+        new RustHandle<T>(ptr, destructor, BorrowKind.Exclusive, edges);
 
     /// Rust still owns the pointer; release never runs a destructor.
-    internal static RustHandle<T> Borrowed(T* ptr) =>
-        new RustHandle<T>(ptr, null, System.Array.Empty<object>());
+    internal static RustHandle<T> Borrowed(T* ptr, BorrowKind capability) =>
+        new RustHandle<T>(ptr, null, capability, System.Array.Empty<object>());
 
     /// Borrowed handle that also roots keep-alive edges.
-    internal static RustHandle<T> Borrowed(T* ptr, object[] edges) =>
-        new RustHandle<T>(ptr, null, edges);
+    internal static RustHandle<T> Borrowed(T* ptr, BorrowKind capability, object[] edges) =>
+        new RustHandle<T>(ptr, null, capability, edges);
 
     internal T* Ptr => _ptr;
+
+    private static object[] CaptureEdges(object[] edges)
+    {
+        for (int i = 0; i < edges.Length; i++)
+        {
+            if (edges[i] is IBorrowLease lease)
+            {
+                edges[i] = lease.Transfer();
+            }
+        }
+
+        return edges;
+    }
 
     /// True once this handle's native pointer has been cleared (refcount hit zero,
     /// or a borrowed handle was never assigned).
     internal bool IsNull => _ptr is null;
 
-    internal OperationLease<T> AcquireShared()
+    internal BorrowLease<T> BorrowShared() => Acquire(BorrowKind.Shared);
+
+    internal BorrowLease<T> BorrowExclusive()
     {
-        if (IsNull)
+        if (_capability == BorrowKind.Shared)
         {
-            throw new ObjectDisposedException(typeof(T).Name);
+            throw new InvalidOperationException("This wrapper only carries a shared borrow.");
+        }
+
+        return Acquire(BorrowKind.Exclusive);
+    }
+
+    private BorrowLease<T> Acquire(BorrowKind kind)
+    {
+        RetainClaim();
+        bool stateAcquired = false;
+        try
+        {
+            AcquireBorrowState(kind);
+            stateAcquired = true;
+            return new BorrowLease<T>(this, kind);
+        }
+        catch
+        {
+            if (stateAcquired)
+            {
+                ReleaseBorrowState(kind);
+            }
+            Decrement();
+            throw;
+        }
+    }
+
+    private void RetainClaim()
+    {
+        while (true)
+        {
+            int current = Volatile.Read(ref _refCount);
+            if (current == 0)
+            {
+                throw new ObjectDisposedException(typeof(T).Name);
+            }
+
+            if (Interlocked.CompareExchange(ref _refCount, current + 1, current) == current)
+            {
+                return;
+            }
+        }
+    }
+
+    private void AcquireBorrowState(BorrowKind kind)
+    {
+        if (kind == BorrowKind.Exclusive)
+        {
+            if (Interlocked.CompareExchange(ref _borrowState, -1, 0) != 0)
+            {
+                throw new InvalidOperationException("Another borrow is already active.");
+            }
+
+            return;
         }
 
         while (true)
@@ -96,27 +145,18 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
 
             if (Interlocked.CompareExchange(ref _borrowState, current + 1, current) == current)
             {
-                return new OperationLease<T>(this, BorrowKind.Shared);
+                return;
             }
         }
     }
 
-    internal OperationLease<T> AcquireExclusive()
+    internal void ReleaseBorrow(BorrowKind kind)
     {
-        if (IsNull)
-        {
-            throw new ObjectDisposedException(typeof(T).Name);
-        }
-
-        if (Interlocked.CompareExchange(ref _borrowState, -1, 0) != 0)
-        {
-            throw new InvalidOperationException("Another borrow is already active.");
-        }
-
-        return new OperationLease<T>(this, BorrowKind.Exclusive);
+        ReleaseBorrowState(kind);
+        Decrement();
     }
 
-    internal void ReleaseBorrow(BorrowKind kind)
+    private void ReleaseBorrowState(BorrowKind kind)
     {
         if (kind == BorrowKind.Shared)
         {
@@ -125,25 +165,6 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
         else
         {
             Volatile.Write(ref _borrowState, 0);
-        }
-    }
-
-    /// Bumps the count for one new direct dependent and returns its token.
-    /// The caller must dispose the token exactly once from its own cleanup.
-    internal IDisposable Retain()
-    {
-        while (true)
-        {
-            int current = Volatile.Read(ref _refCount);
-            if (current == 0)
-            {
-                throw new ObjectDisposedException(typeof(T).Name);
-            }
-
-            if (Interlocked.CompareExchange(ref _refCount, current + 1, current) == current)
-            {
-                return new DependencyToken(this);
-            }
         }
     }
 
@@ -172,22 +193,4 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
         }
     }
 
-    /// One retained borrow-dependency token. A dependent holds one of these
-    /// per direct source and disposes it exactly once from its own cleanup.
-    private sealed class DependencyToken : IDisposable
-    {
-        private RustHandle<T>? _owner;
-
-        internal DependencyToken(RustHandle<T> owner)
-        {
-            _owner = owner;
-        }
-
-        public void Dispose()
-        {
-            RustHandle<T>? owner = _owner;
-            _owner = null;
-            owner?.Decrement();
-        }
-    }
 }

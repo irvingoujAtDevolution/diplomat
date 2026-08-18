@@ -3,9 +3,8 @@
 //! Generates C# bindings that call into the Diplomat-generated C ABI via
 //! P/Invoke (`[DllImport]` externs with the `Cdecl` calling convention).
 //! Every opaque Rust handle maps to a partial class backed by the same
-//! `RustHandle<T>` (`tool/templates/dotnet/RustHandle.cs.jinja`) — a
-//! reference-counted class holding pointer, destructor, edges, and refcount
-//! (see "Reference counting" below).
+//! `RustHandle<T>` (`tool/templates/dotnet/RustHandle.cs.jinja`) — a class that
+//! holds the pointer, destructor, edges, lifetime claims, and borrow state.
 //! Opaques are finalizer-only by default; `#[diplomat::attr(dotnet, manually_disposable)]`
 //! opts a type into a public `IDisposable` surface.
 //! Slices, `&DiplomatStr` (unvalidated UTF-8) and `&DiplomatStr16` pin
@@ -40,8 +39,8 @@
 //!   .NET Framework floor, the `DiplomatPinnedMemory` helper is emitted only
 //!   when a run actually pins (see `uses_pinned_memory`).
 //! * Borrowed opaque returns (`&T`, `&mut T`, `Option<&T>`) use a non-owning
-//!   `RustHandle<T>.Borrowed(...)` and retain the borrowed-from receiver via
-//!   `DiplomatRetainDependency()` (see below).
+//!   handle. The returned wrapper takes over the input's current shared or
+//!   exclusive lease.
 //! * Borrowed string/slice returns (`&'a str` / `&'a [u8]` / `&'a [u32]`) wrap
 //!   the same `(ptr, len)` shape as an input slice in `DiplomatBorrowedSpan<T>`,
 //!   rooted with the same retained dependencies a borrowed opaque return
@@ -65,36 +64,25 @@
 //! * Lifetime-carrying owned returns (`Box<T<'a>>`) from opaque wrappers get
 //!   XML lifetime remarks.
 //!
-//! ## Reference counting
-//!
-//! **This is a narrow-scope prototype, not a production-hardened design** —
-//! it intentionally ignores concurrent-call/concurrent-`Dispose` races,
-//! `Result` transactional rollback on partial failure, and other edge cases
-//! called out inline below.
+//! ## Borrow leases
 //!
 //! Every opaque wrapper has exactly one shape: a `RustHandle<Raw.T>? _inner`.
-//! Pins and retain tokens live on that handle, not on a separate wrapper
-//! field. There is no separate "borrow source" lane and no compile-time
-//! classification pass — every opaque unconditionally exposes
-//! `internal unsafe IDisposable DiplomatRetainDependency()`.
+//! Pins and transferred borrow leases live on that handle, not on a separate
+//! wrapper field. Every opaque exposes `BorrowShared()` and `BorrowExclusive()`.
 //!
-//! `RustHandle<T>` is always a small reference-counted class: pointer,
-//! destructor, edges, and an `Interlocked`-updated `int _refCount` starting at 1.
-//! Retain uses a CAS loop so a user-thread retain cannot resurrect a handle
-//! the finalizer thread already drove to zero; Decrement uses
-//! `Interlocked.Decrement` so only one thread runs teardown. No `lock`, no
-//! `SafeHandle`.
+//! Each `BorrowLease<T>` owns both a lifetime claim and a shared/exclusive mode.
+//! Acquisition first adds the claim, then changes the borrow state. Failure
+//! rolls both changes back. A returned borrowed value transfers that same lease
+//! into its edge array instead of acquiring a second lifetime-only token.
 //!
 //! Cleanup order in `RustHandle<T>.Decrement()` (once the refcount reaches
 //! zero): run the native destructor/Rust `Drop` first, then dispose every
-//! edge. Pins and retain tokens both implement `IDisposable`. This ensures a
+//! edge. Pins and borrow leases both implement `IDisposable`. This ensures a
 //! dependent's own Rust destructor always finishes reading whatever it
 //! borrowed before that source can be destroyed, and that a wrapper's own
 //! pinned buffers are never released before its own destructor has read them
 //! — even when that destructor call itself ends up deferred behind a
-//! still-outstanding dependent. See `gen::method::opaque_edges_expr` for how
-//! a return's retained dependencies (`{expr}.DiplomatRetainDependency()`) and
-//! pins are merged into one combined `edges` constructor argument.
+//! still-outstanding dependent.
 
 use askama::Template;
 use diplomat_core::hir::{BackendAttrSupport, DocsUrlGenerator, TypeContext};
@@ -168,6 +156,12 @@ struct DiplomatWriteTemplate<'a> {
 struct NativeLibTemplate<'a> {
     namespace: &'a str,
     dylib_name: &'a str,
+}
+
+#[derive(Template)]
+#[template(path = "dotnet/BorrowLease.cs.jinja", escape = "none")]
+struct BorrowLeaseTemplate<'a> {
+    namespace: &'a str,
 }
 
 /// `RustHandle<T>` — a pointer that carries its own free decision (owned
@@ -547,6 +541,15 @@ pub(crate) fn run<'tcx>(
     );
     add_cs_file(
         &files,
+        "BorrowLease.cs".to_string(),
+        BorrowLeaseTemplate {
+            namespace: &namespace,
+        }
+        .render()
+        .expect("BorrowLease template render failed"),
+    );
+    add_cs_file(
+        &files,
         "RustHandle.cs".to_string(),
         RustHandleTemplate {
             namespace: &namespace,
@@ -814,7 +817,7 @@ mod test {
             "borrowed return should build the wrapper via the non-owning Borrowed factory:\n{foo}"
         );
         assert!(
-            foo.contains("RustHandle<Raw.Foo>") && foo.contains("inner.Release()"),
+            foo.contains("RustHandle<Raw.Foo>") && foo.contains("inner?.Release()"),
             "a borrow-target wrapper should carry ownership in the handle and free via Release:\n{foo}"
         );
         assert!(
@@ -823,8 +826,8 @@ mod test {
         );
     }
 
-    // A borrowed opaque return retains the receiver via
-    // `DiplomatRetainDependency()` instead of just GC-rooting it bare, so the
+    // A borrowed opaque return transfers the receiver's current lease instead
+    // of just GC-rooting it bare, so the
     // *native* source allocation stays alive — not just the managed wrapper —
     // until the returned view's own cleanup releases it.
     #[test]
@@ -852,20 +855,14 @@ mod test {
 
         let foo = files.get("Foo.cs").expect("expected Foo.cs output");
         assert!(
-            foo.contains("new Foo(RustHandle<Raw.Foo>.Borrowed(result, new object[] { this.DiplomatRetainDependency() }))"),
-            "a borrowed opaque return should retain the receiver directly, at \
-             construction time:\n{foo}"
-        );
-        assert!(
-            foo.contains("internal unsafe IDisposable DiplomatRetainDependency()"),
-            "every opaque wrapper should expose DiplomatRetainDependency() so \
-             dependents elsewhere can retain its native resource state:\n{foo}"
+            foo.contains("new Foo(result, BorrowKind.Shared, selfLease)"),
+            "a borrowed opaque return should take over the receiver's shared lease:\n{foo}"
         );
     }
 
     // An owned-but-borrowing return (a value with its own Rust destructor
     // that also borrows a receiver/parameter's lifetime) must retain that
-    // source via `DiplomatRetainDependency()` at construction time. Every
+    // source by transferring its current lease at construction time. Every
     // opaque — Owner and Dependent alike — uses the same uniform
     // `RustHandle<T>` + combined `_edges` array shape.
     #[test]
@@ -896,9 +893,7 @@ mod test {
 
         let owner = files.get("Owner.cs").expect("expected Owner.cs output");
         assert!(
-            owner.contains(
-                "new Dependent(result, new object[] { this.DiplomatRetainDependency() })"
-            ),
+            owner.contains("new Dependent(result, selfLease)"),
             "an owned-borrowing return should retain the receiver directly, \
              right at the constructor call:\n{owner}"
         );
@@ -907,7 +902,9 @@ mod test {
             .get("Dependent.cs")
             .expect("expected Dependent.cs output");
         assert!(
-            dependent.contains("internal unsafe Dependent(Raw.Dependent* handle, object[] edges)"),
+            dependent.contains(
+                "internal unsafe Dependent(Raw.Dependent* handle, params object[] edges)"
+            ),
             "the owned-borrowing wrapper should accept its retained \
              dependencies through the same combined `edges` constructor \
              parameter every opaque uses:\n{dependent}"
@@ -964,12 +961,12 @@ mod test {
         // The combined edges array must be a constructor parameter of
         // `RustHandle<T>` itself (not a separately-released field on
         // the generated wrapper), so both a wrapper's own pins and any
-        // retained dependency tokens live behind the exact same
+        // transferred dependency leases live behind the exact same
         // refcount-reaching-zero gate as the Rust destructor.
         assert!(
-            rust_handle.contains(
-                "private RustHandle(T* ptr, RustDestructor<T>? destructor, object[] edges)"
-            ),
+            rust_handle.contains("private RustHandle(")
+                && rust_handle.contains("BorrowKind capability,")
+                && rust_handle.contains("object[] edges"),
             "edges must be threaded into RustHandle's own constructor:\n{rust_handle}"
         );
 
@@ -1821,12 +1818,12 @@ mod test {
 
         let owner = files.get("Owner.cs").expect("expected Owner.cs output");
         assert!(
-            owner.contains(".Borrowed("),
+            owner.contains("new Owner(result.Ok, BorrowKind.Shared, selfLease)"),
             "Ok path should use the non-owning Borrowed factory:\n{owner}"
         );
         assert!(
             owner.contains(
-                "throw new BorrowingErrorException(new BorrowingError(result.Err, new object[] { this.DiplomatRetainDependency() }));"
+                "throw new BorrowingErrorException(new BorrowingError(result.Err, selfLease));"
             ),
             "error path should retain the receiver directly, at the inner error's construction:\n{owner}"
         );
@@ -1871,7 +1868,7 @@ mod test {
         let owner = files.get("Owner.cs").expect("expected Owner.cs output");
         assert!(
             owner.contains(
-                "throw new BorrowingErrorException(new BorrowingError(result.Err, new object[] { this.DiplomatRetainDependency() }));"
+                "throw new BorrowingErrorException(new BorrowingError(result.Err, selfLease));"
             ),
             "error path should retain the receiver directly, at the inner error's construction:\n{owner}"
         );
@@ -2208,7 +2205,7 @@ mod test {
         );
         assert!(
             my_string.contains(
-                "new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { this.DiplomatRetainDependency() })"
+                "new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { selfLease.Transfer() })"
             ),
             "the returned view should retain `this` as an RC dependency:\n{my_string}"
         );
@@ -2237,7 +2234,7 @@ mod test {
             span.contains("~DiplomatBorrowedSpan()"),
             "the view finalizer must release retained source dependencies:\n{span}"
         );
-        // Oversize construction must free caller-built retain tokens and
+        // Oversize construction must free caller-built borrow tokens and
         // suppress the incomplete finalizer before throwing - same shape as
         // RustVec. Throwing with `_edges` still null leaves the finalizer to
         // NRE (swallowed) and leak the parent native retain.
@@ -2288,7 +2285,7 @@ mod test {
         );
         assert!(
             buffer.contains(
-                "new DiplomatBorrowedSpan<uint>(result.Ptr, result.Len, new object[] { this.DiplomatRetainDependency() })"
+                "new DiplomatBorrowedSpan<uint>(result.Ptr, result.Len, new object[] { selfLease.Transfer() })"
             ),
             "the returned view should retain `this` as an RC dependency:\n{buffer}"
         );
@@ -2889,8 +2886,7 @@ mod test {
     }
 
     // A property and a method can collide just as easily as two properties, and
-    // the template's own members (`AsFFI`, `FromFFI`, plus opt-in `Dispose`) are
-    // in the same namespace.
+    // the template's own members are in the same namespace.
     #[test]
     fn a_property_colliding_with_a_method_is_rejected() {
         let (_files, errors) = run_dotnet(property_test_module(quote! {
@@ -3112,23 +3108,30 @@ mod test {
     }
 
     #[test]
-    fn an_opaque_method_colliding_with_cleanup_is_rejected() {
+    fn opaque_methods_colliding_with_generated_helpers_are_rejected() {
         let (_files, errors) = run_dotnet(property_test_module(quote! {
             pub fn cleanup(&self) {
+                unimplemented!()
+            }
+
+            pub fn borrow_shared(&self) {
                 unimplemented!()
             }
         }));
 
         assert_eq!(
             errors.len(),
-            1,
-            "expected exactly one diagnostic: {errors:?}"
+            2,
+            "expected exactly two diagnostics: {errors:?}"
         );
-        assert!(
-            errors[0].contains("two members named `Cleanup`"),
-            "the collision must be reported; got: {}",
-            errors[0]
-        );
+        for member in ["Cleanup", "BorrowShared"] {
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.contains(&format!("two members named `{member}`"))),
+                "the {member} collision must be reported; got: {errors:?}"
+            );
+        }
     }
 
     #[test]
@@ -3706,160 +3709,6 @@ mod test {
             !config.contains("public nuint Size"),
             "an unannotated method must not become a property, got:
 {config}"
-        );
-    }
-
-    fn generated_method<'a>(source: &'a str, signature: &str) -> &'a str {
-        let start = source
-            .find(signature)
-            .unwrap_or_else(|| panic!("missing generated method `{signature}`:\n{source}"));
-        let open = start
-            + source[start..]
-                .find('{')
-                .unwrap_or_else(|| panic!("missing body for `{signature}`:\n{source}"));
-        let mut depth = 0usize;
-        for (offset, ch) in source[open..].char_indices() {
-            match ch {
-                '{' => depth += 1,
-                '}' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        return &source[start..=open + offset];
-                    }
-                }
-                _ => {}
-            }
-        }
-        panic!("unterminated generated method `{signature}`:\n{source}")
-    }
-
-    #[test]
-    fn borrow_runtime_exposes_fail_fast_shared_and_exclusive_acquisition() {
-        let (files, errors) = run_dotnet(quote! {
-            #[diplomat::bridge]
-            mod ffi {
-                #[diplomat::opaque_mut]
-                pub struct Guarded;
-            }
-        });
-
-        assert!(errors.is_empty(), "unexpected diagnostics: {errors:?}");
-        let runtime = files
-            .get("RustHandle.cs")
-            .expect("expected RustHandle.cs output");
-        assert!(
-            runtime.contains("BorrowKind")
-                && runtime.contains("AcquireShared")
-                && runtime.contains("AcquireExclusive"),
-            "the runtime must expose distinct fail-fast shared/exclusive acquisition:\n{runtime}"
-        );
-        assert!(
-            runtime.contains("InvalidOperationException")
-                && runtime.contains("ObjectDisposedException"),
-            "borrow conflicts and disposed handles need distinct managed failures:\n{runtime}"
-        );
-        assert!(
-            !runtime.contains("ManagedThreadId")
-                && !runtime.contains("Monitor.")
-                && !runtime.contains("Mutex")
-                && !runtime.contains("Semaphore"),
-            "borrow safety must use capabilities and fail fast without thread affinity or blocking:\n{runtime}"
-        );
-    }
-
-    // This stays at the generated layer because an unguarded mutable overlap would enter Rust UB.
-    #[test]
-    fn opaque_receivers_and_parameters_acquire_borrows_before_the_raw_call() {
-        let (files, errors) = run_dotnet(quote! {
-            #[diplomat::bridge]
-            mod ffi {
-                #[diplomat::opaque_mut]
-                pub struct Guarded;
-
-                impl Guarded {
-                    pub fn read(&self) -> bool {
-                        unimplemented!()
-                    }
-
-                    pub fn write(&mut self) {
-                        unimplemented!()
-                    }
-
-                    pub fn mix(&mut self, other: &Guarded) {
-                        unimplemented!()
-                    }
-
-                    pub fn maybe_other(&self, other: Option<&Guarded>) -> bool {
-                        unimplemented!()
-                    }
-                }
-            }
-        });
-
-        assert!(errors.is_empty(), "unexpected diagnostics: {errors:?}");
-        let guarded = files.get("Guarded.cs").expect("expected Guarded.cs output");
-        let read = generated_method(guarded, "public bool Read()");
-        let write = generated_method(guarded, "public void Write()");
-        let mix = generated_method(guarded, "public void Mix(Guarded other)");
-        let maybe = generated_method(guarded, "public bool MaybeOther(Guarded? other)");
-
-        assert!(
-            read.contains("using (var selfLease = AcquireShared())")
-                && !read.contains("Raw.Guarded.Read(AsFFI())"),
-            "a shared receiver must use its acquired pointer:\n{read}"
-        );
-        assert!(
-            write.contains("using (var selfLease = AcquireExclusive())")
-                && !write.contains("Raw.Guarded.Write(AsFFI())"),
-            "a mutable receiver must use its acquired pointer:\n{write}"
-        );
-        assert!(
-            mix.contains("AcquireExclusive")
-                && mix.contains("AcquireShared")
-                && !mix.contains("other.AsFFI()"),
-            "self and opaque parameters must share the same borrow domain:\n{mix}"
-        );
-        assert!(
-            maybe.contains("other == null")
-                && maybe.contains("AcquireShared")
-                && !maybe.contains("other.AsFFI()"),
-            "a null optional opaque must skip acquisition while a value acquires shared:\n{maybe}"
-        );
-    }
-
-    #[test]
-    fn multiple_opaque_inputs_release_partial_acquisition_in_reverse_scope_order() {
-        let (files, errors) = run_dotnet(quote! {
-            #[diplomat::bridge]
-            mod ffi {
-                #[diplomat::opaque_mut]
-                pub struct Guarded;
-
-                impl Guarded {
-                    pub fn combine(&mut self, left: &Guarded, right: &mut Guarded) {
-                        unimplemented!()
-                    }
-                }
-            }
-        });
-
-        assert!(errors.is_empty(), "unexpected diagnostics: {errors:?}");
-        let guarded = files.get("Guarded.cs").expect("expected Guarded.cs output");
-        let combine = generated_method(guarded, "public void Combine(Guarded left, Guarded right)");
-
-        assert!(
-            combine.matches("Acquire").count() >= 3,
-            "self and both opaque parameters need independent acquisition:\n{combine}"
-        );
-        assert!(
-            combine.matches("using (").count() >= 3,
-            "partial acquisition and every exit path must release in scope order:\n{combine}"
-        );
-        assert!(
-            !combine.contains("AsFFI()")
-                && !combine.contains("leftRaw")
-                && !combine.contains("rightRaw"),
-            "the raw call must use pointers captured by its operation leases:\n{combine}"
         );
     }
 }
