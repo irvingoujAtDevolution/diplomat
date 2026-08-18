@@ -1705,7 +1705,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                         return None;
                     }
                     // `Option<Box<[u8]>>` is a tagged DiplomatOption on the wire and
-                    // `RustVec?` idiomaticly (None → null), same Path B as
+                    // `RustVec?` idiomatically (None → null), same Path B as
                     // primitives/structs/enums.
                     DotnetReturnType::OwnedByteSlice
                 }

@@ -2043,7 +2043,7 @@ mod test {
         let errors = lowering_errors(tk_stream, true);
         assert_eq!(errors.len(), 1, "unexpected diagnostics: {errors:?}");
         assert!(
-            errors[0].contains("except for method-return `Box<[u8]>`"),
+            errors[0].contains("except for top-level method-return `Box<[u8]>`"),
             "unexpected diagnostic: {}",
             errors[0]
         );
@@ -2241,7 +2241,7 @@ mod test {
             !errors.is_empty()
                 && errors
                     .iter()
-                    .any(|e| e.contains("except for method-return `Box<[u8]>`")),
+                    .any(|e| e.contains("except for top-level method-return `Box<[u8]>`")),
             "unexpected diagnostics: {errors:?}"
         );
     }

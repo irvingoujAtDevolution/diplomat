@@ -1591,7 +1591,7 @@ impl<'ast> LoweringContext<'ast> {
             ast::TypeName::PrimitiveSlice(None, _, _stdlib)
             | ast::TypeName::StrReference(None, _, _stdlib) => {
                 self.errors.push(LoweringError::Other(
-                    "Owned slices cannot be returned, except for method-return `Box<[u8]>` (including `Result`/`Option` payloads) on backends supporting `owned_byte_slice_returns`.".into(),
+                    "Owned slices cannot be returned, except for top-level method-return `Box<[u8]>` (including as a `Result`/`Option` payload) on backends supporting `owned_byte_slice_returns`.".into(),
                 ));
                 Err(())
             }
