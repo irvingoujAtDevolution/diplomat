@@ -79,9 +79,12 @@ public partial class OptionOpaque: IDisposable
             {
                 throw new ObjectDisposedException("OptionOpaque");
             }
-            var result = Raw.OptionOpaque.OptionIsize(AsFFI());
-            GC.KeepAlive(this);
-            return result.IsSome ? result.Value : (nint?)null;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.OptionOpaque.OptionIsize(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return result.IsSome ? result.Value : (nint?)null;
+            }
         }
     }
 
@@ -93,9 +96,12 @@ public partial class OptionOpaque: IDisposable
             {
                 throw new ObjectDisposedException("OptionOpaque");
             }
-            var result = Raw.OptionOpaque.OptionUsize(AsFFI());
-            GC.KeepAlive(this);
-            return result.IsSome ? result.Value : (nuint?)null;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.OptionOpaque.OptionUsize(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return result.IsSome ? result.Value : (nuint?)null;
+            }
         }
     }
 
@@ -107,9 +113,12 @@ public partial class OptionOpaque: IDisposable
             {
                 throw new ObjectDisposedException("OptionOpaque");
             }
-            var result = Raw.OptionOpaque.OptionI32(AsFFI());
-            GC.KeepAlive(this);
-            return result.IsSome ? result.Value : (int?)null;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.OptionOpaque.OptionI32(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return result.IsSome ? result.Value : (int?)null;
+            }
         }
     }
 
@@ -121,9 +130,12 @@ public partial class OptionOpaque: IDisposable
             {
                 throw new ObjectDisposedException("OptionOpaque");
             }
-            var result = Raw.OptionOpaque.OptionU32(AsFFI());
-            GC.KeepAlive(this);
-            return result.IsSome ? result.Value : (uint?)null;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.OptionOpaque.OptionU32(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return result.IsSome ? result.Value : (uint?)null;
+            }
         }
     }
 
@@ -135,8 +147,11 @@ public partial class OptionOpaque: IDisposable
             {
                 throw new ObjectDisposedException("OptionOpaque");
             }
-            Raw.OptionOpaque.AssertInteger(AsFFI(), i);
-            GC.KeepAlive(this);
+            using (var selfLease = AcquireShared())
+            {
+                Raw.OptionOpaque.AssertInteger(selfLease.Ptr, i);
+                GC.KeepAlive(this);
+            }
         }
     }
 
@@ -144,11 +159,12 @@ public partial class OptionOpaque: IDisposable
     {
         unsafe
         {
-            Raw.OptionOpaque* argRaw = arg == null ? null : arg.AsFFI();
-            if (arg != null && argRaw == null) throw new ObjectDisposedException(nameof(OptionOpaque));
-            var result = Raw.OptionOpaque.OptionOpaqueArgument(argRaw);
-            GC.KeepAlive(arg);
-            return result;
+            using (var argLease = arg == null ? default(OperationLease<Raw.OptionOpaque>) : arg.AcquireShared())
+            {
+                var result = Raw.OptionOpaque.OptionOpaqueArgument(argLease.Ptr);
+                GC.KeepAlive(arg);
+                return result;
+            }
         }
     }
 
@@ -162,6 +178,26 @@ public partial class OptionOpaque: IDisposable
             throw new ObjectDisposedException("OptionOpaque");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.OptionOpaque> AcquireShared()
+    {
+        RustHandle<Raw.OptionOpaque>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("OptionOpaque");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.OptionOpaque> AcquireExclusive()
+    {
+        RustHandle<Raw.OptionOpaque>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("OptionOpaque");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

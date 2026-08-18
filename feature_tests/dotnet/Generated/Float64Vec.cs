@@ -71,16 +71,19 @@ public partial class Float64Vec: IDisposable
             {
                 throw new ObjectDisposedException("Float64Vec");
             }
-            DiplomatWrite writeable = new DiplomatWrite();
-            try
+            using (var selfLease = AcquireShared())
             {
-                Raw.Float64Vec.ToString(AsFFI(), &writeable);
-                GC.KeepAlive(this);
-                return writeable.ToUnicode();
-            }
-            finally
-            {
-                writeable.Dispose();
+                DiplomatWrite writeable = new DiplomatWrite();
+                try
+                {
+                    Raw.Float64Vec.ToString(selfLease.Ptr, &writeable);
+                    GC.KeepAlive(this);
+                    return writeable.ToUnicode();
+                }
+                finally
+                {
+                    writeable.Dispose();
+                }
             }
         }
     }
@@ -93,9 +96,12 @@ public partial class Float64Vec: IDisposable
             {
                 throw new ObjectDisposedException("Float64Vec");
             }
-            var result = Raw.Float64Vec.Get(AsFFI(), i);
-            GC.KeepAlive(this);
-            return result.IsSome ? result.Value : (double?)null;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.Float64Vec.Get(selfLease.Ptr, i);
+                GC.KeepAlive(this);
+                return result.IsSome ? result.Value : (double?)null;
+            }
         }
     }
 
@@ -109,6 +115,26 @@ public partial class Float64Vec: IDisposable
             throw new ObjectDisposedException("Float64Vec");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.Float64Vec> AcquireShared()
+    {
+        RustHandle<Raw.Float64Vec>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("Float64Vec");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.Float64Vec> AcquireExclusive()
+    {
+        RustHandle<Raw.Float64Vec>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("Float64Vec");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

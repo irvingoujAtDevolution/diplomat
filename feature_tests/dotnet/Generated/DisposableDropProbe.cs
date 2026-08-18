@@ -67,9 +67,12 @@ public partial class DisposableDropProbe: IDisposable
             {
                 throw new ObjectDisposedException("DisposableDropProbe");
             }
-            var result = Raw.DisposableDropProbe.IsAlive(AsFFI());
-            GC.KeepAlive(this);
-            return result;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.DisposableDropProbe.IsAlive(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return result;
+            }
         }
     }
 
@@ -99,6 +102,26 @@ public partial class DisposableDropProbe: IDisposable
             throw new ObjectDisposedException("DisposableDropProbe");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.DisposableDropProbe> AcquireShared()
+    {
+        RustHandle<Raw.DisposableDropProbe>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("DisposableDropProbe");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.DisposableDropProbe> AcquireExclusive()
+    {
+        RustHandle<Raw.DisposableDropProbe>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("DisposableDropProbe");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

@@ -59,15 +59,15 @@ public partial class One
         unsafe
         {
             if (hold == null) throw new ArgumentNullException(nameof(hold));
-            Raw.One* holdRaw = hold.AsFFI();
-            if (holdRaw == null) throw new ObjectDisposedException(nameof(One));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            Raw.One* noholdRaw = nohold.AsFFI();
-            if (noholdRaw == null) throw new ObjectDisposedException(nameof(One));
-            Raw.One* result = Raw.One.Transitivity(holdRaw, noholdRaw);
-            GC.KeepAlive(hold);
-            GC.KeepAlive(nohold);
-            return new One(result, new object[] { hold.DiplomatRetainDependency() });
+            using (var holdLease = hold.AcquireShared())
+            using (var noholdLease = nohold.AcquireShared())
+            {
+                Raw.One* result = Raw.One.Transitivity(holdLease.Ptr, noholdLease.Ptr);
+                GC.KeepAlive(hold);
+                GC.KeepAlive(nohold);
+                return new One(result, new object[] { hold.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -83,15 +83,15 @@ public partial class One
         unsafe
         {
             if (hold == null) throw new ArgumentNullException(nameof(hold));
-            Raw.Two* holdRaw = hold.AsFFI();
-            if (holdRaw == null) throw new ObjectDisposedException(nameof(Two));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            Raw.One* noholdRaw = nohold.AsFFI();
-            if (noholdRaw == null) throw new ObjectDisposedException(nameof(One));
-            Raw.One* result = Raw.One.Cycle(holdRaw, noholdRaw);
-            GC.KeepAlive(hold);
-            GC.KeepAlive(nohold);
-            return new One(result, new object[] { hold.DiplomatRetainDependency() });
+            using (var holdLease = hold.AcquireShared())
+            using (var noholdLease = nohold.AcquireShared())
+            {
+                Raw.One* result = Raw.One.Cycle(holdLease.Ptr, noholdLease.Ptr);
+                GC.KeepAlive(hold);
+                GC.KeepAlive(nohold);
+                return new One(result, new object[] { hold.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -107,27 +107,24 @@ public partial class One
         unsafe
         {
             if (a == null) throw new ArgumentNullException(nameof(a));
-            Raw.One* aRaw = a.AsFFI();
-            if (aRaw == null) throw new ObjectDisposedException(nameof(One));
             if (b == null) throw new ArgumentNullException(nameof(b));
-            Raw.One* bRaw = b.AsFFI();
-            if (bRaw == null) throw new ObjectDisposedException(nameof(One));
             if (c == null) throw new ArgumentNullException(nameof(c));
-            Raw.Two* cRaw = c.AsFFI();
-            if (cRaw == null) throw new ObjectDisposedException(nameof(Two));
             if (d == null) throw new ArgumentNullException(nameof(d));
-            Raw.Two* dRaw = d.AsFFI();
-            if (dRaw == null) throw new ObjectDisposedException(nameof(Two));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            Raw.Two* noholdRaw = nohold.AsFFI();
-            if (noholdRaw == null) throw new ObjectDisposedException(nameof(Two));
-            Raw.One* result = Raw.One.ManyDependents(aRaw, bRaw, cRaw, dRaw, noholdRaw);
-            GC.KeepAlive(a);
-            GC.KeepAlive(b);
-            GC.KeepAlive(c);
-            GC.KeepAlive(d);
-            GC.KeepAlive(nohold);
-            return new One(result, new object[] { a.DiplomatRetainDependency(), b.DiplomatRetainDependency(), c.DiplomatRetainDependency(), d.DiplomatRetainDependency() });
+            using (var aLease = a.AcquireShared())
+            using (var bLease = b.AcquireShared())
+            using (var cLease = c.AcquireShared())
+            using (var dLease = d.AcquireShared())
+            using (var noholdLease = nohold.AcquireShared())
+            {
+                Raw.One* result = Raw.One.ManyDependents(aLease.Ptr, bLease.Ptr, cLease.Ptr, dLease.Ptr, noholdLease.Ptr);
+                GC.KeepAlive(a);
+                GC.KeepAlive(b);
+                GC.KeepAlive(c);
+                GC.KeepAlive(d);
+                GC.KeepAlive(nohold);
+                return new One(result, new object[] { a.DiplomatRetainDependency(), b.DiplomatRetainDependency(), c.DiplomatRetainDependency(), d.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -143,15 +140,15 @@ public partial class One
         unsafe
         {
             if (hold == null) throw new ArgumentNullException(nameof(hold));
-            Raw.Two* holdRaw = hold.AsFFI();
-            if (holdRaw == null) throw new ObjectDisposedException(nameof(Two));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            Raw.One* noholdRaw = nohold.AsFFI();
-            if (noholdRaw == null) throw new ObjectDisposedException(nameof(One));
-            Raw.One* result = Raw.One.ReturnOutlivesParam(holdRaw, noholdRaw);
-            GC.KeepAlive(hold);
-            GC.KeepAlive(nohold);
-            return new One(result, new object[] { hold.DiplomatRetainDependency() });
+            using (var holdLease = hold.AcquireShared())
+            using (var noholdLease = nohold.AcquireShared())
+            {
+                Raw.One* result = Raw.One.ReturnOutlivesParam(holdLease.Ptr, noholdLease.Ptr);
+                GC.KeepAlive(hold);
+                GC.KeepAlive(nohold);
+                return new One(result, new object[] { hold.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -167,23 +164,21 @@ public partial class One
         unsafe
         {
             if (top == null) throw new ArgumentNullException(nameof(top));
-            Raw.One* topRaw = top.AsFFI();
-            if (topRaw == null) throw new ObjectDisposedException(nameof(One));
             if (left == null) throw new ArgumentNullException(nameof(left));
-            Raw.One* leftRaw = left.AsFFI();
-            if (leftRaw == null) throw new ObjectDisposedException(nameof(One));
             if (right == null) throw new ArgumentNullException(nameof(right));
-            Raw.One* rightRaw = right.AsFFI();
-            if (rightRaw == null) throw new ObjectDisposedException(nameof(One));
             if (bottom == null) throw new ArgumentNullException(nameof(bottom));
-            Raw.One* bottomRaw = bottom.AsFFI();
-            if (bottomRaw == null) throw new ObjectDisposedException(nameof(One));
-            Raw.One* result = Raw.One.DiamondTop(topRaw, leftRaw, rightRaw, bottomRaw);
-            GC.KeepAlive(top);
-            GC.KeepAlive(left);
-            GC.KeepAlive(right);
-            GC.KeepAlive(bottom);
-            return new One(result, new object[] { top.DiplomatRetainDependency(), left.DiplomatRetainDependency(), right.DiplomatRetainDependency(), bottom.DiplomatRetainDependency() });
+            using (var topLease = top.AcquireShared())
+            using (var leftLease = left.AcquireShared())
+            using (var rightLease = right.AcquireShared())
+            using (var bottomLease = bottom.AcquireShared())
+            {
+                Raw.One* result = Raw.One.DiamondTop(topLease.Ptr, leftLease.Ptr, rightLease.Ptr, bottomLease.Ptr);
+                GC.KeepAlive(top);
+                GC.KeepAlive(left);
+                GC.KeepAlive(right);
+                GC.KeepAlive(bottom);
+                return new One(result, new object[] { top.DiplomatRetainDependency(), left.DiplomatRetainDependency(), right.DiplomatRetainDependency(), bottom.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -199,23 +194,21 @@ public partial class One
         unsafe
         {
             if (top == null) throw new ArgumentNullException(nameof(top));
-            Raw.One* topRaw = top.AsFFI();
-            if (topRaw == null) throw new ObjectDisposedException(nameof(One));
             if (left == null) throw new ArgumentNullException(nameof(left));
-            Raw.One* leftRaw = left.AsFFI();
-            if (leftRaw == null) throw new ObjectDisposedException(nameof(One));
             if (right == null) throw new ArgumentNullException(nameof(right));
-            Raw.One* rightRaw = right.AsFFI();
-            if (rightRaw == null) throw new ObjectDisposedException(nameof(One));
             if (bottom == null) throw new ArgumentNullException(nameof(bottom));
-            Raw.One* bottomRaw = bottom.AsFFI();
-            if (bottomRaw == null) throw new ObjectDisposedException(nameof(One));
-            Raw.One* result = Raw.One.DiamondLeft(topRaw, leftRaw, rightRaw, bottomRaw);
-            GC.KeepAlive(top);
-            GC.KeepAlive(left);
-            GC.KeepAlive(right);
-            GC.KeepAlive(bottom);
-            return new One(result, new object[] { left.DiplomatRetainDependency(), bottom.DiplomatRetainDependency() });
+            using (var topLease = top.AcquireShared())
+            using (var leftLease = left.AcquireShared())
+            using (var rightLease = right.AcquireShared())
+            using (var bottomLease = bottom.AcquireShared())
+            {
+                Raw.One* result = Raw.One.DiamondLeft(topLease.Ptr, leftLease.Ptr, rightLease.Ptr, bottomLease.Ptr);
+                GC.KeepAlive(top);
+                GC.KeepAlive(left);
+                GC.KeepAlive(right);
+                GC.KeepAlive(bottom);
+                return new One(result, new object[] { left.DiplomatRetainDependency(), bottom.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -231,23 +224,21 @@ public partial class One
         unsafe
         {
             if (top == null) throw new ArgumentNullException(nameof(top));
-            Raw.One* topRaw = top.AsFFI();
-            if (topRaw == null) throw new ObjectDisposedException(nameof(One));
             if (left == null) throw new ArgumentNullException(nameof(left));
-            Raw.One* leftRaw = left.AsFFI();
-            if (leftRaw == null) throw new ObjectDisposedException(nameof(One));
             if (right == null) throw new ArgumentNullException(nameof(right));
-            Raw.One* rightRaw = right.AsFFI();
-            if (rightRaw == null) throw new ObjectDisposedException(nameof(One));
             if (bottom == null) throw new ArgumentNullException(nameof(bottom));
-            Raw.One* bottomRaw = bottom.AsFFI();
-            if (bottomRaw == null) throw new ObjectDisposedException(nameof(One));
-            Raw.One* result = Raw.One.DiamondRight(topRaw, leftRaw, rightRaw, bottomRaw);
-            GC.KeepAlive(top);
-            GC.KeepAlive(left);
-            GC.KeepAlive(right);
-            GC.KeepAlive(bottom);
-            return new One(result, new object[] { right.DiplomatRetainDependency(), bottom.DiplomatRetainDependency() });
+            using (var topLease = top.AcquireShared())
+            using (var leftLease = left.AcquireShared())
+            using (var rightLease = right.AcquireShared())
+            using (var bottomLease = bottom.AcquireShared())
+            {
+                Raw.One* result = Raw.One.DiamondRight(topLease.Ptr, leftLease.Ptr, rightLease.Ptr, bottomLease.Ptr);
+                GC.KeepAlive(top);
+                GC.KeepAlive(left);
+                GC.KeepAlive(right);
+                GC.KeepAlive(bottom);
+                return new One(result, new object[] { right.DiplomatRetainDependency(), bottom.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -263,23 +254,21 @@ public partial class One
         unsafe
         {
             if (top == null) throw new ArgumentNullException(nameof(top));
-            Raw.One* topRaw = top.AsFFI();
-            if (topRaw == null) throw new ObjectDisposedException(nameof(One));
             if (left == null) throw new ArgumentNullException(nameof(left));
-            Raw.One* leftRaw = left.AsFFI();
-            if (leftRaw == null) throw new ObjectDisposedException(nameof(One));
             if (right == null) throw new ArgumentNullException(nameof(right));
-            Raw.One* rightRaw = right.AsFFI();
-            if (rightRaw == null) throw new ObjectDisposedException(nameof(One));
             if (bottom == null) throw new ArgumentNullException(nameof(bottom));
-            Raw.One* bottomRaw = bottom.AsFFI();
-            if (bottomRaw == null) throw new ObjectDisposedException(nameof(One));
-            Raw.One* result = Raw.One.DiamondBottom(topRaw, leftRaw, rightRaw, bottomRaw);
-            GC.KeepAlive(top);
-            GC.KeepAlive(left);
-            GC.KeepAlive(right);
-            GC.KeepAlive(bottom);
-            return new One(result, new object[] { bottom.DiplomatRetainDependency() });
+            using (var topLease = top.AcquireShared())
+            using (var leftLease = left.AcquireShared())
+            using (var rightLease = right.AcquireShared())
+            using (var bottomLease = bottom.AcquireShared())
+            {
+                Raw.One* result = Raw.One.DiamondBottom(topLease.Ptr, leftLease.Ptr, rightLease.Ptr, bottomLease.Ptr);
+                GC.KeepAlive(top);
+                GC.KeepAlive(left);
+                GC.KeepAlive(right);
+                GC.KeepAlive(bottom);
+                return new One(result, new object[] { bottom.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -295,27 +284,24 @@ public partial class One
         unsafe
         {
             if (a == null) throw new ArgumentNullException(nameof(a));
-            Raw.One* aRaw = a.AsFFI();
-            if (aRaw == null) throw new ObjectDisposedException(nameof(One));
             if (b == null) throw new ArgumentNullException(nameof(b));
-            Raw.One* bRaw = b.AsFFI();
-            if (bRaw == null) throw new ObjectDisposedException(nameof(One));
             if (c == null) throw new ArgumentNullException(nameof(c));
-            Raw.One* cRaw = c.AsFFI();
-            if (cRaw == null) throw new ObjectDisposedException(nameof(One));
             if (d == null) throw new ArgumentNullException(nameof(d));
-            Raw.One* dRaw = d.AsFFI();
-            if (dRaw == null) throw new ObjectDisposedException(nameof(One));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            Raw.One* noholdRaw = nohold.AsFFI();
-            if (noholdRaw == null) throw new ObjectDisposedException(nameof(One));
-            Raw.One* result = Raw.One.DiamondAndNestedTypes(aRaw, bRaw, cRaw, dRaw, noholdRaw);
-            GC.KeepAlive(a);
-            GC.KeepAlive(b);
-            GC.KeepAlive(c);
-            GC.KeepAlive(d);
-            GC.KeepAlive(nohold);
-            return new One(result, new object[] { a.DiplomatRetainDependency(), b.DiplomatRetainDependency(), c.DiplomatRetainDependency(), d.DiplomatRetainDependency() });
+            using (var aLease = a.AcquireShared())
+            using (var bLease = b.AcquireShared())
+            using (var cLease = c.AcquireShared())
+            using (var dLease = d.AcquireShared())
+            using (var noholdLease = nohold.AcquireShared())
+            {
+                Raw.One* result = Raw.One.DiamondAndNestedTypes(aLease.Ptr, bLease.Ptr, cLease.Ptr, dLease.Ptr, noholdLease.Ptr);
+                GC.KeepAlive(a);
+                GC.KeepAlive(b);
+                GC.KeepAlive(c);
+                GC.KeepAlive(d);
+                GC.KeepAlive(nohold);
+                return new One(result, new object[] { a.DiplomatRetainDependency(), b.DiplomatRetainDependency(), c.DiplomatRetainDependency(), d.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -331,19 +317,18 @@ public partial class One
         unsafe
         {
             if (explicitHold == null) throw new ArgumentNullException(nameof(explicitHold));
-            Raw.One* explicitHoldRaw = explicitHold.AsFFI();
-            if (explicitHoldRaw == null) throw new ObjectDisposedException(nameof(One));
             if (implicitHold == null) throw new ArgumentNullException(nameof(implicitHold));
-            Raw.One* implicitHoldRaw = implicitHold.AsFFI();
-            if (implicitHoldRaw == null) throw new ObjectDisposedException(nameof(One));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            Raw.One* noholdRaw = nohold.AsFFI();
-            if (noholdRaw == null) throw new ObjectDisposedException(nameof(One));
-            Raw.One* result = Raw.One.ImplicitBounds(explicitHoldRaw, implicitHoldRaw, noholdRaw);
-            GC.KeepAlive(explicitHold);
-            GC.KeepAlive(implicitHold);
-            GC.KeepAlive(nohold);
-            return new One(result, new object[] { explicitHold.DiplomatRetainDependency(), implicitHold.DiplomatRetainDependency() });
+            using (var explicitHoldLease = explicitHold.AcquireShared())
+            using (var implicitHoldLease = implicitHold.AcquireShared())
+            using (var noholdLease = nohold.AcquireShared())
+            {
+                Raw.One* result = Raw.One.ImplicitBounds(explicitHoldLease.Ptr, implicitHoldLease.Ptr, noholdLease.Ptr);
+                GC.KeepAlive(explicitHold);
+                GC.KeepAlive(implicitHold);
+                GC.KeepAlive(nohold);
+                return new One(result, new object[] { explicitHold.DiplomatRetainDependency(), implicitHold.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -359,23 +344,21 @@ public partial class One
         unsafe
         {
             if (@explicit == null) throw new ArgumentNullException(nameof(@explicit));
-            Raw.One* @explicitRaw = @explicit.AsFFI();
-            if (@explicitRaw == null) throw new ObjectDisposedException(nameof(One));
             if (implicit1 == null) throw new ArgumentNullException(nameof(implicit1));
-            Raw.One* implicit1Raw = implicit1.AsFFI();
-            if (implicit1Raw == null) throw new ObjectDisposedException(nameof(One));
             if (implicit2 == null) throw new ArgumentNullException(nameof(implicit2));
-            Raw.One* implicit2Raw = implicit2.AsFFI();
-            if (implicit2Raw == null) throw new ObjectDisposedException(nameof(One));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            Raw.One* noholdRaw = nohold.AsFFI();
-            if (noholdRaw == null) throw new ObjectDisposedException(nameof(One));
-            Raw.One* result = Raw.One.ImplicitBoundsDeep(@explicitRaw, implicit1Raw, implicit2Raw, noholdRaw);
-            GC.KeepAlive(@explicit);
-            GC.KeepAlive(implicit1);
-            GC.KeepAlive(implicit2);
-            GC.KeepAlive(nohold);
-            return new One(result, new object[] { @explicit.DiplomatRetainDependency(), implicit1.DiplomatRetainDependency(), implicit2.DiplomatRetainDependency() });
+            using (var explicitLease = @explicit.AcquireShared())
+            using (var implicit1lease = implicit1.AcquireShared())
+            using (var implicit2lease = implicit2.AcquireShared())
+            using (var noholdLease = nohold.AcquireShared())
+            {
+                Raw.One* result = Raw.One.ImplicitBoundsDeep(explicitLease.Ptr, implicit1lease.Ptr, implicit2lease.Ptr, noholdLease.Ptr);
+                GC.KeepAlive(@explicit);
+                GC.KeepAlive(implicit1);
+                GC.KeepAlive(implicit2);
+                GC.KeepAlive(nohold);
+                return new One(result, new object[] { @explicit.DiplomatRetainDependency(), implicit1.DiplomatRetainDependency(), implicit2.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -389,6 +372,26 @@ public partial class One
             throw new ObjectDisposedException("One");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.One> AcquireShared()
+    {
+        RustHandle<Raw.One>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("One");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.One> AcquireExclusive()
+    {
+        RustHandle<Raw.One>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("One");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

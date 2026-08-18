@@ -55,9 +55,12 @@ public partial class RcDependent2: IDisposable
             {
                 throw new ObjectDisposedException("RcDependent2");
             }
-            var result = Raw.RcDependent2.Id(AsFFI());
-            GC.KeepAlive(this);
-            return result;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.RcDependent2.Id(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return result;
+            }
         }
     }
 
@@ -95,6 +98,26 @@ public partial class RcDependent2: IDisposable
             throw new ObjectDisposedException("RcDependent2");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.RcDependent2> AcquireShared()
+    {
+        RustHandle<Raw.RcDependent2>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RcDependent2");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.RcDependent2> AcquireExclusive()
+    {
+        RustHandle<Raw.RcDependent2>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RcDependent2");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

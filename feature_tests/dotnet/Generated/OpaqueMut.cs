@@ -71,6 +71,26 @@ public partial class OpaqueMut
         return _inner.Ptr;
     }
 
+    internal unsafe OperationLease<Raw.OpaqueMut> AcquireShared()
+    {
+        RustHandle<Raw.OpaqueMut>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("OpaqueMut");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.OpaqueMut> AcquireExclusive()
+    {
+        RustHandle<Raw.OpaqueMut>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("OpaqueMut");
+        }
+        return inner.AcquireExclusive();
+    }
+
     /// <summary>
     /// Retains this value's native resource for a new direct dependent.
     /// </summary>

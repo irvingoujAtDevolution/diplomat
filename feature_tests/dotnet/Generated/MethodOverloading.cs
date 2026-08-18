@@ -95,6 +95,26 @@ public partial class MethodOverloading: IDisposable
         return _inner.Ptr;
     }
 
+    internal unsafe OperationLease<Raw.MethodOverloading> AcquireShared()
+    {
+        RustHandle<Raw.MethodOverloading>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("MethodOverloading");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.MethodOverloading> AcquireExclusive()
+    {
+        RustHandle<Raw.MethodOverloading>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("MethodOverloading");
+        }
+        return inner.AcquireExclusive();
+    }
+
     /// <summary>
     /// Retains this value's native resource for a new direct dependent.
     /// </summary>

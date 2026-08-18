@@ -59,6 +59,26 @@ public partial class SliceParseError
         return _inner.Ptr;
     }
 
+    internal unsafe OperationLease<Raw.SliceParseError> AcquireShared()
+    {
+        RustHandle<Raw.SliceParseError>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("SliceParseError");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.SliceParseError> AcquireExclusive()
+    {
+        RustHandle<Raw.SliceParseError>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("SliceParseError");
+        }
+        return inner.AcquireExclusive();
+    }
+
     /// <summary>
     /// Retains this value's native resource for a new direct dependent.
     /// </summary>

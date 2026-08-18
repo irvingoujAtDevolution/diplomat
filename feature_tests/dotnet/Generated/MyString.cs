@@ -24,16 +24,19 @@ public partial class MyString: IDisposable
                 {
                     throw new ObjectDisposedException("MyString");
                 }
-                DiplomatWrite writeable = new DiplomatWrite();
-                try
+                using (var selfLease = AcquireShared())
                 {
-                    Raw.MyString.GetStr(AsFFI(), &writeable);
-                    GC.KeepAlive(this);
-                    return writeable.ToUnicode();
-                }
-                finally
-                {
-                    writeable.Dispose();
+                    DiplomatWrite writeable = new DiplomatWrite();
+                    try
+                    {
+                        Raw.MyString.GetStr(selfLease.Ptr, &writeable);
+                        GC.KeepAlive(this);
+                        return writeable.ToUnicode();
+                    }
+                    finally
+                    {
+                        writeable.Dispose();
+                    }
                 }
             }
         }
@@ -47,10 +50,13 @@ public partial class MyString: IDisposable
                 }
                 if (value == null) throw new ArgumentNullException(nameof(value));
                 byte[] valueBytes = Diplomat.Utf8.Clone(value);
-                fixed (byte* valuePtr = valueBytes)
+                using (var selfLease = AcquireExclusive())
                 {
-                    Raw.MyString.SetStr(AsFFI(), new DiplomatSliceU8 { Ptr = valuePtr, Len = (nuint)valueBytes.Length });
-                    GC.KeepAlive(this);
+                    fixed (byte* valuePtr = valueBytes)
+                    {
+                        Raw.MyString.SetStr(selfLease.Ptr, new DiplomatSliceU8 { Ptr = valuePtr, Len = (nuint)valueBytes.Length });
+                        GC.KeepAlive(this);
+                    }
                 }
             }
         }
@@ -156,9 +162,12 @@ public partial class MyString: IDisposable
             {
                 throw new ObjectDisposedException("MyString");
             }
-            var result = Raw.MyString.Borrow(AsFFI());
-            GC.KeepAlive(this);
-            return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { this.DiplomatRetainDependency() });
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.MyString.Borrow(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { this.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -172,6 +181,26 @@ public partial class MyString: IDisposable
             throw new ObjectDisposedException("MyString");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.MyString> AcquireShared()
+    {
+        RustHandle<Raw.MyString>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("MyString");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.MyString> AcquireExclusive()
+    {
+        RustHandle<Raw.MyString>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("MyString");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

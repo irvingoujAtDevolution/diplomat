@@ -2702,7 +2702,7 @@ mod test {
         // The accessor *is* the property: its body is inline and there is no
         // second member to collide with, as in the Dart and JS backends.
         assert!(
-            config.contains("Raw.Config.Size(AsFFI())"),
+            config.contains("Raw.Config.Size(selfLease.Ptr)"),
             "expected the getter body inline in the property, got:
 {config}"
         );
@@ -3676,7 +3676,7 @@ mod test {
         );
         let config = files.get("Config.cs").expect("expected Config.cs output");
         assert!(
-            config.contains("Raw.Config.SetSize(AsFFI(), value)"),
+            config.contains("Raw.Config.SetSize(selfLease.Ptr, value)"),
             "the property must pass the implicit `value`, got:
 {config}"
         );
@@ -3706,6 +3706,160 @@ mod test {
             !config.contains("public nuint Size"),
             "an unannotated method must not become a property, got:
 {config}"
+        );
+    }
+
+    fn generated_method<'a>(source: &'a str, signature: &str) -> &'a str {
+        let start = source
+            .find(signature)
+            .unwrap_or_else(|| panic!("missing generated method `{signature}`:\n{source}"));
+        let open = start
+            + source[start..]
+                .find('{')
+                .unwrap_or_else(|| panic!("missing body for `{signature}`:\n{source}"));
+        let mut depth = 0usize;
+        for (offset, ch) in source[open..].char_indices() {
+            match ch {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return &source[start..=open + offset];
+                    }
+                }
+                _ => {}
+            }
+        }
+        panic!("unterminated generated method `{signature}`:\n{source}")
+    }
+
+    #[test]
+    fn borrow_runtime_exposes_fail_fast_shared_and_exclusive_acquisition() {
+        let (files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::opaque_mut]
+                pub struct Guarded;
+            }
+        });
+
+        assert!(errors.is_empty(), "unexpected diagnostics: {errors:?}");
+        let runtime = files
+            .get("RustHandle.cs")
+            .expect("expected RustHandle.cs output");
+        assert!(
+            runtime.contains("BorrowKind")
+                && runtime.contains("AcquireShared")
+                && runtime.contains("AcquireExclusive"),
+            "the runtime must expose distinct fail-fast shared/exclusive acquisition:\n{runtime}"
+        );
+        assert!(
+            runtime.contains("InvalidOperationException")
+                && runtime.contains("ObjectDisposedException"),
+            "borrow conflicts and disposed handles need distinct managed failures:\n{runtime}"
+        );
+        assert!(
+            !runtime.contains("ManagedThreadId")
+                && !runtime.contains("Monitor.")
+                && !runtime.contains("Mutex")
+                && !runtime.contains("Semaphore"),
+            "borrow safety must use capabilities and fail fast without thread affinity or blocking:\n{runtime}"
+        );
+    }
+
+    // This stays at the generated layer because an unguarded mutable overlap would enter Rust UB.
+    #[test]
+    fn opaque_receivers_and_parameters_acquire_borrows_before_the_raw_call() {
+        let (files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::opaque_mut]
+                pub struct Guarded;
+
+                impl Guarded {
+                    pub fn read(&self) -> bool {
+                        unimplemented!()
+                    }
+
+                    pub fn write(&mut self) {
+                        unimplemented!()
+                    }
+
+                    pub fn mix(&mut self, other: &Guarded) {
+                        unimplemented!()
+                    }
+
+                    pub fn maybe_other(&self, other: Option<&Guarded>) -> bool {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert!(errors.is_empty(), "unexpected diagnostics: {errors:?}");
+        let guarded = files.get("Guarded.cs").expect("expected Guarded.cs output");
+        let read = generated_method(guarded, "public bool Read()");
+        let write = generated_method(guarded, "public void Write()");
+        let mix = generated_method(guarded, "public void Mix(Guarded other)");
+        let maybe = generated_method(guarded, "public bool MaybeOther(Guarded? other)");
+
+        assert!(
+            read.contains("using (var selfLease = AcquireShared())")
+                && !read.contains("Raw.Guarded.Read(AsFFI())"),
+            "a shared receiver must use its acquired pointer:\n{read}"
+        );
+        assert!(
+            write.contains("using (var selfLease = AcquireExclusive())")
+                && !write.contains("Raw.Guarded.Write(AsFFI())"),
+            "a mutable receiver must use its acquired pointer:\n{write}"
+        );
+        assert!(
+            mix.contains("AcquireExclusive")
+                && mix.contains("AcquireShared")
+                && !mix.contains("other.AsFFI()"),
+            "self and opaque parameters must share the same borrow domain:\n{mix}"
+        );
+        assert!(
+            maybe.contains("other == null")
+                && maybe.contains("AcquireShared")
+                && !maybe.contains("other.AsFFI()"),
+            "a null optional opaque must skip acquisition while a value acquires shared:\n{maybe}"
+        );
+    }
+
+    #[test]
+    fn multiple_opaque_inputs_release_partial_acquisition_in_reverse_scope_order() {
+        let (files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::opaque_mut]
+                pub struct Guarded;
+
+                impl Guarded {
+                    pub fn combine(&mut self, left: &Guarded, right: &mut Guarded) {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert!(errors.is_empty(), "unexpected diagnostics: {errors:?}");
+        let guarded = files.get("Guarded.cs").expect("expected Guarded.cs output");
+        let combine = generated_method(guarded, "public void Combine(Guarded left, Guarded right)");
+
+        assert!(
+            combine.matches("Acquire").count() >= 3,
+            "self and both opaque parameters need independent acquisition:\n{combine}"
+        );
+        assert!(
+            combine.matches("using (").count() >= 3,
+            "partial acquisition and every exit path must release in scope order:\n{combine}"
+        );
+        assert!(
+            !combine.contains("AsFFI()")
+                && !combine.contains("leftRaw")
+                && !combine.contains("rightRaw"),
+            "the raw call must use pointers captured by its operation leases:\n{combine}"
         );
     }
 }

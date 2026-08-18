@@ -59,6 +59,26 @@ public partial class RenamedTestOpaque
         return _inner.Ptr;
     }
 
+    internal unsafe OperationLease<Raw.RenamedTestOpaque> AcquireShared()
+    {
+        RustHandle<Raw.RenamedTestOpaque>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedTestOpaque");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.RenamedTestOpaque> AcquireExclusive()
+    {
+        RustHandle<Raw.RenamedTestOpaque>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedTestOpaque");
+        }
+        return inner.AcquireExclusive();
+    }
+
     /// <summary>
     /// Retains this value's native resource for a new direct dependent.
     /// </summary>

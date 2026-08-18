@@ -24,9 +24,12 @@ public partial class OpaqueThin: IDisposable
                 {
                     throw new ObjectDisposedException("OpaqueThin");
                 }
-                var result = Raw.OpaqueThin.A(AsFFI());
-                GC.KeepAlive(this);
-                return result;
+                using (var selfLease = AcquireShared())
+                {
+                    var result = Raw.OpaqueThin.A(selfLease.Ptr);
+                    GC.KeepAlive(this);
+                    return result;
+                }
             }
         }
     }
@@ -41,9 +44,12 @@ public partial class OpaqueThin: IDisposable
                 {
                     throw new ObjectDisposedException("OpaqueThin");
                 }
-                var result = Raw.OpaqueThin.B(AsFFI());
-                GC.KeepAlive(this);
-                return result;
+                using (var selfLease = AcquireShared())
+                {
+                    var result = Raw.OpaqueThin.B(selfLease.Ptr);
+                    GC.KeepAlive(this);
+                    return result;
+                }
             }
         }
     }
@@ -58,16 +64,19 @@ public partial class OpaqueThin: IDisposable
                 {
                     throw new ObjectDisposedException("OpaqueThin");
                 }
-                DiplomatWrite writeable = new DiplomatWrite();
-                try
+                using (var selfLease = AcquireShared())
                 {
-                    Raw.OpaqueThin.C(AsFFI(), &writeable);
-                    GC.KeepAlive(this);
-                    return writeable.ToUnicode();
-                }
-                finally
-                {
-                    writeable.Dispose();
+                    DiplomatWrite writeable = new DiplomatWrite();
+                    try
+                    {
+                        Raw.OpaqueThin.C(selfLease.Ptr, &writeable);
+                        GC.KeepAlive(this);
+                        return writeable.ToUnicode();
+                    }
+                    finally
+                    {
+                        writeable.Dispose();
+                    }
                 }
             }
         }
@@ -116,6 +125,26 @@ public partial class OpaqueThin: IDisposable
             throw new ObjectDisposedException("OpaqueThin");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.OpaqueThin> AcquireShared()
+    {
+        RustHandle<Raw.OpaqueThin>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("OpaqueThin");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.OpaqueThin> AcquireExclusive()
+    {
+        RustHandle<Raw.OpaqueThin>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("OpaqueThin");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

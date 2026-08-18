@@ -24,9 +24,12 @@ public partial class PropertyMarshals: IDisposable
                 {
                     throw new ObjectDisposedException("PropertyMarshals");
                 }
-                var result = Raw.PropertyMarshals.Choice(AsFFI());
-                GC.KeepAlive(this);
-                return result;
+                using (var selfLease = AcquireShared())
+                {
+                    var result = Raw.PropertyMarshals.Choice(selfLease.Ptr);
+                    GC.KeepAlive(this);
+                    return result;
+                }
             }
         }
         set
@@ -37,8 +40,11 @@ public partial class PropertyMarshals: IDisposable
                 {
                     throw new ObjectDisposedException("PropertyMarshals");
                 }
-                Raw.PropertyMarshals.SetChoice(AsFFI(), value);
-                GC.KeepAlive(this);
+                using (var selfLease = AcquireExclusive())
+                {
+                    Raw.PropertyMarshals.SetChoice(selfLease.Ptr, value);
+                    GC.KeepAlive(this);
+                }
             }
         }
     }
@@ -56,9 +62,12 @@ public partial class PropertyMarshals: IDisposable
                 {
                     throw new ObjectDisposedException("PropertyMarshals");
                 }
-                Raw.Opaque* result = Raw.PropertyMarshals.Held(AsFFI());
-                GC.KeepAlive(this);
-                return new Opaque(result);
+                using (var selfLease = AcquireShared())
+                {
+                    Raw.Opaque* result = Raw.PropertyMarshals.Held(selfLease.Ptr);
+                    GC.KeepAlive(this);
+                    return new Opaque(result);
+                }
             }
         }
         set
@@ -70,11 +79,13 @@ public partial class PropertyMarshals: IDisposable
                     throw new ObjectDisposedException("PropertyMarshals");
                 }
                 if (value == null) throw new ArgumentNullException(nameof(value));
-                Raw.Opaque* valueRaw = value.AsFFI();
-                if (valueRaw == null) throw new ObjectDisposedException(nameof(Opaque));
-                Raw.PropertyMarshals.SetHeld(AsFFI(), valueRaw);
-                GC.KeepAlive(this);
-                GC.KeepAlive(value);
+                using (var selfLease = AcquireExclusive())
+                using (var valueLease = value.AcquireShared())
+                {
+                    Raw.PropertyMarshals.SetHeld(selfLease.Ptr, valueLease.Ptr);
+                    GC.KeepAlive(this);
+                    GC.KeepAlive(value);
+                }
             }
         }
     }
@@ -89,9 +100,12 @@ public partial class PropertyMarshals: IDisposable
                 {
                     throw new ObjectDisposedException("PropertyMarshals");
                 }
-                var result = Raw.PropertyMarshals.Number(AsFFI());
-                GC.KeepAlive(this);
-                return result;
+                using (var selfLease = AcquireShared())
+                {
+                    var result = Raw.PropertyMarshals.Number(selfLease.Ptr);
+                    GC.KeepAlive(this);
+                    return result;
+                }
             }
         }
         set
@@ -102,8 +116,11 @@ public partial class PropertyMarshals: IDisposable
                 {
                     throw new ObjectDisposedException("PropertyMarshals");
                 }
-                Raw.PropertyMarshals.SetNumber(AsFFI(), value);
-                GC.KeepAlive(this);
+                using (var selfLease = AcquireExclusive())
+                {
+                    Raw.PropertyMarshals.SetNumber(selfLease.Ptr, value);
+                    GC.KeepAlive(this);
+                }
             }
         }
     }
@@ -118,9 +135,12 @@ public partial class PropertyMarshals: IDisposable
                 {
                     throw new ObjectDisposedException("PropertyMarshals");
                 }
-                Raw.PrimitiveStruct result = Raw.PropertyMarshals.Point(AsFFI());
-                GC.KeepAlive(this);
-                return PrimitiveStruct.FromFFI(result);
+                using (var selfLease = AcquireShared())
+                {
+                    Raw.PrimitiveStruct result = Raw.PropertyMarshals.Point(selfLease.Ptr);
+                    GC.KeepAlive(this);
+                    return PrimitiveStruct.FromFFI(result);
+                }
             }
         }
         set
@@ -131,8 +151,11 @@ public partial class PropertyMarshals: IDisposable
                 {
                     throw new ObjectDisposedException("PropertyMarshals");
                 }
-                Raw.PropertyMarshals.SetPoint(AsFFI(), value.AsFFI());
-                GC.KeepAlive(this);
+                using (var selfLease = AcquireExclusive())
+                {
+                    Raw.PropertyMarshals.SetPoint(selfLease.Ptr, value.AsFFI());
+                    GC.KeepAlive(this);
+                }
             }
         }
     }
@@ -147,16 +170,19 @@ public partial class PropertyMarshals: IDisposable
                 {
                     throw new ObjectDisposedException("PropertyMarshals");
                 }
-                DiplomatWrite writeable = new DiplomatWrite();
-                try
+                using (var selfLease = AcquireShared())
                 {
-                    Raw.PropertyMarshals.Utf16Text(AsFFI(), &writeable);
-                    GC.KeepAlive(this);
-                    return writeable.ToUnicode();
-                }
-                finally
-                {
-                    writeable.Dispose();
+                    DiplomatWrite writeable = new DiplomatWrite();
+                    try
+                    {
+                        Raw.PropertyMarshals.Utf16Text(selfLease.Ptr, &writeable);
+                        GC.KeepAlive(this);
+                        return writeable.ToUnicode();
+                    }
+                    finally
+                    {
+                        writeable.Dispose();
+                    }
                 }
             }
         }
@@ -169,10 +195,13 @@ public partial class PropertyMarshals: IDisposable
                     throw new ObjectDisposedException("PropertyMarshals");
                 }
                 if (value == null) throw new ArgumentNullException(nameof(value));
-                fixed (char* valuePtr = value)
+                using (var selfLease = AcquireExclusive())
                 {
-                    Raw.PropertyMarshals.SetUtf16Text(AsFFI(), new DiplomatSliceU16 { Ptr = valuePtr, Len = (nuint)value.Length });
-                    GC.KeepAlive(this);
+                    fixed (char* valuePtr = value)
+                    {
+                        Raw.PropertyMarshals.SetUtf16Text(selfLease.Ptr, new DiplomatSliceU16 { Ptr = valuePtr, Len = (nuint)value.Length });
+                        GC.KeepAlive(this);
+                    }
                 }
             }
         }
@@ -188,16 +217,19 @@ public partial class PropertyMarshals: IDisposable
                 {
                     throw new ObjectDisposedException("PropertyMarshals");
                 }
-                DiplomatWrite writeable = new DiplomatWrite();
-                try
+                using (var selfLease = AcquireShared())
                 {
-                    Raw.PropertyMarshals.Utf8Text(AsFFI(), &writeable);
-                    GC.KeepAlive(this);
-                    return writeable.ToUnicode();
-                }
-                finally
-                {
-                    writeable.Dispose();
+                    DiplomatWrite writeable = new DiplomatWrite();
+                    try
+                    {
+                        Raw.PropertyMarshals.Utf8Text(selfLease.Ptr, &writeable);
+                        GC.KeepAlive(this);
+                        return writeable.ToUnicode();
+                    }
+                    finally
+                    {
+                        writeable.Dispose();
+                    }
                 }
             }
         }
@@ -211,10 +243,13 @@ public partial class PropertyMarshals: IDisposable
                 }
                 if (value == null) throw new ArgumentNullException(nameof(value));
                 byte[] valueBytes = Diplomat.Utf8.Clone(value);
-                fixed (byte* valuePtr = valueBytes)
+                using (var selfLease = AcquireExclusive())
                 {
-                    Raw.PropertyMarshals.SetUtf8Text(AsFFI(), new DiplomatSliceU8 { Ptr = valuePtr, Len = (nuint)valueBytes.Length });
-                    GC.KeepAlive(this);
+                    fixed (byte* valuePtr = valueBytes)
+                    {
+                        Raw.PropertyMarshals.SetUtf8Text(selfLease.Ptr, new DiplomatSliceU8 { Ptr = valuePtr, Len = (nuint)valueBytes.Length });
+                        GC.KeepAlive(this);
+                    }
                 }
             }
         }
@@ -275,6 +310,26 @@ public partial class PropertyMarshals: IDisposable
             throw new ObjectDisposedException("PropertyMarshals");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.PropertyMarshals> AcquireShared()
+    {
+        RustHandle<Raw.PropertyMarshals>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("PropertyMarshals");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.PropertyMarshals> AcquireExclusive()
+    {
+        RustHandle<Raw.PropertyMarshals>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("PropertyMarshals");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

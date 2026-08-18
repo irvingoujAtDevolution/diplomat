@@ -83,6 +83,26 @@ public partial class PinnedRcDependent: IDisposable
         return _inner.Ptr;
     }
 
+    internal unsafe OperationLease<Raw.PinnedRcDependent> AcquireShared()
+    {
+        RustHandle<Raw.PinnedRcDependent>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("PinnedRcDependent");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.PinnedRcDependent> AcquireExclusive()
+    {
+        RustHandle<Raw.PinnedRcDependent>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("PinnedRcDependent");
+        }
+        return inner.AcquireExclusive();
+    }
+
     /// <summary>
     /// Retains this value's native resource for a new direct dependent.
     /// </summary>

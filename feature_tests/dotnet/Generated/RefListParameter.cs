@@ -59,6 +59,26 @@ public partial class RefListParameter
         return _inner.Ptr;
     }
 
+    internal unsafe OperationLease<Raw.RefListParameter> AcquireShared()
+    {
+        RustHandle<Raw.RefListParameter>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RefListParameter");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.RefListParameter> AcquireExclusive()
+    {
+        RustHandle<Raw.RefListParameter>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RefListParameter");
+        }
+        return inner.AcquireExclusive();
+    }
+
     /// <summary>
     /// Retains this value's native resource for a new direct dependent.
     /// </summary>

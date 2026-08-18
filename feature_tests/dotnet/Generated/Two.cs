@@ -59,6 +59,26 @@ public partial class Two
         return _inner.Ptr;
     }
 
+    internal unsafe OperationLease<Raw.Two> AcquireShared()
+    {
+        RustHandle<Raw.Two>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("Two");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.Two> AcquireExclusive()
+    {
+        RustHandle<Raw.Two>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("Two");
+        }
+        return inner.AcquireExclusive();
+    }
+
     /// <summary>
     /// Retains this value's native resource for a new direct dependent.
     /// </summary>

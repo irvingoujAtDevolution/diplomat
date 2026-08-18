@@ -8,14 +8,14 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class OpaqueMutexedString: IDisposable
+public partial class BorrowSafetyProbe: IDisposable
 {
-    private unsafe RustHandle<Raw.OpaqueMutexedString>? _inner;
+    private unsafe RustHandle<Raw.BorrowSafetyProbe>? _inner;
 
-    private static readonly unsafe RustDestructor<Raw.OpaqueMutexedString> _destroy = Raw.OpaqueMutexedString.Destroy;
+    private static readonly unsafe RustDestructor<Raw.BorrowSafetyProbe> _destroy = Raw.BorrowSafetyProbe.Destroy;
 
     /// <summary>
-    /// Creates a managed <c>OpaqueMutexedString</c> from a raw handle.
+    /// Creates a managed <c>BorrowSafetyProbe</c> from a raw handle.
     /// </summary>
     /// <remarks>
     /// Safety: you should not build two managed objects using the same raw handle (may cause use-after-free and double-free).
@@ -23,18 +23,18 @@ public partial class OpaqueMutexedString: IDisposable
     /// This constructor assumes the raw struct is allocated on Rust side.
     /// If implemented, the custom Drop implementation on Rust side WILL run on destruction.
     /// </remarks>
-    internal unsafe OpaqueMutexedString(Raw.OpaqueMutexedString* handle)
+    internal unsafe BorrowSafetyProbe(Raw.BorrowSafetyProbe* handle)
     {
-        _inner = RustHandle<Raw.OpaqueMutexedString>.Owned(handle, _destroy);
+        _inner = RustHandle<Raw.BorrowSafetyProbe>.Owned(handle, _destroy);
     }
 
     /// <summary>
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe OpaqueMutexedString(Raw.OpaqueMutexedString* handle, object[] edges)
+    internal unsafe BorrowSafetyProbe(Raw.BorrowSafetyProbe* handle, object[] edges)
     {
-        _inner = RustHandle<Raw.OpaqueMutexedString>.Owned(handle, _destroy, edges);
+        _inner = RustHandle<Raw.BorrowSafetyProbe>.Owned(handle, _destroy, edges);
     }
 
     /// <summary>
@@ -42,108 +42,131 @@ public partial class OpaqueMutexedString: IDisposable
     /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
     /// pointer alone.
     /// </summary>
-    internal unsafe OpaqueMutexedString(RustHandle<Raw.OpaqueMutexedString> inner)
+    internal unsafe BorrowSafetyProbe(RustHandle<Raw.BorrowSafetyProbe> inner)
     {
         _inner = inner;
     }
 
     /// <returns>
-    /// A <c>OpaqueMutexedString</c> allocated on Rust side.
+    /// A <c>BorrowSafetyProbe</c> allocated on Rust side.
     /// </returns>
-    public static OpaqueMutexedString FromUsize(nuint number)
+    public static BorrowSafetyProbe Create()
     {
         unsafe
         {
-            Raw.OpaqueMutexedString* result = Raw.OpaqueMutexedString.FromUsize(number);
-            return new OpaqueMutexedString(result);
+            Raw.BorrowSafetyProbe* result = Raw.BorrowSafetyProbe.Create();
+            return new BorrowSafetyProbe(result);
         }
     }
 
-    public void Change(nuint number)
+    public static void ResetSharedCall()
+    {
+        unsafe
+        {
+            Raw.BorrowSafetyProbe.ResetSharedCall();
+        }
+    }
+
+    public static bool SharedCallEntered()
+    {
+        unsafe
+        {
+            return Raw.BorrowSafetyProbe.SharedCallEntered();
+        }
+    }
+
+    public static void ReleaseSharedCall()
+    {
+        unsafe
+        {
+            Raw.BorrowSafetyProbe.ReleaseSharedCall();
+        }
+    }
+
+    public void HoldShared()
     {
         unsafe
         {
             if (_inner is null || _inner.IsNull)
             {
-                throw new ObjectDisposedException("OpaqueMutexedString");
+                throw new ObjectDisposedException("BorrowSafetyProbe");
             }
             using (var selfLease = AcquireShared())
             {
-                Raw.OpaqueMutexedString.Change(selfLease.Ptr, number);
+                Raw.BorrowSafetyProbe.HoldShared(selfLease.Ptr);
                 GC.KeepAlive(this);
             }
         }
     }
 
-    public nuint GetLenAndAdd(nuint other)
+    public bool PingShared()
     {
         unsafe
         {
             if (_inner is null || _inner.IsNull)
             {
-                throw new ObjectDisposedException("OpaqueMutexedString");
+                throw new ObjectDisposedException("BorrowSafetyProbe");
             }
             using (var selfLease = AcquireShared())
             {
-                var result = Raw.OpaqueMutexedString.GetLenAndAdd(selfLease.Ptr, other);
+                var result = Raw.BorrowSafetyProbe.PingShared(selfLease.Ptr);
                 GC.KeepAlive(this);
                 return result;
             }
         }
     }
 
-    /// <remarks>
-    /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
-    /// </remarks>
-    public DiplomatBorrowedSpan<byte> DummyStr()
+    public static void ResetMutableCall()
+    {
+        unsafe
+        {
+            Raw.BorrowSafetyProbe.ResetMutableCall();
+        }
+    }
+
+    public static bool MutableCallEntered()
+    {
+        unsafe
+        {
+            return Raw.BorrowSafetyProbe.MutableCallEntered();
+        }
+    }
+
+    public static void ReleaseMutableCall()
+    {
+        unsafe
+        {
+            Raw.BorrowSafetyProbe.ReleaseMutableCall();
+        }
+    }
+
+    public void HoldMutable()
     {
         unsafe
         {
             if (_inner is null || _inner.IsNull)
             {
-                throw new ObjectDisposedException("OpaqueMutexedString");
+                throw new ObjectDisposedException("BorrowSafetyProbe");
             }
-            using (var selfLease = AcquireShared())
+            using (var selfLease = AcquireExclusive())
             {
-                var result = Raw.OpaqueMutexedString.DummyStr(selfLease.Ptr);
+                Raw.BorrowSafetyProbe.HoldMutable(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { this.DiplomatRetainDependency() });
             }
         }
     }
 
-    /// <returns>
-    /// A <c>Utf16Wrap</c> allocated on Rust side.
-    /// </returns>
-    public Utf16Wrap Wrapper()
+    public bool PingMutable()
     {
         unsafe
         {
             if (_inner is null || _inner.IsNull)
             {
-                throw new ObjectDisposedException("OpaqueMutexedString");
+                throw new ObjectDisposedException("BorrowSafetyProbe");
             }
-            using (var selfLease = AcquireShared())
+            using (var selfLease = AcquireExclusive())
             {
-                Raw.Utf16Wrap* result = Raw.OpaqueMutexedString.Wrapper(selfLease.Ptr);
-                GC.KeepAlive(this);
-                return new Utf16Wrap(result);
-            }
-        }
-    }
-
-    public ushort ToUnsignedFromUnsigned(ushort input)
-    {
-        unsafe
-        {
-            if (_inner is null || _inner.IsNull)
-            {
-                throw new ObjectDisposedException("OpaqueMutexedString");
-            }
-            using (var selfLease = AcquireShared())
-            {
-                var result = Raw.OpaqueMutexedString.ToUnsignedFromUnsigned(selfLease.Ptr, input);
+                var result = Raw.BorrowSafetyProbe.PingMutable(selfLease.Ptr);
                 GC.KeepAlive(this);
                 return result;
             }
@@ -153,31 +176,31 @@ public partial class OpaqueMutexedString: IDisposable
     /// <summary>
     /// Returns the underlying raw handle.
     /// </summary>
-    internal unsafe Raw.OpaqueMutexedString* AsFFI()
+    internal unsafe Raw.BorrowSafetyProbe* AsFFI()
     {
         if (_inner is null || _inner.IsNull)
         {
-            throw new ObjectDisposedException("OpaqueMutexedString");
+            throw new ObjectDisposedException("BorrowSafetyProbe");
         }
         return _inner.Ptr;
     }
 
-    internal unsafe OperationLease<Raw.OpaqueMutexedString> AcquireShared()
+    internal unsafe OperationLease<Raw.BorrowSafetyProbe> AcquireShared()
     {
-        RustHandle<Raw.OpaqueMutexedString>? inner = _inner;
+        RustHandle<Raw.BorrowSafetyProbe>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
-            throw new ObjectDisposedException("OpaqueMutexedString");
+            throw new ObjectDisposedException("BorrowSafetyProbe");
         }
         return inner.AcquireShared();
     }
 
-    internal unsafe OperationLease<Raw.OpaqueMutexedString> AcquireExclusive()
+    internal unsafe OperationLease<Raw.BorrowSafetyProbe> AcquireExclusive()
     {
-        RustHandle<Raw.OpaqueMutexedString>? inner = _inner;
+        RustHandle<Raw.BorrowSafetyProbe>? inner = _inner;
         if (inner is null || inner.IsNull)
         {
-            throw new ObjectDisposedException("OpaqueMutexedString");
+            throw new ObjectDisposedException("BorrowSafetyProbe");
         }
         return inner.AcquireExclusive();
     }
@@ -186,14 +209,14 @@ public partial class OpaqueMutexedString: IDisposable
     /// Retains this value's native resource for a new direct dependent.
     /// </summary>
     /// <exception cref="ObjectDisposedException">
-    /// This <c>OpaqueMutexedString</c> was already disposed/finalized, so there is
+    /// This <c>BorrowSafetyProbe</c> was already disposed/finalized, so there is
     /// nothing left to lend a dependent.
     /// </exception>
     internal unsafe IDisposable DiplomatRetainDependency()
     {
         if (_inner is null || _inner.IsNull)
         {
-            throw new ObjectDisposedException("OpaqueMutexedString");
+            throw new ObjectDisposedException("BorrowSafetyProbe");
         }
         return _inner.Retain();
     }
@@ -202,7 +225,7 @@ public partial class OpaqueMutexedString: IDisposable
     {
         unsafe
         {
-            RustHandle<Raw.OpaqueMutexedString>? inner = _inner;
+            RustHandle<Raw.BorrowSafetyProbe>? inner = _inner;
             if (inner is null)
             {
                 return;
@@ -222,7 +245,7 @@ public partial class OpaqueMutexedString: IDisposable
     /// it (see <c>RustHandle.cs</c>), the actual Rust destructor call
     /// is deferred until that borrower releases its own reference too — so
     /// existing borrowers obtained before this call remain fully valid.
-    /// After this call, this <c>OpaqueMutexedString</c> instance itself is unusable:
+    /// After this call, this <c>BorrowSafetyProbe</c> instance itself is unusable:
     /// its methods (and any attempt to retain a new dependent from it) throw
     /// <see cref="ObjectDisposedException"/> immediately, regardless of
     /// whether the physical native destruction happened yet.
@@ -232,7 +255,7 @@ public partial class OpaqueMutexedString: IDisposable
         Cleanup();
         GC.SuppressFinalize(this);
     }
-    ~OpaqueMutexedString()
+    ~BorrowSafetyProbe()
     {
         try
         {

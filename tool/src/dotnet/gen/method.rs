@@ -591,7 +591,7 @@ pub(super) struct ParamNames {
 /// One HIR input (param or self) lowered to the three rendered surfaces.
 ///
 /// Self produces an empty `idiomatic_param` (since `this` is implicit) and
-/// uses kind-specific call args (`"_inner"` for opaque, `"this.AsFFI()"` for
+/// uses kind-specific call args (`"selfLease.Ptr"` for opaque, `"this.AsFFI()"` for
 /// struct).
 #[derive(Debug, Default)]
 struct InputLowering {
@@ -601,10 +601,11 @@ struct InputLowering {
     /// Empty for self — `this` is implicit.
     idiomatic_param: String,
     /// Expression passed to the raw call from the idiomatic body:
-    /// `"_inner"` / `"this.AsFFI()"` for self, `"name._inner"` for an opaque
+    /// `"selfLease.Ptr"` / `"this.AsFFI()"` for self, `"nameLease.Ptr"` for an opaque
     /// param, `"v"` for a primitive.
     raw_call_arg: String,
     validation_statement: Option<String>,
+    borrow_statement: Option<String>,
 
     /// Statements that must run calling into the raw layer — e.g. the DiplomatStr
     fix_statement: Option<String>,
@@ -667,9 +668,10 @@ pub(super) struct DotnetInputs {
     pub(super) raw_params: String,
     /// Idiomatic wrapper decl (no self): `"byte value"`.
     pub(super) idiomatic_params: String,
-    /// Raw call args from the idiomatic body: `"_inner, value"`.
+    /// Raw call args from the idiomatic body: `"selfLease.Ptr, value"`.
     pub(super) raw_call_args: String,
     pub(super) validation_statements: Vec<String>,
+    pub(super) borrow_statements: Vec<String>,
     pub(super) fix_statements: Vec<String>,
     pub(super) to_bytes_statements: Vec<String>,
     /// The value a setter assigns, i.e. what its property exposes. `None` for
@@ -853,7 +855,7 @@ impl MethodInfo<'_> {
     /// `extra` is the caller's own nesting, as literal spaces: empty inside a
     /// method, one level inside a property accessor, which sits a block deeper.
     pub(super) fn body_indent(&self, extra: &str) -> String {
-        let base = match (
+        let mut base = match (
             self.inputs.borrowed_slice_pins.is_empty(),
             self.inputs.fix_statements.is_empty(),
         ) {
@@ -861,13 +863,28 @@ impl MethodInfo<'_> {
             (false, false) => 20,
             _ => 16,
         };
+        if !self.inputs.borrow_statements.is_empty() {
+            base += 4;
+        }
         format!("{extra}{}", " ".repeat(base))
     }
 
     /// Indent for the `fixed (...)` lines — one level deeper when they sit
     /// inside the pin `try { ... }` block.
     pub(super) fn fix_indent(&self, extra: &str) -> String {
-        let base = if self.inputs.borrowed_slice_pins.is_empty() {
+        let mut base = if self.inputs.borrowed_slice_pins.is_empty() {
+            12
+        } else {
+            16
+        };
+        if !self.inputs.borrow_statements.is_empty() {
+            base += 4;
+        }
+        format!("{extra}{}", " ".repeat(base))
+    }
+
+    pub(super) fn borrow_body_indent(&self, extra: &str) -> String {
+        let base = if self.inputs.borrow_statements.is_empty() {
             12
         } else {
             16
@@ -1819,6 +1836,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
         let mut idiomatic_params = Vec::new();
         let mut call_args = Vec::new();
         let mut validation_statements = Vec::new();
+        let mut borrow_statements = Vec::new();
         let mut fix_statements = Vec::new();
         let mut to_bytes_statements = Vec::new();
         let mut setter_value = None;
@@ -1830,6 +1848,9 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             call_args.push(s.raw_call_arg.as_str());
             if let Some(target) = &s.keep_alive_target {
                 keep_alive_targets.push(target.clone());
+            }
+            if let Some(statement) = &s.borrow_statement {
+                borrow_statements.push(statement.clone());
             }
             // self contributes nothing to the idiomatic decl — `this` is implicit.
         }
@@ -1859,6 +1880,9 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             if let Some(fix) = &p.fix_statement {
                 fix_statements.push(fix.clone());
             }
+            if let Some(statement) = &p.borrow_statement {
+                borrow_statements.push(statement.clone());
+            }
             if let Some(to_bytes) = &p.to_bytes_statement {
                 to_bytes_statements.push(to_bytes.clone());
             }
@@ -1875,6 +1899,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             idiomatic_params: idiomatic_params.join(", "),
             raw_call_args: call_args.join(", "),
             validation_statements,
+            borrow_statements,
             fix_statements,
             to_bytes_statements,
             setter_value,
@@ -1887,12 +1912,15 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
         Some(match &this.ty {
             hir::SelfType::Opaque(p) => {
                 let name = self.opaque_name_borrowed(p);
+                let acquire = match this.get_mutability() {
+                    hir::Mutability::Immutable => "AcquireShared",
+                    hir::Mutability::Mutable => "AcquireExclusive",
+                };
                 InputLowering {
                     raw_param: format!("{name}* handle"),
                     idiomatic_param: String::new(),
-                    // `GC.KeepAlive(this)` after the call keeps the pointer
-                    // alive across it.
-                    raw_call_arg: "AsFFI()".into(),
+                    raw_call_arg: "selfLease.Ptr".into(),
+                    borrow_statement: Some(format!("using (var selfLease = {acquire}())")),
                     keep_alive_target: Some("this".into()),
                     ..Default::default()
                 }
@@ -2045,41 +2073,36 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             hir::Type::Opaque(p) => {
                 let ty = self.opaque_name_borrowed(p);
                 let optional = p.is_optional();
+                let acquire = match p.owner.mutability {
+                    hir::Mutability::Immutable => "AcquireShared",
+                    hir::Mutability::Mutable => "AcquireExclusive",
+                };
                 let idiomatic_ty = if optional {
                     format!("{ty}?")
                 } else {
                     ty.clone()
                 };
-                // Cache `AsFFI()` to a local — calling it once for the
-                // null check and again at the call site is wasted. The
-                // disposed check then guards against a use-after-Dispose
-                // without invoking `AsFFI()` twice.
-                // The opaque is non-nullable in the C# signature (`Locale
-                // locale`), but the warning is suppressible — a caller
-                // compiled without `#nullable enable` can still hand us
-                // null. Surface `ArgumentNullException` (vs. the
-                // `NullReferenceException` a bare `.AsFFI()` would throw)
-                // so the failure mode names the bad argument. Matches
-                // the callback-input validation at `lower_callback_input`.
-                let raw_var = format!("{arg_name}Raw");
+                let lease_var = self.slice_local_name(input_context.local_base(), "Lease");
                 let validation_statement = if optional {
-                    Some(format!(
-                        "Raw.{ty}* {raw_var} = {arg_name} == null ? null : {arg_name}.AsFFI();\n\
-                         if ({arg_name} != null && {raw_var} == null) throw new ObjectDisposedException(nameof({ty}));"
-                    ))
+                    None
                 } else {
                     Some(format!(
-                        "if ({arg_name} == null) throw new ArgumentNullException(nameof({arg_name}));\n\
-                         Raw.{ty}* {raw_var} = {arg_name}.AsFFI();\n\
-                         if ({raw_var} == null) throw new ObjectDisposedException(nameof({ty}));"
+                        "if ({arg_name} == null) throw new ArgumentNullException(nameof({arg_name}));"
                     ))
                 };
-                let raw_call_arg = raw_var;
+                let borrow_statement = if optional {
+                    format!(
+                        "using (var {lease_var} = {arg_name} == null ? default(OperationLease<Raw.{ty}>) : {arg_name}.{acquire}())"
+                    )
+                } else {
+                    format!("using (var {lease_var} = {arg_name}.{acquire}())")
+                };
                 InputLowering {
                     raw_param: format!("{ty}* {raw_name}"),
                     idiomatic_param: format!("{idiomatic_ty} {arg_name}"),
-                    raw_call_arg,
+                    raw_call_arg: format!("{lease_var}.Ptr"),
                     validation_statement,
+                    borrow_statement: Some(borrow_statement),
                     accessor_value: Some(AccessorValue::nullable_if(
                         optional,
                         AccessorMarshal::Opaque(ty),
@@ -2144,6 +2167,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                                     validation_statement: Some(format!(
                                         "if ({arg_name} == null) throw new ArgumentNullException(nameof({arg_name}));"
                                     )),
+                                    borrow_statement: None,
                                     to_bytes_statement: Some(format!(
                                         "byte[] {bytes} = Diplomat.Utf8.Clone({arg_name});"
                                     )),

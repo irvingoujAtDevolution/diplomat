@@ -59,11 +59,12 @@ public partial class RefList
         unsafe
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            Raw.RefListParameter* dataRaw = data.AsFFI();
-            if (dataRaw == null) throw new ObjectDisposedException(nameof(RefListParameter));
-            Raw.RefList* result = Raw.RefList.Node(dataRaw);
-            GC.KeepAlive(data);
-            return new RefList(result, new object[] { data.DiplomatRetainDependency() });
+            using (var dataLease = data.AcquireShared())
+            {
+                Raw.RefList* result = Raw.RefList.Node(dataLease.Ptr);
+                GC.KeepAlive(data);
+                return new RefList(result, new object[] { data.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -77,6 +78,26 @@ public partial class RefList
             throw new ObjectDisposedException("RefList");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.RefList> AcquireShared()
+    {
+        RustHandle<Raw.RefList>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RefList");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.RefList> AcquireExclusive()
+    {
+        RustHandle<Raw.RefList>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RefList");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

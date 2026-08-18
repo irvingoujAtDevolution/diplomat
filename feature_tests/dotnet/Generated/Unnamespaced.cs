@@ -68,11 +68,13 @@ public partial class Unnamespaced: IDisposable
                 throw new ObjectDisposedException("Unnamespaced");
             }
             if (n == null) throw new ArgumentNullException(nameof(n));
-            Raw.AttrOpaque1Renamed* nRaw = n.AsFFI();
-            if (nRaw == null) throw new ObjectDisposedException(nameof(AttrOpaque1Renamed));
-            Raw.Unnamespaced.UseNamespaced(AsFFI(), nRaw);
-            GC.KeepAlive(this);
-            GC.KeepAlive(n);
+            using (var selfLease = AcquireShared())
+            using (var nLease = n.AcquireShared())
+            {
+                Raw.Unnamespaced.UseNamespaced(selfLease.Ptr, nLease.Ptr);
+                GC.KeepAlive(this);
+                GC.KeepAlive(n);
+            }
         }
     }
 
@@ -86,6 +88,26 @@ public partial class Unnamespaced: IDisposable
             throw new ObjectDisposedException("Unnamespaced");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.Unnamespaced> AcquireShared()
+    {
+        RustHandle<Raw.Unnamespaced>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("Unnamespaced");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.Unnamespaced> AcquireExclusive()
+    {
+        RustHandle<Raw.Unnamespaced>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("Unnamespaced");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

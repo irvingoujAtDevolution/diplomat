@@ -59,6 +59,26 @@ public partial class RenamedDeprecatedOpaque
         return _inner.Ptr;
     }
 
+    internal unsafe OperationLease<Raw.RenamedDeprecatedOpaque> AcquireShared()
+    {
+        RustHandle<Raw.RenamedDeprecatedOpaque>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedDeprecatedOpaque");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.RenamedDeprecatedOpaque> AcquireExclusive()
+    {
+        RustHandle<Raw.RenamedDeprecatedOpaque>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedDeprecatedOpaque");
+        }
+        return inner.AcquireExclusive();
+    }
+
     /// <summary>
     /// Retains this value's native resource for a new direct dependent.
     /// </summary>

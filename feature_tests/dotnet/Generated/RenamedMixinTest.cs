@@ -76,6 +76,26 @@ public partial class RenamedMixinTest
         return _inner.Ptr;
     }
 
+    internal unsafe OperationLease<Raw.RenamedMixinTest> AcquireShared()
+    {
+        RustHandle<Raw.RenamedMixinTest>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedMixinTest");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.RenamedMixinTest> AcquireExclusive()
+    {
+        RustHandle<Raw.RenamedMixinTest>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedMixinTest");
+        }
+        return inner.AcquireExclusive();
+    }
+
     /// <summary>
     /// Retains this value's native resource for a new direct dependent.
     /// </summary>

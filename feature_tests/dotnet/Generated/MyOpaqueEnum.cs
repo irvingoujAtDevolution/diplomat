@@ -67,16 +67,19 @@ public partial class MyOpaqueEnum: IDisposable
             {
                 throw new ObjectDisposedException("MyOpaqueEnum");
             }
-            DiplomatWrite writeable = new DiplomatWrite();
-            try
+            using (var selfLease = AcquireShared())
             {
-                Raw.MyOpaqueEnum.ToString(AsFFI(), &writeable);
-                GC.KeepAlive(this);
-                return writeable.ToUnicode();
-            }
-            finally
-            {
-                writeable.Dispose();
+                DiplomatWrite writeable = new DiplomatWrite();
+                try
+                {
+                    Raw.MyOpaqueEnum.ToString(selfLease.Ptr, &writeable);
+                    GC.KeepAlive(this);
+                    return writeable.ToUnicode();
+                }
+                finally
+                {
+                    writeable.Dispose();
+                }
             }
         }
     }
@@ -91,6 +94,26 @@ public partial class MyOpaqueEnum: IDisposable
             throw new ObjectDisposedException("MyOpaqueEnum");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.MyOpaqueEnum> AcquireShared()
+    {
+        RustHandle<Raw.MyOpaqueEnum>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("MyOpaqueEnum");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.MyOpaqueEnum> AcquireExclusive()
+    {
+        RustHandle<Raw.MyOpaqueEnum>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("MyOpaqueEnum");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

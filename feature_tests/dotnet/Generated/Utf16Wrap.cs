@@ -71,16 +71,19 @@ public partial class Utf16Wrap: IDisposable
             {
                 throw new ObjectDisposedException("Utf16Wrap");
             }
-            DiplomatWrite writeable = new DiplomatWrite();
-            try
+            using (var selfLease = AcquireShared())
             {
-                Raw.Utf16Wrap.GetDebugStr(AsFFI(), &writeable);
-                GC.KeepAlive(this);
-                return writeable.ToUnicode();
-            }
-            finally
-            {
-                writeable.Dispose();
+                DiplomatWrite writeable = new DiplomatWrite();
+                try
+                {
+                    Raw.Utf16Wrap.GetDebugStr(selfLease.Ptr, &writeable);
+                    GC.KeepAlive(this);
+                    return writeable.ToUnicode();
+                }
+                finally
+                {
+                    writeable.Dispose();
+                }
             }
         }
     }
@@ -97,9 +100,12 @@ public partial class Utf16Wrap: IDisposable
             {
                 throw new ObjectDisposedException("Utf16Wrap");
             }
-            var result = Raw.Utf16Wrap.BorrowCont(AsFFI());
-            GC.KeepAlive(this);
-            return new DiplomatBorrowedSpan<char>(result.Ptr, result.Len, new object[] { this.DiplomatRetainDependency() });
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.Utf16Wrap.BorrowCont(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return new DiplomatBorrowedSpan<char>(result.Ptr, result.Len, new object[] { this.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -113,6 +119,26 @@ public partial class Utf16Wrap: IDisposable
             throw new ObjectDisposedException("Utf16Wrap");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.Utf16Wrap> AcquireShared()
+    {
+        RustHandle<Raw.Utf16Wrap>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("Utf16Wrap");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.Utf16Wrap> AcquireExclusive()
+    {
+        RustHandle<Raw.Utf16Wrap>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("Utf16Wrap");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

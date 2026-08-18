@@ -62,9 +62,12 @@ public partial class BorrowingError
             {
                 throw new ObjectDisposedException("BorrowingError");
             }
-            Raw.OpaqueThin* result = Raw.BorrowingError.OwnerFirst(AsFFI());
-            GC.KeepAlive(this);
-            return result == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result, new object[] { this.DiplomatRetainDependency() }));
+            using (var selfLease = AcquireShared())
+            {
+                Raw.OpaqueThin* result = Raw.BorrowingError.OwnerFirst(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return result == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result, new object[] { this.DiplomatRetainDependency() }));
+            }
         }
     }
 
@@ -78,6 +81,26 @@ public partial class BorrowingError
             throw new ObjectDisposedException("BorrowingError");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.BorrowingError> AcquireShared()
+    {
+        RustHandle<Raw.BorrowingError>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("BorrowingError");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.BorrowingError> AcquireExclusive()
+    {
+        RustHandle<Raw.BorrowingError>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("BorrowingError");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

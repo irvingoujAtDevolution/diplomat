@@ -4,6 +4,7 @@
 
     Body indent comes from `method.body_indent(extra_indent)`:
       - 12 spaces normally (inside `unsafe { }` inside a class method)
+      - +4 inside the explicit operation-lease scope
       - +4 when the method has pinned inputs (`try { ... }` wrapping —
         an exception between `Pin` and the returned wrapper taking
         ownership must dispose the pins, or they leak permanently)
@@ -11,10 +12,9 @@
         so the body reads as nested under the wrapping line rather than
         flush with it.
 
-    Validation / to-bytes / pin-declaration statements stay at the
-    method-body level (12 spaces) because they sit OUTSIDE the try/fixed
-    blocks; `fixed (...)` lines use `method.fix_indent(extra_indent)` (12, or 16 when
-    nested in the pin try); only the code inside the blocks uses `bi`.
+    Validation and to-bytes statements stay outside the lease. Pin declarations
+    and `fixed (...)` lines follow the lease and pin nesting; only the deepest
+    code uses `bi`.
 
     Control tags below are indented to mirror C# nesting for readability.
     Every tag uses the `{%-` left-trim, which removes the tag's own leading
@@ -37,14 +37,20 @@
 {%- for statement in method.inputs.to_bytes_statements %}
 {{ extra_indent }}            {{ statement }}
 {%- endfor %}
-{%- if method.has_pinned_inputs() %}
-{%- for statement in method.pin_declaration_statements() %}
+{%- if !method.inputs.borrow_statements.is_empty() %}
+{%- for statement in method.inputs.borrow_statements %}
 {{ extra_indent }}            {{ statement }}
 {%- endfor %}
-{{ extra_indent }}            try
 {{ extra_indent }}            {
+{%- endif %}
+{%- if method.has_pinned_inputs() %}
+{%- for statement in method.pin_declaration_statements() %}
+{{ method.borrow_body_indent(extra_indent) }}{{ statement }}
+{%- endfor %}
+{{ method.borrow_body_indent(extra_indent) }}try
+{{ method.borrow_body_indent(extra_indent) }}{
 {%- for statement in method.pin_assignment_statements() %}
-{{ extra_indent }}                {{ statement }}
+{{ method.borrow_body_indent(extra_indent) }}    {{ statement }}
 {%- endfor %}
 {%- endif %}
 {%- if !method.inputs.fix_statements.is_empty() %}
@@ -115,12 +121,15 @@
     path returned from inside the try, so reaching here means the wrapper
     never took ownership of the pins. #}
 {%- if method.has_pinned_inputs() %}
-{{ extra_indent }}            }
-{{ extra_indent }}            catch
-{{ extra_indent }}            {
+{{ method.borrow_body_indent(extra_indent) }}}
+{{ method.borrow_body_indent(extra_indent) }}catch
+{{ method.borrow_body_indent(extra_indent) }}{
 {%- for statement in method.pin_dispose_statements() %}
-{{ extra_indent }}                {{ statement }}
+{{ method.borrow_body_indent(extra_indent) }}    {{ statement }}
 {%- endfor %}
-{{ extra_indent }}                throw;
+{{ method.borrow_body_indent(extra_indent) }}    throw;
+{{ method.borrow_body_indent(extra_indent) }}}
+{%- endif %}
+{%- if !method.inputs.borrow_statements.is_empty() %}
 {{ extra_indent }}            }
 {%- endif %}

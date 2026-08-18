@@ -67,9 +67,12 @@ public partial class RcSource: IDisposable
             {
                 throw new ObjectDisposedException("RcSource");
             }
-            var result = Raw.RcSource.Id(AsFFI());
-            GC.KeepAlive(this);
-            return result;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.RcSource.Id(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return result;
+            }
         }
     }
 
@@ -88,9 +91,12 @@ public partial class RcSource: IDisposable
             {
                 throw new ObjectDisposedException("RcSource");
             }
-            Raw.RcSource* result = Raw.RcSource.View(AsFFI());
-            GC.KeepAlive(this);
-            return new RcSource(RustHandle<Raw.RcSource>.Borrowed(result, new object[] { this.DiplomatRetainDependency() }));
+            using (var selfLease = AcquireShared())
+            {
+                Raw.RcSource* result = Raw.RcSource.View(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return new RcSource(RustHandle<Raw.RcSource>.Borrowed(result, new object[] { this.DiplomatRetainDependency() }));
+            }
         }
     }
 
@@ -109,9 +115,12 @@ public partial class RcSource: IDisposable
             {
                 throw new ObjectDisposedException("RcSource");
             }
-            Raw.RcDependent* result = Raw.RcSource.MakeDependent(AsFFI());
-            GC.KeepAlive(this);
-            return new RcDependent(result, new object[] { this.DiplomatRetainDependency() });
+            using (var selfLease = AcquireShared())
+            {
+                Raw.RcDependent* result = Raw.RcSource.MakeDependent(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return new RcDependent(result, new object[] { this.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -149,6 +158,26 @@ public partial class RcSource: IDisposable
             throw new ObjectDisposedException("RcSource");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.RcSource> AcquireShared()
+    {
+        RustHandle<Raw.RcSource>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RcSource");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.RcSource> AcquireExclusive()
+    {
+        RustHandle<Raw.RcSource>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RcSource");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

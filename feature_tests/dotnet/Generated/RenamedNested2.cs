@@ -59,6 +59,26 @@ public partial class RenamedNested2
         return _inner.Ptr;
     }
 
+    internal unsafe OperationLease<Raw.RenamedNested2> AcquireShared()
+    {
+        RustHandle<Raw.RenamedNested2>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedNested2");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.RenamedNested2> AcquireExclusive()
+    {
+        RustHandle<Raw.RenamedNested2>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedNested2");
+        }
+        return inner.AcquireExclusive();
+    }
+
     /// <summary>
     /// Retains this value's native resource for a new direct dependent.
     /// </summary>

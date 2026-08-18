@@ -55,8 +55,11 @@ public partial class OptionOpaqueChar
             {
                 throw new ObjectDisposedException("OptionOpaqueChar");
             }
-            Raw.OptionOpaqueChar.AssertChar(AsFFI(), ch);
-            GC.KeepAlive(this);
+            using (var selfLease = AcquireShared())
+            {
+                Raw.OptionOpaqueChar.AssertChar(selfLease.Ptr, ch);
+                GC.KeepAlive(this);
+            }
         }
     }
 
@@ -70,6 +73,26 @@ public partial class OptionOpaqueChar
             throw new ObjectDisposedException("OptionOpaqueChar");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.OptionOpaqueChar> AcquireShared()
+    {
+        RustHandle<Raw.OptionOpaqueChar>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("OptionOpaqueChar");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.OptionOpaqueChar> AcquireExclusive()
+    {
+        RustHandle<Raw.OptionOpaqueChar>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("OptionOpaqueChar");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

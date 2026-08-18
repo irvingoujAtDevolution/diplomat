@@ -659,6 +659,65 @@ pub mod ffi {
         }
     }
 
+    #[diplomat::attr(not(dotnet), disable)]
+    #[diplomat::attr(dotnet, manually_disposable)]
+    #[diplomat::opaque_mut]
+    pub struct BorrowSafetyProbe;
+
+    impl BorrowSafetyProbe {
+        pub fn create() -> Box<Self> {
+            Box::new(Self)
+        }
+
+        pub fn reset_shared_call() {
+            super::BORROW_SAFETY_SHARED_ENTERED.store(false, super::Ordering::SeqCst);
+            super::BORROW_SAFETY_SHARED_RELEASE.store(false, super::Ordering::SeqCst);
+        }
+
+        pub fn shared_call_entered() -> bool {
+            super::BORROW_SAFETY_SHARED_ENTERED.load(super::Ordering::SeqCst)
+        }
+
+        pub fn release_shared_call() {
+            super::BORROW_SAFETY_SHARED_RELEASE.store(true, super::Ordering::SeqCst);
+        }
+
+        pub fn hold_shared(&self) {
+            super::BORROW_SAFETY_SHARED_ENTERED.store(true, super::Ordering::SeqCst);
+            while !super::BORROW_SAFETY_SHARED_RELEASE.load(super::Ordering::SeqCst) {
+                std::thread::yield_now();
+            }
+        }
+
+        pub fn ping_shared(&self) -> bool {
+            true
+        }
+
+        pub fn reset_mutable_call() {
+            super::BORROW_SAFETY_MUTABLE_ENTERED.store(false, super::Ordering::SeqCst);
+            super::BORROW_SAFETY_MUTABLE_RELEASE.store(false, super::Ordering::SeqCst);
+        }
+
+        pub fn mutable_call_entered() -> bool {
+            super::BORROW_SAFETY_MUTABLE_ENTERED.load(super::Ordering::SeqCst)
+        }
+
+        pub fn release_mutable_call() {
+            super::BORROW_SAFETY_MUTABLE_RELEASE.store(true, super::Ordering::SeqCst);
+        }
+
+        pub fn hold_mutable(&mut self) {
+            super::BORROW_SAFETY_MUTABLE_ENTERED.store(true, super::Ordering::SeqCst);
+            while !super::BORROW_SAFETY_MUTABLE_RELEASE.load(super::Ordering::SeqCst) {
+                std::thread::yield_now();
+            }
+        }
+
+        pub fn ping_mutable(&mut self) -> bool {
+            true
+        }
+    }
+
     // Finalizer-only (default, non-opt-in) parent/child pair exercising the
     // same destruction-ordering invariant without explicit `Dispose()`.
     #[diplomat::attr(not(dotnet), disable)]
@@ -807,6 +866,14 @@ pub(crate) static RC_SOURCE_DROPS: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
 pub(crate) static RC_SOURCE_DROP_SEQ: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
+pub(crate) static BORROW_SAFETY_SHARED_ENTERED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+pub(crate) static BORROW_SAFETY_SHARED_RELEASE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+pub(crate) static BORROW_SAFETY_MUTABLE_ENTERED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+pub(crate) static BORROW_SAFETY_MUTABLE_RELEASE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 pub(crate) static RC_DEPENDENT_DROPS: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
 pub(crate) static RC_DEPENDENT_DROP_SEQ: std::sync::atomic::AtomicU64 =

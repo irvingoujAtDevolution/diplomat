@@ -67,9 +67,12 @@ public partial class RcFinalizerSource
             {
                 throw new ObjectDisposedException("RcFinalizerSource");
             }
-            var result = Raw.RcFinalizerSource.Id(AsFFI());
-            GC.KeepAlive(this);
-            return result;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.RcFinalizerSource.Id(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return result;
+            }
         }
     }
 
@@ -88,9 +91,12 @@ public partial class RcFinalizerSource
             {
                 throw new ObjectDisposedException("RcFinalizerSource");
             }
-            Raw.RcFinalizerDependent* result = Raw.RcFinalizerSource.MakeDependent(AsFFI());
-            GC.KeepAlive(this);
-            return new RcFinalizerDependent(result, new object[] { this.DiplomatRetainDependency() });
+            using (var selfLease = AcquireShared())
+            {
+                Raw.RcFinalizerDependent* result = Raw.RcFinalizerSource.MakeDependent(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return new RcFinalizerDependent(result, new object[] { this.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -128,6 +134,26 @@ public partial class RcFinalizerSource
             throw new ObjectDisposedException("RcFinalizerSource");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.RcFinalizerSource> AcquireShared()
+    {
+        RustHandle<Raw.RcFinalizerSource>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RcFinalizerSource");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.RcFinalizerSource> AcquireExclusive()
+    {
+        RustHandle<Raw.RcFinalizerSource>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RcFinalizerSource");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

@@ -31,9 +31,12 @@ public partial class OpaqueThinVec: IDisposable
                 {
                     throw new ObjectDisposedException("OpaqueThinVec");
                 }
-                Raw.OpaqueThin* result = Raw.OpaqueThinVec.First(AsFFI());
-                GC.KeepAlive(this);
-                return result == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result, new object[] { this.DiplomatRetainDependency() }));
+                using (var selfLease = AcquireShared())
+                {
+                    Raw.OpaqueThin* result = Raw.OpaqueThinVec.First(selfLease.Ptr);
+                    GC.KeepAlive(this);
+                    return result == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result, new object[] { this.DiplomatRetainDependency() }));
+                }
             }
         }
     }
@@ -50,10 +53,13 @@ public partial class OpaqueThinVec: IDisposable
                 }
                 if (value == null) throw new ArgumentNullException(nameof(value));
                 byte[] valueBytes = Diplomat.Utf8.Clone(value);
-                fixed (byte* valuePtr = valueBytes)
+                using (var selfLease = AcquireExclusive())
                 {
-                    Raw.OpaqueThinVec.SetFirstC(AsFFI(), new DiplomatSliceU8 { Ptr = valuePtr, Len = (nuint)valueBytes.Length });
-                    GC.KeepAlive(this);
+                    fixed (byte* valuePtr = valueBytes)
+                    {
+                        Raw.OpaqueThinVec.SetFirstC(selfLease.Ptr, new DiplomatSliceU8 { Ptr = valuePtr, Len = (nuint)valueBytes.Length });
+                        GC.KeepAlive(this);
+                    }
                 }
             }
         }
@@ -123,9 +129,12 @@ public partial class OpaqueThinVec: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueThinVec");
             }
-            Raw.OpaqueThinIter* result = Raw.OpaqueThinVec.Iter(AsFFI());
-            GC.KeepAlive(this);
-            return new OpaqueThinIter(result, new object[] { this.DiplomatRetainDependency() });
+            using (var selfLease = AcquireShared())
+            {
+                Raw.OpaqueThinIter* result = Raw.OpaqueThinVec.Iter(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return new OpaqueThinIter(result, new object[] { this.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -137,9 +146,12 @@ public partial class OpaqueThinVec: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueThinVec");
             }
-            var result = Raw.OpaqueThinVec.Len(AsFFI());
-            GC.KeepAlive(this);
-            return result;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.OpaqueThinVec.Len(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return result;
+            }
         }
     }
 
@@ -158,9 +170,12 @@ public partial class OpaqueThinVec: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueThinVec");
             }
-            Raw.OpaqueThin* result = Raw.OpaqueThinVec.Get(AsFFI(), idx);
-            GC.KeepAlive(this);
-            return result == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result, new object[] { this.DiplomatRetainDependency() }));
+            using (var selfLease = AcquireShared())
+            {
+                Raw.OpaqueThin* result = Raw.OpaqueThinVec.Get(selfLease.Ptr, idx);
+                GC.KeepAlive(this);
+                return result == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result, new object[] { this.DiplomatRetainDependency() }));
+            }
         }
     }
 
@@ -180,13 +195,16 @@ public partial class OpaqueThinVec: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueThinVec");
             }
-            var result = Raw.OpaqueThinVec.TryFirst(AsFFI(), fail);
-            GC.KeepAlive(this);
-            if (!result.IsOk)
+            using (var selfLease = AcquireShared())
             {
-                throw new InvalidOperationException("FFI function failed with unit error");
+                var result = Raw.OpaqueThinVec.TryFirst(selfLease.Ptr, fail);
+                GC.KeepAlive(this);
+                if (!result.IsOk)
+                {
+                    throw new InvalidOperationException("FFI function failed with unit error");
+                }
+                return new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result.Ok, new object[] { this.DiplomatRetainDependency() }));
             }
-            return new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result.Ok, new object[] { this.DiplomatRetainDependency() }));
         }
     }
 
@@ -206,13 +224,16 @@ public partial class OpaqueThinVec: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueThinVec");
             }
-            var result = Raw.OpaqueThinVec.TryGet(AsFFI(), idx, fail);
-            GC.KeepAlive(this);
-            if (!result.IsOk)
+            using (var selfLease = AcquireShared())
             {
-                throw new InvalidOperationException("FFI function failed with unit error");
+                var result = Raw.OpaqueThinVec.TryGet(selfLease.Ptr, idx, fail);
+                GC.KeepAlive(this);
+                if (!result.IsOk)
+                {
+                    throw new InvalidOperationException("FFI function failed with unit error");
+                }
+                return result.Ok == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result.Ok, new object[] { this.DiplomatRetainDependency() }));
             }
-            return result.Ok == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result.Ok, new object[] { this.DiplomatRetainDependency() }));
         }
     }
 
@@ -232,13 +253,16 @@ public partial class OpaqueThinVec: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueThinVec");
             }
-            var result = Raw.OpaqueThinVec.TryIter(AsFFI(), fail);
-            GC.KeepAlive(this);
-            if (!result.IsOk)
+            using (var selfLease = AcquireShared())
             {
-                throw new InvalidOperationException("FFI function failed with unit error");
+                var result = Raw.OpaqueThinVec.TryIter(selfLease.Ptr, fail);
+                GC.KeepAlive(this);
+                if (!result.IsOk)
+                {
+                    throw new InvalidOperationException("FFI function failed with unit error");
+                }
+                return new OpaqueThinIter(result.Ok, new object[] { this.DiplomatRetainDependency() });
             }
-            return new OpaqueThinIter(result.Ok, new object[] { this.DiplomatRetainDependency() });
         }
     }
 
@@ -257,9 +281,12 @@ public partial class OpaqueThinVec: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueThinVec");
             }
-            Raw.OpaqueThinIter* result = Raw.OpaqueThinVec.OptionalIter(AsFFI(), some);
-            GC.KeepAlive(this);
-            return result == null ? null : new OpaqueThinIter(result, new object[] { this.DiplomatRetainDependency() });
+            using (var selfLease = AcquireShared())
+            {
+                Raw.OpaqueThinIter* result = Raw.OpaqueThinVec.OptionalIter(selfLease.Ptr, some);
+                GC.KeepAlive(this);
+                return result == null ? null : new OpaqueThinIter(result, new object[] { this.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -272,13 +299,16 @@ public partial class OpaqueThinVec: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueThinVec");
             }
-            var result = Raw.OpaqueThinVec.TryBorrow(AsFFI(), fail);
-            GC.KeepAlive(this);
-            if (!result.IsOk)
+            using (var selfLease = AcquireShared())
             {
-                throw new BorrowingErrorException(new BorrowingError(result.Err, new object[] { this.DiplomatRetainDependency() }));
+                var result = Raw.OpaqueThinVec.TryBorrow(selfLease.Ptr, fail);
+                GC.KeepAlive(this);
+                if (!result.IsOk)
+                {
+                    throw new BorrowingErrorException(new BorrowingError(result.Err, new object[] { this.DiplomatRetainDependency() }));
+                }
+                return result.Ok;
             }
-            return result.Ok;
         }
     }
 
@@ -292,6 +322,26 @@ public partial class OpaqueThinVec: IDisposable
             throw new ObjectDisposedException("OpaqueThinVec");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.OpaqueThinVec> AcquireShared()
+    {
+        RustHandle<Raw.OpaqueThinVec>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("OpaqueThinVec");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.OpaqueThinVec> AcquireExclusive()
+    {
+        RustHandle<Raw.OpaqueThinVec>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("OpaqueThinVec");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

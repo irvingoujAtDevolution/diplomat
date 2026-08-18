@@ -72,20 +72,23 @@ public partial class OptionString: IDisposable
             {
                 throw new ObjectDisposedException("OptionString");
             }
-            DiplomatWrite writeable = new DiplomatWrite();
-            try
+            using (var selfLease = AcquireShared())
             {
-                var result = Raw.OptionString.Write(AsFFI(), &writeable);
-                GC.KeepAlive(this);
-                if (!result.IsOk)
+                DiplomatWrite writeable = new DiplomatWrite();
+                try
                 {
-                    throw new InvalidOperationException("FFI function failed with unit error");
+                    var result = Raw.OptionString.Write(selfLease.Ptr, &writeable);
+                    GC.KeepAlive(this);
+                    if (!result.IsOk)
+                    {
+                        throw new InvalidOperationException("FFI function failed with unit error");
+                    }
+                    return writeable.ToUnicode();
                 }
-                return writeable.ToUnicode();
-            }
-            finally
-            {
-                writeable.Dispose();
+                finally
+                {
+                    writeable.Dispose();
+                }
             }
         }
     }
@@ -100,6 +103,26 @@ public partial class OptionString: IDisposable
             throw new ObjectDisposedException("OptionString");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.OptionString> AcquireShared()
+    {
+        RustHandle<Raw.OptionString>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("OptionString");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.OptionString> AcquireExclusive()
+    {
+        RustHandle<Raw.OptionString>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("OptionString");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

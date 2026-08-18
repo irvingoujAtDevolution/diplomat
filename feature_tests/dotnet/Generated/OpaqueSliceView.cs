@@ -149,9 +149,12 @@ public partial class OpaqueSliceView: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueSliceView");
             }
-            var result = Raw.OpaqueSliceView.Length(AsFFI());
-            GC.KeepAlive(this);
-            return result;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.OpaqueSliceView.Length(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return result;
+            }
         }
     }
 
@@ -163,9 +166,12 @@ public partial class OpaqueSliceView: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueSliceView");
             }
-            var result = Raw.OpaqueSliceView.Get(AsFFI(), index);
-            GC.KeepAlive(this);
-            return result;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.OpaqueSliceView.Get(selfLease.Ptr, index);
+                GC.KeepAlive(this);
+                return result;
+            }
         }
     }
 
@@ -177,9 +183,12 @@ public partial class OpaqueSliceView: IDisposable
             {
                 throw new ObjectDisposedException("OpaqueSliceView");
             }
-            var result = Raw.OpaqueSliceView.Sum(AsFFI());
-            GC.KeepAlive(this);
-            return result;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.OpaqueSliceView.Sum(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return result;
+            }
         }
     }
 
@@ -193,6 +202,26 @@ public partial class OpaqueSliceView: IDisposable
             throw new ObjectDisposedException("OpaqueSliceView");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.OpaqueSliceView> AcquireShared()
+    {
+        RustHandle<Raw.OpaqueSliceView>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("OpaqueSliceView");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.OpaqueSliceView> AcquireExclusive()
+    {
+        RustHandle<Raw.OpaqueSliceView>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("OpaqueSliceView");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

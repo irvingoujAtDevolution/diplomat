@@ -62,9 +62,12 @@ public partial class OpaqueThinIter
             {
                 throw new ObjectDisposedException("OpaqueThinIter");
             }
-            Raw.OpaqueThin* result = Raw.OpaqueThinIter.Next(AsFFI());
-            GC.KeepAlive(this);
-            return result == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result, new object[] { this.DiplomatRetainDependency() }));
+            using (var selfLease = AcquireExclusive())
+            {
+                Raw.OpaqueThin* result = Raw.OpaqueThinIter.Next(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return result == null ? null : new OpaqueThin(RustHandle<Raw.OpaqueThin>.Borrowed(result, new object[] { this.DiplomatRetainDependency() }));
+            }
         }
     }
 
@@ -78,6 +81,26 @@ public partial class OpaqueThinIter
             throw new ObjectDisposedException("OpaqueThinIter");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.OpaqueThinIter> AcquireShared()
+    {
+        RustHandle<Raw.OpaqueThinIter>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("OpaqueThinIter");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.OpaqueThinIter> AcquireExclusive()
+    {
+        RustHandle<Raw.OpaqueThinIter>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("OpaqueThinIter");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

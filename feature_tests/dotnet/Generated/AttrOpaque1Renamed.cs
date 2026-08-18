@@ -24,9 +24,12 @@ public partial class AttrOpaque1Renamed: IDisposable
                 {
                     throw new ObjectDisposedException("AttrOpaque1Renamed");
                 }
-                var result = Raw.AttrOpaque1Renamed.Abirenamed(AsFFI());
-                GC.KeepAlive(this);
-                return result;
+                using (var selfLease = AcquireShared())
+                {
+                    var result = Raw.AttrOpaque1Renamed.Abirenamed(selfLease.Ptr);
+                    GC.KeepAlive(this);
+                    return result;
+                }
             }
         }
     }
@@ -41,9 +44,12 @@ public partial class AttrOpaque1Renamed: IDisposable
                 {
                     throw new ObjectDisposedException("AttrOpaque1Renamed");
                 }
-                var result = Raw.AttrOpaque1Renamed.method_renamed(AsFFI());
-                GC.KeepAlive(this);
-                return result;
+                using (var selfLease = AcquireShared())
+                {
+                    var result = Raw.AttrOpaque1Renamed.method_renamed(selfLease.Ptr);
+                    GC.KeepAlive(this);
+                    return result;
+                }
             }
         }
     }
@@ -130,11 +136,13 @@ public partial class AttrOpaque1Renamed: IDisposable
                 throw new ObjectDisposedException("AttrOpaque1Renamed");
             }
             if (un == null) throw new ArgumentNullException(nameof(un));
-            Raw.Unnamespaced* unRaw = un.AsFFI();
-            if (unRaw == null) throw new ObjectDisposedException(nameof(Unnamespaced));
-            Raw.AttrOpaque1Renamed.UseUnnamespaced(AsFFI(), unRaw);
-            GC.KeepAlive(this);
-            GC.KeepAlive(un);
+            using (var selfLease = AcquireShared())
+            using (var unLease = un.AcquireShared())
+            {
+                Raw.AttrOpaque1Renamed.UseUnnamespaced(selfLease.Ptr, unLease.Ptr);
+                GC.KeepAlive(this);
+                GC.KeepAlive(un);
+            }
         }
     }
 
@@ -146,8 +154,11 @@ public partial class AttrOpaque1Renamed: IDisposable
             {
                 throw new ObjectDisposedException("AttrOpaque1Renamed");
             }
-            Raw.AttrOpaque1Renamed.UseNamespaced(AsFFI(), n);
-            GC.KeepAlive(this);
+            using (var selfLease = AcquireShared())
+            {
+                Raw.AttrOpaque1Renamed.UseNamespaced(selfLease.Ptr, n);
+                GC.KeepAlive(this);
+            }
         }
     }
 
@@ -161,6 +172,26 @@ public partial class AttrOpaque1Renamed: IDisposable
             throw new ObjectDisposedException("AttrOpaque1Renamed");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.AttrOpaque1Renamed> AcquireShared()
+    {
+        RustHandle<Raw.AttrOpaque1Renamed>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("AttrOpaque1Renamed");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.AttrOpaque1Renamed> AcquireExclusive()
+    {
+        RustHandle<Raw.AttrOpaque1Renamed>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("AttrOpaque1Renamed");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

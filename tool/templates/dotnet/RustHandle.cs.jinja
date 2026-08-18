@@ -8,6 +8,29 @@ namespace {{ namespace }}.Diplomat;
 /// Frees a Rust-owned <typeparamref name="T"/> by calling its native destructor.
 internal unsafe delegate void RustDestructor<T>(T* ptr) where T : unmanaged;
 
+internal enum BorrowKind
+{
+    Shared,
+    Exclusive,
+}
+
+internal readonly unsafe ref struct OperationLease<T> where T : unmanaged
+{
+    private readonly RustHandle<T>? _owner;
+    private readonly BorrowKind _kind;
+
+    internal OperationLease(RustHandle<T> owner, BorrowKind kind)
+    {
+        _owner = owner;
+        _kind = kind;
+        Ptr = owner.Ptr;
+    }
+
+    internal T* Ptr { get; }
+
+    public void Dispose() => _owner?.ReleaseBorrow(_kind);
+}
+
 /// <summary>
 /// Reference-counted native handle for one opaque. Starts at refcount 1 (the
 /// owning wrapper). <see cref="Retain"/> hands a dependent a token; when the
@@ -25,6 +48,7 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
     private readonly RustDestructor<T>? _destructor;
     private object[] _edges;
     private int _refCount = 1;
+    private int _borrowState;
 
     private RustHandle(T* ptr, RustDestructor<T>? destructor, object[] edges)
     {
@@ -54,6 +78,55 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
     /// True once this handle's native pointer has been cleared (refcount hit zero,
     /// or a borrowed handle was never assigned).
     internal bool IsNull => _ptr is null;
+
+    internal OperationLease<T> AcquireShared()
+    {
+        if (IsNull)
+        {
+            throw new ObjectDisposedException(typeof(T).Name);
+        }
+
+        while (true)
+        {
+            int current = Volatile.Read(ref _borrowState);
+            if (current < 0)
+            {
+                throw new InvalidOperationException("An exclusive borrow is already active.");
+            }
+
+            if (Interlocked.CompareExchange(ref _borrowState, current + 1, current) == current)
+            {
+                return new OperationLease<T>(this, BorrowKind.Shared);
+            }
+        }
+    }
+
+    internal OperationLease<T> AcquireExclusive()
+    {
+        if (IsNull)
+        {
+            throw new ObjectDisposedException(typeof(T).Name);
+        }
+
+        if (Interlocked.CompareExchange(ref _borrowState, -1, 0) != 0)
+        {
+            throw new InvalidOperationException("Another borrow is already active.");
+        }
+
+        return new OperationLease<T>(this, BorrowKind.Exclusive);
+    }
+
+    internal void ReleaseBorrow(BorrowKind kind)
+    {
+        if (kind == BorrowKind.Shared)
+        {
+            Interlocked.Decrement(ref _borrowState);
+        }
+        else
+        {
+            Volatile.Write(ref _borrowState, 0);
+        }
+    }
 
     /// Bumps the count for one new direct dependent and returns its token.
     /// The caller must dispose the token exactly once from its own cleanup.

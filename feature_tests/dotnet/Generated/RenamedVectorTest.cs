@@ -24,9 +24,12 @@ public partial class RenamedVectorTest: IDisposable
                 {
                     throw new ObjectDisposedException("RenamedVectorTest");
                 }
-                var result = Raw.RenamedVectorTest.Len(AsFFI());
-                GC.KeepAlive(this);
-                return result;
+                using (var selfLease = AcquireShared())
+                {
+                    var result = Raw.RenamedVectorTest.Len(selfLease.Ptr);
+                    GC.KeepAlive(this);
+                    return result;
+                }
             }
         }
     }
@@ -84,9 +87,12 @@ public partial class RenamedVectorTest: IDisposable
             {
                 throw new ObjectDisposedException("RenamedVectorTest");
             }
-            var result = Raw.RenamedVectorTest.Get(AsFFI(), idx);
-            GC.KeepAlive(this);
-            return result.IsSome ? result.Value : (double?)null;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.RenamedVectorTest.Get(selfLease.Ptr, idx);
+                GC.KeepAlive(this);
+                return result.IsSome ? result.Value : (double?)null;
+            }
         }
     }
 
@@ -98,8 +104,11 @@ public partial class RenamedVectorTest: IDisposable
             {
                 throw new ObjectDisposedException("RenamedVectorTest");
             }
-            Raw.RenamedVectorTest.Push(AsFFI(), value);
-            GC.KeepAlive(this);
+            using (var selfLease = AcquireExclusive())
+            {
+                Raw.RenamedVectorTest.Push(selfLease.Ptr, value);
+                GC.KeepAlive(this);
+            }
         }
     }
 
@@ -113,6 +122,26 @@ public partial class RenamedVectorTest: IDisposable
             throw new ObjectDisposedException("RenamedVectorTest");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.RenamedVectorTest> AcquireShared()
+    {
+        RustHandle<Raw.RenamedVectorTest>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedVectorTest");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.RenamedVectorTest> AcquireExclusive()
+    {
+        RustHandle<Raw.RenamedVectorTest>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedVectorTest");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

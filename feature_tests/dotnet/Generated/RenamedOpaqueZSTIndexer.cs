@@ -70,9 +70,12 @@ public partial class RenamedOpaqueZSTIndexer
             {
                 throw new ObjectDisposedException("RenamedOpaqueZSTIndexer");
             }
-            Raw.RenamedOpaqueZSTIndexer* result = Raw.RenamedOpaqueZSTIndexer.Index(AsFFI(), idx);
-            GC.KeepAlive(this);
-            return result == null ? null : new RenamedOpaqueZSTIndexer(result);
+            using (var selfLease = AcquireShared())
+            {
+                Raw.RenamedOpaqueZSTIndexer* result = Raw.RenamedOpaqueZSTIndexer.Index(selfLease.Ptr, idx);
+                GC.KeepAlive(this);
+                return result == null ? null : new RenamedOpaqueZSTIndexer(result);
+            }
         }
     }
 
@@ -86,6 +89,26 @@ public partial class RenamedOpaqueZSTIndexer
             throw new ObjectDisposedException("RenamedOpaqueZSTIndexer");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.RenamedOpaqueZSTIndexer> AcquireShared()
+    {
+        RustHandle<Raw.RenamedOpaqueZSTIndexer>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedOpaqueZSTIndexer");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.RenamedOpaqueZSTIndexer> AcquireExclusive()
+    {
+        RustHandle<Raw.RenamedOpaqueZSTIndexer>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedOpaqueZSTIndexer");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

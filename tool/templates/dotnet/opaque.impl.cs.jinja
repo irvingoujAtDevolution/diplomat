@@ -84,6 +84,26 @@ public partial class {{ name }}{% if manually_disposable %}: IDisposable{% endif
         return _inner.Ptr;
     }
 
+    internal unsafe OperationLease<Raw.{{ name }}> AcquireShared()
+    {
+        RustHandle<Raw.{{ name }}>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("{{ name }}");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.{{ name }}> AcquireExclusive()
+    {
+        RustHandle<Raw.{{ name }}>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("{{ name }}");
+        }
+        return inner.AcquireExclusive();
+    }
+
     /// <summary>
     /// Retains this value's native resource for a new direct dependent.
     /// </summary>

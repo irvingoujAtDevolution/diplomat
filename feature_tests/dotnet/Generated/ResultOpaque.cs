@@ -182,8 +182,11 @@ public partial class ResultOpaque: IDisposable
             {
                 throw new ObjectDisposedException("ResultOpaque");
             }
-            Raw.ResultOpaque.AssertInteger(AsFFI(), i);
-            GC.KeepAlive(this);
+            using (var selfLease = AcquireShared())
+            {
+                Raw.ResultOpaque.AssertInteger(selfLease.Ptr, i);
+                GC.KeepAlive(this);
+            }
         }
     }
 
@@ -197,6 +200,26 @@ public partial class ResultOpaque: IDisposable
             throw new ObjectDisposedException("ResultOpaque");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.ResultOpaque> AcquireShared()
+    {
+        RustHandle<Raw.ResultOpaque>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("ResultOpaque");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.ResultOpaque> AcquireExclusive()
+    {
+        RustHandle<Raw.ResultOpaque>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("ResultOpaque");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

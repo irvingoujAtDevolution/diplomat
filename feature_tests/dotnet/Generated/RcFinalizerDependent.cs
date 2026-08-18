@@ -55,9 +55,12 @@ public partial class RcFinalizerDependent
             {
                 throw new ObjectDisposedException("RcFinalizerDependent");
             }
-            var result = Raw.RcFinalizerDependent.Id(AsFFI());
-            GC.KeepAlive(this);
-            return result;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.RcFinalizerDependent.Id(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return result;
+            }
         }
     }
 
@@ -95,6 +98,26 @@ public partial class RcFinalizerDependent
             throw new ObjectDisposedException("RcFinalizerDependent");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.RcFinalizerDependent> AcquireShared()
+    {
+        RustHandle<Raw.RcFinalizerDependent>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RcFinalizerDependent");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.RcFinalizerDependent> AcquireExclusive()
+    {
+        RustHandle<Raw.RcFinalizerDependent>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RcFinalizerDependent");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

@@ -55,9 +55,12 @@ public partial class RcDependent: IDisposable
             {
                 throw new ObjectDisposedException("RcDependent");
             }
-            var result = Raw.RcDependent.Id(AsFFI());
-            GC.KeepAlive(this);
-            return result;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.RcDependent.Id(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return result;
+            }
         }
     }
 
@@ -69,9 +72,12 @@ public partial class RcDependent: IDisposable
             {
                 throw new ObjectDisposedException("RcDependent");
             }
-            var result = Raw.RcDependent.SourceId(AsFFI());
-            GC.KeepAlive(this);
-            return result;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.RcDependent.SourceId(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return result;
+            }
         }
     }
 
@@ -90,9 +96,12 @@ public partial class RcDependent: IDisposable
             {
                 throw new ObjectDisposedException("RcDependent");
             }
-            Raw.RcDependent2* result = Raw.RcDependent.MakeDependent2(AsFFI());
-            GC.KeepAlive(this);
-            return new RcDependent2(result, new object[] { this.DiplomatRetainDependency() });
+            using (var selfLease = AcquireShared())
+            {
+                Raw.RcDependent2* result = Raw.RcDependent.MakeDependent2(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return new RcDependent2(result, new object[] { this.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -130,6 +139,26 @@ public partial class RcDependent: IDisposable
             throw new ObjectDisposedException("RcDependent");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.RcDependent> AcquireShared()
+    {
+        RustHandle<Raw.RcDependent>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RcDependent");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.RcDependent> AcquireExclusive()
+    {
+        RustHandle<Raw.RcDependent>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RcDependent");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

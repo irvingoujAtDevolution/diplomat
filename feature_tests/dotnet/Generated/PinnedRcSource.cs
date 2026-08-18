@@ -90,9 +90,12 @@ public partial class PinnedRcSource: IDisposable
             {
                 throw new ObjectDisposedException("PinnedRcSource");
             }
-            Raw.PinnedRcDependent* result = Raw.PinnedRcSource.MakeDependent(AsFFI());
-            GC.KeepAlive(this);
-            return new PinnedRcDependent(result, new object[] { this.DiplomatRetainDependency() });
+            using (var selfLease = AcquireShared())
+            {
+                Raw.PinnedRcDependent* result = Raw.PinnedRcSource.MakeDependent(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return new PinnedRcDependent(result, new object[] { this.DiplomatRetainDependency() });
+            }
         }
     }
 
@@ -138,6 +141,26 @@ public partial class PinnedRcSource: IDisposable
             throw new ObjectDisposedException("PinnedRcSource");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.PinnedRcSource> AcquireShared()
+    {
+        RustHandle<Raw.PinnedRcSource>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("PinnedRcSource");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.PinnedRcSource> AcquireExclusive()
+    {
+        RustHandle<Raw.PinnedRcSource>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("PinnedRcSource");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

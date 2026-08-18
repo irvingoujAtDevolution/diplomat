@@ -67,9 +67,12 @@ public partial class GcRaceProbe
             {
                 throw new ObjectDisposedException("GcRaceProbe");
             }
-            var result = Raw.GcRaceProbe.DropsDuringSpin(AsFFI(), millis);
-            GC.KeepAlive(this);
-            return result;
+            using (var selfLease = AcquireShared())
+            {
+                var result = Raw.GcRaceProbe.DropsDuringSpin(selfLease.Ptr, millis);
+                GC.KeepAlive(this);
+                return result;
+            }
         }
     }
 
@@ -83,6 +86,26 @@ public partial class GcRaceProbe
             throw new ObjectDisposedException("GcRaceProbe");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.GcRaceProbe> AcquireShared()
+    {
+        RustHandle<Raw.GcRaceProbe>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("GcRaceProbe");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.GcRaceProbe> AcquireExclusive()
+    {
+        RustHandle<Raw.GcRaceProbe>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("GcRaceProbe");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

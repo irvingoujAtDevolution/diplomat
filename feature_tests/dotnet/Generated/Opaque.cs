@@ -100,16 +100,19 @@ public partial class Opaque: IDisposable
             {
                 throw new ObjectDisposedException("Opaque");
             }
-            DiplomatWrite writeable = new DiplomatWrite();
-            try
+            using (var selfLease = AcquireShared())
             {
-                Raw.Opaque.GetDebugStr(AsFFI(), &writeable);
-                GC.KeepAlive(this);
-                return writeable.ToUnicode();
-            }
-            finally
-            {
-                writeable.Dispose();
+                DiplomatWrite writeable = new DiplomatWrite();
+                try
+                {
+                    Raw.Opaque.GetDebugStr(selfLease.Ptr, &writeable);
+                    GC.KeepAlive(this);
+                    return writeable.ToUnicode();
+                }
+                finally
+                {
+                    writeable.Dispose();
+                }
             }
         }
     }
@@ -122,8 +125,11 @@ public partial class Opaque: IDisposable
             {
                 throw new ObjectDisposedException("Opaque");
             }
-            Raw.Opaque.AssertStruct(AsFFI(), s.AsFFI());
-            GC.KeepAlive(this);
+            using (var selfLease = AcquireShared())
+            {
+                Raw.Opaque.AssertStruct(selfLease.Ptr, s.AsFFI());
+                GC.KeepAlive(this);
+            }
         }
     }
 
@@ -162,6 +168,26 @@ public partial class Opaque: IDisposable
             throw new ObjectDisposedException("Opaque");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.Opaque> AcquireShared()
+    {
+        RustHandle<Raw.Opaque>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("Opaque");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.Opaque> AcquireExclusive()
+    {
+        RustHandle<Raw.Opaque>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("Opaque");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>

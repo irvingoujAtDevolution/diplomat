@@ -59,6 +59,26 @@ public partial class RenamedAttrOpaque2
         return _inner.Ptr;
     }
 
+    internal unsafe OperationLease<Raw.RenamedAttrOpaque2> AcquireShared()
+    {
+        RustHandle<Raw.RenamedAttrOpaque2>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedAttrOpaque2");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.RenamedAttrOpaque2> AcquireExclusive()
+    {
+        RustHandle<Raw.RenamedAttrOpaque2>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("RenamedAttrOpaque2");
+        }
+        return inner.AcquireExclusive();
+    }
+
     /// <summary>
     /// Retains this value's native resource for a new direct dependent.
     /// </summary>

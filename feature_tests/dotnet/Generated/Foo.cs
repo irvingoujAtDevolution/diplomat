@@ -31,9 +31,12 @@ public partial class Foo
                 {
                     throw new ObjectDisposedException("Foo");
                 }
-                Raw.Bar* result = Raw.Foo.GetBar(AsFFI());
-                GC.KeepAlive(this);
-                return new Bar(result, new object[] { this.DiplomatRetainDependency() });
+                using (var selfLease = AcquireShared())
+                {
+                    Raw.Bar* result = Raw.Foo.GetBar(selfLease.Ptr);
+                    GC.KeepAlive(this);
+                    return new Bar(result, new object[] { this.DiplomatRetainDependency() });
+                }
             }
         }
     }
@@ -81,6 +84,26 @@ public partial class Foo
             throw new ObjectDisposedException("Foo");
         }
         return _inner.Ptr;
+    }
+
+    internal unsafe OperationLease<Raw.Foo> AcquireShared()
+    {
+        RustHandle<Raw.Foo>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("Foo");
+        }
+        return inner.AcquireShared();
+    }
+
+    internal unsafe OperationLease<Raw.Foo> AcquireExclusive()
+    {
+        RustHandle<Raw.Foo>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("Foo");
+        }
+        return inner.AcquireExclusive();
     }
 
     /// <summary>
