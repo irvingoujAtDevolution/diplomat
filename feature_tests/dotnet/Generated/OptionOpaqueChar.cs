@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class OptionOpaqueChar
+public partial class OptionOpaqueChar : IDiplomatScoped
 {
     private unsafe RustHandle<Raw.OptionOpaqueChar>? _inner;
 
@@ -101,6 +101,12 @@ public partial class OptionOpaqueChar
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     ~OptionOpaqueChar()
     {

@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class RenamedMixinTest
+public partial class RenamedMixinTest : IDiplomatScoped
 {
     private unsafe RustHandle<Raw.RenamedMixinTest>? _inner;
 
@@ -102,6 +102,12 @@ public partial class RenamedMixinTest
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     ~RenamedMixinTest()
     {

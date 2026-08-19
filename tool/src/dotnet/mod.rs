@@ -164,6 +164,12 @@ struct BorrowLeaseTemplate<'a> {
     namespace: &'a str,
 }
 
+#[derive(Template)]
+#[template(path = "dotnet/ScopedUse.cs.jinja", escape = "none")]
+struct ScopedUseTemplate<'a> {
+    namespace: &'a str,
+}
+
 /// `RustHandle<T>` — a pointer that carries its own free decision (owned
 /// runs the destructor, borrowed doesn't), so a borrow-returning wrapper
 /// doesn't need an ownership flag field.
@@ -550,6 +556,15 @@ pub(crate) fn run<'tcx>(
     );
     add_cs_file(
         &files,
+        "ScopedUse.cs".to_string(),
+        ScopedUseTemplate {
+            namespace: &namespace,
+        }
+        .render()
+        .expect("ScopedUse template render failed"),
+    );
+    add_cs_file(
+        &files,
         "RustHandle.cs".to_string(),
         RustHandleTemplate {
             namespace: &namespace,
@@ -789,7 +804,7 @@ mod test {
     }
 
     #[test]
-    fn borrowed_opaque_return_generates_non_owning() {
+    fn shared_borrowed_opaque_return_generates_versioned_non_owning_view() {
         let tk_stream = quote! {
             #[diplomat::bridge]
             mod ffi {
@@ -812,17 +827,93 @@ mod test {
         );
 
         let foo = files.get("Foo.cs").expect("expected Foo.cs output");
-        assert!(
-            foo.contains(".Borrowed("),
-            "borrowed return should build the wrapper via the non-owning Borrowed factory:\n{foo}"
+        assert_eq!(
+            foo.lines()
+                .find(|line| line.trim_start().starts_with("public Foo"))
+                .map(str::trim),
+            Some("public Foo BorrowedReturn()")
         );
-        assert!(
-            foo.contains("RustHandle<Raw.Foo>") && foo.contains("inner?.Release()"),
-            "a borrow-target wrapper should carry ownership in the handle and free via Release:\n{foo}"
+        assert_eq!(
+            foo.lines()
+                .find(|line| line.trim_start().starts_with("return new Foo"))
+                .map(str::trim),
+            Some("return new Foo(result, BorrowKind.Shared, selfLease);")
         );
-        assert!(
-            !foo.contains("_owned"),
-            "the ownership flag field should be gone — ownership lives in the handle:\n{foo}"
+        assert_eq!(
+            foo.lines()
+                .find(|line| line
+                    .trim_start()
+                    .starts_with("_inner = RustHandle<Raw.Foo>.Borrowed"))
+                .map(str::trim),
+            Some("_inner = RustHandle<Raw.Foo>.Borrowed(handle, capability, edges);")
+        );
+    }
+
+    #[test]
+    fn mutable_borrowed_opaque_return_generates_scoped_non_owning_view() {
+        let tk_stream = quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::opaque_mut]
+                pub struct Foo;
+
+                impl Foo {
+                    pub fn borrowed_return_mut<'a>(&'a mut self) -> &'a mut Self {
+                        unimplemented!()
+                    }
+                }
+            }
+        };
+
+        let (files, errors) = run_dotnet(tk_stream);
+        assert_eq!(errors, Vec::<String>::new());
+
+        let foo = files.get("Foo.cs").expect("expected Foo.cs output");
+        assert_eq!(
+            foo.lines()
+                .find(|line| line.trim_start().starts_with("public ScopedUse<Foo>"))
+                .map(str::trim),
+            Some("public ScopedUse<Foo> BorrowedReturnMut()")
+        );
+        assert_eq!(
+            foo.lines()
+                .find(|line| line.trim_start().starts_with("return new ScopedUse<Foo>"))
+                .map(str::trim),
+            Some("return new ScopedUse<Foo>(new Foo(result, BorrowKind.Exclusive, selfLease));")
+        );
+    }
+
+    #[test]
+    fn optional_shared_borrowed_opaque_return_generates_nullable_view() {
+        let tk_stream = quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::opaque]
+                pub struct Foo;
+
+                impl Foo {
+                    pub fn maybe_borrowed_return<'a>(&'a self) -> Option<&'a Self> {
+                        unimplemented!()
+                    }
+                }
+            }
+        };
+
+        let (files, errors) = run_dotnet(tk_stream);
+        assert_eq!(errors, Vec::<String>::new());
+
+        let foo = files.get("Foo.cs").expect("expected Foo.cs output");
+        assert_eq!(
+            foo.lines()
+                .find(|line| line.trim_start().starts_with("public Foo?"))
+                .map(str::trim),
+            Some("public Foo? MaybeBorrowedReturn()")
+        );
+        assert_eq!(
+            foo.lines()
+                .find(|line| line.trim_start().starts_with("return result == null"))
+                .map(str::trim),
+            Some("return result == null ? null : new Foo(result, BorrowKind.Shared, selfLease);")
         );
     }
 
@@ -854,9 +945,11 @@ mod test {
         );
 
         let foo = files.get("Foo.cs").expect("expected Foo.cs output");
-        assert!(
-            foo.contains("new Foo(result, BorrowKind.Shared, selfLease)"),
-            "a borrowed opaque return should take over the receiver's shared lease:\n{foo}"
+        assert_eq!(
+            foo.lines()
+                .find(|line| line.trim_start().starts_with("return new Foo"))
+                .map(str::trim),
+            Some("return new Foo(result, BorrowKind.Shared, selfLease);")
         );
     }
 
@@ -1042,7 +1135,7 @@ mod test {
             "borrowed &DiplomatStr param should surface as ReadOnlyMemory<byte>:\n{foo}"
         );
         assert!(
-            foo.contains("new Foo(result, new object[] { xPin })"),
+            foo.contains("new Foo(result, xPin)"),
             "infallible owned return should root the pin holder as an edge:\n{foo}"
         );
         assert!(
@@ -1184,7 +1277,7 @@ mod test {
             "raw call should pass the pinned pointer:\n{list}"
         );
         assert!(
-            list.contains("new Parsed(result.Ok, new object[] { dataPin })"),
+            list.contains("new Parsed(result.Ok, dataPin)"),
             "the returned wrapper should root the pin holder as an edge:\n{list}"
         );
         assert!(
@@ -1229,7 +1322,7 @@ mod test {
 
         let foo = files.get("Foo.cs").expect("expected Foo.cs output");
         assert!(
-            foo.contains("new Foo(result, new object[] { dataPin })"),
+            foo.contains("new Foo(result, dataPin)"),
             "infallible owned return should root the pin holder as an edge:\n{foo}"
         );
         assert!(
@@ -1327,7 +1420,7 @@ mod test {
             "the catch should dispose both pins independently:\n{pair}"
         );
         assert!(
-            pair.contains("new Pair(result, new object[] { aPin, bPin })"),
+            pair.contains("new Pair(result, aPin, bPin)"),
             "both distinct pin locals should be rooted on the returned wrapper:\n{pair}"
         );
     }
@@ -1597,7 +1690,7 @@ mod test {
             "borrowed &DiplomatStr16 should be pinned via DiplomatPinnedMemory:\n{foo}"
         );
         assert!(
-            foo.contains("new Foo(result, new object[] { xPin })"),
+            foo.contains("new Foo(result, xPin)"),
             "infallible owned return should root the pin holder as an edge:\n{foo}"
         );
     }
@@ -2537,8 +2630,8 @@ mod test {
 
         let manual = files.get("Manual.cs").expect("expected Manual.cs output");
         assert!(
-            manual.contains("public partial class Manual: IDisposable"),
-            "`manually_disposable` must generate `: IDisposable`:\n{manual}"
+            manual.contains("public partial class Manual : IDiplomatScoped, IDisposable"),
+            "`manually_disposable` must generate `IDisposable` alongside the scoped interface:\n{manual}"
         );
         assert!(
             manual.contains("public void Dispose()")
@@ -3120,18 +3213,33 @@ mod test {
         }));
 
         assert_eq!(
-            errors.len(),
-            2,
-            "expected exactly two diagnostics: {errors:?}"
+            errors,
+            ["Cleanup", "BorrowShared"]
+                .map(|member| format!(
+                    "Config: [.NET backend] `Config` would have two members named `{member}`: a method and \
+                     a member Diplomat always generates for opaques. Rename the method with \
+                     `#[diplomat::rename]`."
+                ))
+                .to_vec()
         );
-        for member in ["Cleanup", "BorrowShared"] {
-            assert!(
-                errors
-                    .iter()
-                    .any(|error| error.contains(&format!("two members named `{member}`"))),
-                "the {member} collision must be reported; got: {errors:?}"
-            );
-        }
+    }
+
+    #[test]
+    fn an_opaque_method_named_end_scope_is_accepted() {
+        let (files, errors) = run_dotnet(property_test_module(quote! {
+            pub fn end_scope(&self) {
+                unimplemented!()
+            }
+        }));
+
+        assert!(
+            errors.is_empty(),
+            "unexpected diagnostics: {}",
+            errors.join("\n")
+        );
+        let config = files.get("Config.cs").expect("expected Config.cs output");
+        assert!(config.contains("public void EndScope()"));
+        assert!(config.contains("void IDiplomatScoped.EndScope()"));
     }
 
     #[test]

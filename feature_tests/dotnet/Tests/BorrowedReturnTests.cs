@@ -20,9 +20,9 @@ public class BorrowedReturnTests
         using OpaqueThinVec vec = OpaqueThinVec.CreateSingle(7, 1.5f, Utf8("hello"));
         Assert.Equal((nuint)1, vec.Len());
 
-        using OpaqueThin first = vec.First!;
+        OpaqueThin? first = vec.First;
         Assert.NotNull(first);
-        Assert.Equal(7, first.A);
+        Assert.Equal(7, first!.A);
         Assert.Equal(1.5f, first.B);
         Assert.Equal("hello", first.C);
     }
@@ -34,25 +34,26 @@ public class BorrowedReturnTests
 
         // The indexer `get` is a borrowed return just like `First()`: an
         // in-range index hands back a non-owning view into the Vec slot.
-        using OpaqueThin at0 = vec.Get(0)!;
-        Assert.Equal(7, at0.A);
+        OpaqueThin? at0 = vec.Get(0);
+        Assert.NotNull(at0);
+        Assert.Equal(7, at0!.A);
         Assert.Equal("hi", at0.C);
 
         Assert.Null(vec.Get(1));
     }
 
     [Fact]
-    public void First_BlocksOwnerMutationUntilReleased()
+    public void First_AllowsOwnerMutation_AndOldViewFailsOnNextUse()
     {
         using OpaqueThinVec vec = OpaqueThinVec.CreateSingle(7, 1.5f, Utf8("before"));
 
         OpaqueThin borrow = vec.First!;
         Assert.Equal("before", borrow.C);
-        Assert.Throws<InvalidOperationException>(() => vec.FirstC = "after");
 
-        borrow.Dispose();
         vec.FirstC = "after";
-        using OpaqueThin refreshed = vec.First!;
+        Assert.Throws<InvalidOperationException>(() => _ = borrow.C);
+
+        OpaqueThin refreshed = vec.First!;
         Assert.Equal("after", refreshed.C);
     }
 
@@ -68,7 +69,7 @@ public class BorrowedReturnTests
         first.Dispose();
 
         // The owner is untouched: a fresh borrow still reads correctly.
-        using OpaqueThin again = vec.First!;
+        OpaqueThin again = vec.First!;
         Assert.Equal(7, again.A);
     }
 
@@ -151,10 +152,11 @@ public class BorrowedReturnTests
         using OpaqueThinVec vec = OpaqueThinVec.CreateSingle(7, 1.5f, Utf8("hi"));
 
         // Result + Option + borrowing view: Ok(Some(_)) reads through the borrow.
-        using OpaqueThin at0 = vec.TryGet(0, false)!;
-        Assert.Equal(7, at0.A);
+        OpaqueThin? at0 = vec.TryGet(0, false);
+        Assert.NotNull(at0);
+        Assert.Equal(7, at0!.A);
 
-        // Ok(None): out-of-range index is a null return, not a throw.
+        // Ok(None): out-of-range index is null, not a throw.
         Assert.Null(vec.TryGet(5, false));
 
         // Err(()): the failure arm still throws.
@@ -216,11 +218,24 @@ public class BorrowedReturnTests
         // Reading through the iterator touches the Vec; the only thing keeping
         // that Vec alive is the owned iterator's edges. If they weren't wired,
         // the Vec would be finalized and this a UAF.
-        using (OpaqueThin first = iter.Next()!)
-        {
-            Assert.Equal(42, first.A);
-        }
-        Assert.Null(iter.Next()); // single-element vec: exhausted after first Next()
+        OpaqueThin? first = iter.Next();
+        Assert.NotNull(first);
+        Assert.Equal(42, first!.A);
+        Assert.Null(iter.Next());
+        GC.KeepAlive(iter);
+    }
+
+    [Fact]
+    public void IteratorAdvance_InvalidatesPreviouslyReturnedView()
+    {
+        using OpaqueThinVec vec = OpaqueThinVec.CreateSingle(42, 2.5f, Utf8("first"));
+        OpaqueThinIter iter = vec.Iter();
+        OpaqueThin first = iter.Next()!;
+
+        Assert.Equal("first", first.C);
+        Assert.Null(iter.Next());
+
+        Assert.Throws<InvalidOperationException>(() => _ = first.C);
         GC.KeepAlive(iter);
     }
 
@@ -240,10 +255,8 @@ public class BorrowedReturnTests
             GC.WaitForPendingFinalizers();
         }
 
-        using (OpaqueThin view = iter.Next()!)
-        {
-            Assert.NotNull(view);
-        }
+        OpaqueThin? view = iter.Next();
+        Assert.NotNull(view);
         Assert.Null(iter.Next());
         GC.KeepAlive(iter);
     }
@@ -277,11 +290,10 @@ public class BorrowedReturnTests
             GC.WaitForPendingFinalizers();
         }
 
-        using (OpaqueThin first = iter.Next()!)
-        {
-            Assert.Equal(42, first.A);
-            Assert.Equal("rooted", first.C);
-        }
+        OpaqueThin? first = iter.Next();
+        Assert.NotNull(first);
+        Assert.Equal(42, first!.A);
+        Assert.Equal("rooted", first.C);
         Assert.Null(iter.Next());
         GC.KeepAlive(iter);
     }
@@ -304,8 +316,9 @@ public class BorrowedReturnTests
         // view into the owner.
         BorrowingErrorException ex =
             Assert.Throws<BorrowingErrorException>(() => vec.TryBorrow(true));
-        using OpaqueThin view = ex.Inner.OwnerFirst()!;
-        Assert.Equal(7, view.A);
+        OpaqueThin? view = ex.Inner.OwnerFirst();
+        Assert.NotNull(view);
+        Assert.Equal(7, view!.A);
         Assert.Equal("hi", view.C);
     }
 
@@ -347,8 +360,9 @@ public class BorrowedReturnTests
         // through a real non-owning OpaqueThin view obtained from the caught
         // error: if the edges weren't wired, the Vec (and its heap-backed
         // String) would be finalized and `C()` here would be a use-after-free.
-        using OpaqueThin view = ex.Inner.OwnerFirst()!;
-        Assert.Equal(42, view.A);
+        OpaqueThin? view = ex.Inner.OwnerFirst();
+        Assert.NotNull(view);
+        Assert.Equal(42, view!.A);
         Assert.Equal("rooted", view.C);
         GC.KeepAlive(ex);
     }

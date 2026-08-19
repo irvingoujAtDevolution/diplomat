@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class MethodOverloading: IDisposable
+public partial class MethodOverloading : IDiplomatScoped, IDisposable
 {
     private unsafe RustHandle<Raw.MethodOverloading>? _inner;
 
@@ -121,6 +121,12 @@ public partial class MethodOverloading: IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.

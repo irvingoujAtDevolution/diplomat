@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class Two
+public partial class Two : IDiplomatScoped
 {
     private unsafe RustHandle<Raw.Two>? _inner;
 
@@ -85,6 +85,12 @@ public partial class Two
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     ~Two()
     {

@@ -1,0 +1,30 @@
+using System;
+
+namespace {{ namespace }}.Diplomat;
+
+#nullable enable
+
+internal interface IDiplomatScoped
+{
+    void EndScope();
+}
+
+public readonly ref struct ScopedUse<T> where T : class
+{
+    private readonly T? _value;
+
+    internal ScopedUse(T value)
+    {
+        _value = value;
+    }
+
+    public bool HasValue => _value is not null;
+
+    public T Value =>
+        _value ?? throw new InvalidOperationException("This scope is empty (None) or default.");
+
+    public void Dispose()
+    {
+        (_value as IDiplomatScoped)?.EndScope();
+    }
+}

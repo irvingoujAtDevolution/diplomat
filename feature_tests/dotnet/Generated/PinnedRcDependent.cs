@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class PinnedRcDependent: IDisposable
+public partial class PinnedRcDependent : IDiplomatScoped, IDisposable
 {
     private unsafe RustHandle<Raw.PinnedRcDependent>? _inner;
 
@@ -109,6 +109,12 @@ public partial class PinnedRcDependent: IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.

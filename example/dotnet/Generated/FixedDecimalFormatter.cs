@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class FixedDecimalFormatter
+public partial class FixedDecimalFormatter : IDiplomatScoped
 {
     private unsafe RustHandle<Raw.FixedDecimalFormatter>? _inner;
 
@@ -32,19 +32,17 @@ public partial class FixedDecimalFormatter
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe FixedDecimalFormatter(Raw.FixedDecimalFormatter* handle, object[] edges)
+    internal unsafe FixedDecimalFormatter(Raw.FixedDecimalFormatter* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.FixedDecimalFormatter>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe FixedDecimalFormatter(RustHandle<Raw.FixedDecimalFormatter> inner)
+    internal unsafe FixedDecimalFormatter(
+        Raw.FixedDecimalFormatter* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.FixedDecimalFormatter>.Borrowed(handle, capability, edges);
     }
 
     /// <exception cref="InvalidOperationException"></exception>
@@ -56,19 +54,19 @@ public partial class FixedDecimalFormatter
         unsafe
         {
             if (locale == null) throw new ArgumentNullException(nameof(locale));
-            Raw.Locale* localeRaw = locale.AsFFI();
-            if (localeRaw == null) throw new ObjectDisposedException(nameof(Locale));
             if (provider == null) throw new ArgumentNullException(nameof(provider));
-            Raw.DataProvider* providerRaw = provider.AsFFI();
-            if (providerRaw == null) throw new ObjectDisposedException(nameof(DataProvider));
-            var result = Raw.FixedDecimalFormatter.TryNew(localeRaw, providerRaw, options.AsFFI());
-            GC.KeepAlive(locale);
-            GC.KeepAlive(provider);
-            if (!result.IsOk)
+            using (BorrowLease<Raw.Locale> localeLease = locale.BorrowShared())
+            using (BorrowLease<Raw.DataProvider> providerLease = provider.BorrowShared())
             {
-                throw new InvalidOperationException("FFI function failed with unit error");
+                var result = Raw.FixedDecimalFormatter.TryNew(localeLease.Ptr, providerLease.Ptr, options.AsFFI());
+                GC.KeepAlive(locale);
+                GC.KeepAlive(provider);
+                if (!result.IsOk)
+                {
+                    throw new InvalidOperationException("FFI function failed with unit error");
+                }
+                return new FixedDecimalFormatter(result.Ok);
             }
-            return new FixedDecimalFormatter(result.Ok);
         }
     }
 
@@ -81,19 +79,21 @@ public partial class FixedDecimalFormatter
                 throw new ObjectDisposedException("FixedDecimalFormatter");
             }
             if (value == null) throw new ArgumentNullException(nameof(value));
-            Raw.FixedDecimal* valueRaw = value.AsFFI();
-            if (valueRaw == null) throw new ObjectDisposedException(nameof(FixedDecimal));
-            DiplomatWrite writeable = new DiplomatWrite();
-            try
+            using (BorrowLease<Raw.FixedDecimalFormatter> selfLease = BorrowShared())
+            using (BorrowLease<Raw.FixedDecimal> valueLease = value.BorrowShared())
             {
-                Raw.FixedDecimalFormatter.FormatWrite(AsFFI(), valueRaw, &writeable);
-                GC.KeepAlive(this);
-                GC.KeepAlive(value);
-                return writeable.ToUnicode();
-            }
-            finally
-            {
-                writeable.Dispose();
+                DiplomatWrite writeable = new DiplomatWrite();
+                try
+                {
+                    Raw.FixedDecimalFormatter.FormatWrite(selfLease.Ptr, valueLease.Ptr, &writeable);
+                    GC.KeepAlive(this);
+                    GC.KeepAlive(value);
+                    return writeable.ToUnicode();
+                }
+                finally
+                {
+                    writeable.Dispose();
+                }
             }
         }
     }
@@ -110,35 +110,40 @@ public partial class FixedDecimalFormatter
         return _inner.Ptr;
     }
 
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>FixedDecimalFormatter</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
+    internal unsafe BorrowLease<Raw.FixedDecimalFormatter> BorrowShared()
     {
-        if (_inner is null || _inner.IsNull)
+        RustHandle<Raw.FixedDecimalFormatter>? inner = _inner;
+        if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("FixedDecimalFormatter");
         }
-        return _inner.Retain();
+        return inner.BorrowShared();
+    }
+
+    internal unsafe BorrowLease<Raw.FixedDecimalFormatter> BorrowExclusive()
+    {
+        RustHandle<Raw.FixedDecimalFormatter>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("FixedDecimalFormatter");
+        }
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.FixedDecimalFormatter>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.FixedDecimalFormatter>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     ~FixedDecimalFormatter()
     {

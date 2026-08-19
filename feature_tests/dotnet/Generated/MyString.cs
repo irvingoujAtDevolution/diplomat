@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class MyString: IDisposable
+public partial class MyString : IDiplomatScoped, IDisposable
 {
     private unsafe RustHandle<Raw.MyString>? _inner;
 
@@ -150,7 +150,7 @@ public partial class MyString: IDisposable
 
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+    /// The returned value keeps its borrowed backing storage alive until cleanup.
     /// </remarks>
     public DiplomatBorrowedSpan<byte> Borrow()
     {
@@ -209,6 +209,12 @@ public partial class MyString: IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.

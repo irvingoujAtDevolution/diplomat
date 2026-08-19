@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class RcSource: IDisposable
+public partial class RcSource : IDiplomatScoped, IDisposable
 {
     private unsafe RustHandle<Raw.RcSource>? _inner;
 
@@ -75,11 +75,11 @@ public partial class RcSource: IDisposable
     }
 
     /// <returns>
-    /// A <c>RcSource</c> allocated on Rust side.
+    /// A view into the Rust-backed <c>RcSource</c>.
     /// </returns>
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+    /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
     /// </remarks>
     public RcSource View()
     {
@@ -99,13 +99,13 @@ public partial class RcSource: IDisposable
     }
 
     /// <returns>
-    /// A <c>RcSource</c> allocated on Rust side.
+    /// A scoped use of the Rust-backed <c>RcSource</c>.
     /// </returns>
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+    /// Dispose the returned scope when you finish using the value so the borrow ends promptly.
     /// </remarks>
-    public RcSource ViewMut()
+    public ScopedUse<RcSource> ViewMut()
     {
         unsafe
         {
@@ -117,7 +117,7 @@ public partial class RcSource: IDisposable
             {
                 Raw.RcSource* result = Raw.RcSource.ViewMut(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new RcSource(result, BorrowKind.Exclusive, selfLease);
+                return new ScopedUse<RcSource>(new RcSource(result, BorrowKind.Exclusive, selfLease));
             }
         }
     }
@@ -144,7 +144,7 @@ public partial class RcSource: IDisposable
     /// </returns>
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+    /// The returned value keeps its borrowed backing storage alive until cleanup.
     /// </remarks>
     public RcDependent MakeDependent()
     {
@@ -227,6 +227,12 @@ public partial class RcSource: IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.

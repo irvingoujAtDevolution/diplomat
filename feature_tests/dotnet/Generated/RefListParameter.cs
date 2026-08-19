@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class RefListParameter
+public partial class RefListParameter : IDiplomatScoped
 {
     private unsafe RustHandle<Raw.RefListParameter>? _inner;
 
@@ -85,6 +85,12 @@ public partial class RefListParameter
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     ~RefListParameter()
     {

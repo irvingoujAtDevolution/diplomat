@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class OpaqueMut
+public partial class OpaqueMut : IDiplomatScoped
 {
     private unsafe RustHandle<Raw.OpaqueMut>? _inner;
 
@@ -97,6 +97,12 @@ public partial class OpaqueMut
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     ~OpaqueMut()
     {

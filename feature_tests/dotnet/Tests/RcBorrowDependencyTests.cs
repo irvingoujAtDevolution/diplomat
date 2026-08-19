@@ -96,32 +96,50 @@ public class RcBorrowDependencyTests
     }
 
     [Fact]
-    public void SharedView_HoldsSharedBorrowUntilDisposed()
+    public void SharedView_AllowsSourceMutation_AndThenFailsOnUse()
     {
         using RcSource source = RcSource.Create(7);
         RcSource view = source.View();
 
         Assert.Equal(7ul, view.Id());
         Assert.Throws<InvalidOperationException>(() => view.PingMutable());
-        Assert.Throws<InvalidOperationException>(() => source.PingMutable());
-
-        view.Dispose();
         Assert.True(source.PingMutable());
+
+        Assert.Throws<InvalidOperationException>(() => view.Id());
+
+        RcSource refreshed = source.View();
+        Assert.Equal(7ul, refreshed.Id());
     }
 
     [Fact]
     public void MutableView_HoldsExclusiveBorrowUntilDisposed()
     {
         using RcSource source = RcSource.Create(7);
-        RcSource view = source.ViewMut();
+        using (var viewScope = source.ViewMut())
+        {
+            RcSource view = viewScope.Value;
 
-        Assert.Equal(7ul, view.Id());
-        Assert.True(view.PingMutable());
-        Assert.Throws<InvalidOperationException>(() => source.Id());
-        Assert.Throws<InvalidOperationException>(() => source.PingMutable());
+            Assert.Equal(7ul, view.Id());
+            Assert.True(view.PingMutable());
+            Assert.True(view.PingMutable());
+            Assert.Throws<InvalidOperationException>(() => source.Id());
+            Assert.Throws<InvalidOperationException>(() => source.PingMutable());
+        }
 
-        view.Dispose();
         Assert.True(source.PingMutable());
+    }
+
+    [Fact]
+    public void MutableScopeEnd_ReleasesSource_WhenSharedSubviewEscapes()
+    {
+        using RcSource source = RcSource.Create(7);
+        var mutableScope = source.ViewMut();
+        RcSource sharedSubview = mutableScope.Value.View();
+
+        mutableScope.Dispose();
+
+        Assert.True(source.PingMutable());
+        Assert.Throws<InvalidOperationException>(() => sharedSubview.Id());
     }
 
     // ── Owned-borrowing: dependent's own destructor runs before source ─────

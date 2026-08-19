@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class FixedDecimal
+public partial class FixedDecimal : IDiplomatScoped
 {
     private unsafe RustHandle<Raw.FixedDecimal>? _inner;
 
@@ -32,19 +32,17 @@ public partial class FixedDecimal
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe FixedDecimal(Raw.FixedDecimal* handle, object[] edges)
+    internal unsafe FixedDecimal(Raw.FixedDecimal* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.FixedDecimal>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe FixedDecimal(RustHandle<Raw.FixedDecimal> inner)
+    internal unsafe FixedDecimal(
+        Raw.FixedDecimal* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.FixedDecimal>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -67,8 +65,11 @@ public partial class FixedDecimal
             {
                 throw new ObjectDisposedException("FixedDecimal");
             }
-            Raw.FixedDecimal.MultiplyPow10(AsFFI(), power);
-            GC.KeepAlive(this);
+            using (BorrowLease<Raw.FixedDecimal> selfLease = BorrowExclusive())
+            {
+                Raw.FixedDecimal.MultiplyPow10(selfLease.Ptr, power);
+                GC.KeepAlive(this);
+            }
         }
     }
 
@@ -81,20 +82,23 @@ public partial class FixedDecimal
             {
                 throw new ObjectDisposedException("FixedDecimal");
             }
-            DiplomatWrite writeable = new DiplomatWrite();
-            try
+            using (BorrowLease<Raw.FixedDecimal> selfLease = BorrowShared())
             {
-                var result = Raw.FixedDecimal.ToString(AsFFI(), &writeable);
-                GC.KeepAlive(this);
-                if (!result.IsOk)
+                DiplomatWrite writeable = new DiplomatWrite();
+                try
                 {
-                    throw new InvalidOperationException("FFI function failed with unit error");
+                    var result = Raw.FixedDecimal.ToString(selfLease.Ptr, &writeable);
+                    GC.KeepAlive(this);
+                    if (!result.IsOk)
+                    {
+                        throw new InvalidOperationException("FFI function failed with unit error");
+                    }
+                    return writeable.ToUnicode();
                 }
-                return writeable.ToUnicode();
-            }
-            finally
-            {
-                writeable.Dispose();
+                finally
+                {
+                    writeable.Dispose();
+                }
             }
         }
     }
@@ -111,35 +115,40 @@ public partial class FixedDecimal
         return _inner.Ptr;
     }
 
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>FixedDecimal</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
+    internal unsafe BorrowLease<Raw.FixedDecimal> BorrowShared()
     {
-        if (_inner is null || _inner.IsNull)
+        RustHandle<Raw.FixedDecimal>? inner = _inner;
+        if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("FixedDecimal");
         }
-        return _inner.Retain();
+        return inner.BorrowShared();
+    }
+
+    internal unsafe BorrowLease<Raw.FixedDecimal> BorrowExclusive()
+    {
+        RustHandle<Raw.FixedDecimal>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("FixedDecimal");
+        }
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.FixedDecimal>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.FixedDecimal>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     ~FixedDecimal()
     {

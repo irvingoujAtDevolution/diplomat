@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class Foo
+public partial class Foo : IDiplomatScoped
 {
     private unsafe RustHandle<Raw.Foo>? _inner;
 
@@ -19,7 +19,7 @@ public partial class Foo
     /// </returns>
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+    /// The returned value keeps its borrowed backing storage alive until cleanup.
     /// </remarks>
     public Bar Bar
     {
@@ -112,6 +112,12 @@ public partial class Foo
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     ~Foo()
     {

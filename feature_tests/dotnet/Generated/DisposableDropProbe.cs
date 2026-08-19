@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class DisposableDropProbe: IDisposable
+public partial class DisposableDropProbe : IDiplomatScoped, IDisposable
 {
     private unsafe RustHandle<Raw.DisposableDropProbe>? _inner;
 
@@ -130,6 +130,12 @@ public partial class DisposableDropProbe: IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.

@@ -8,7 +8,7 @@ namespace {{ namespace }};
 
 #nullable enable
 
-public partial class {{ name }}{% if manually_disposable %}: IDisposable{% endif %}
+public partial class {{ name }} : IDiplomatScoped{% if manually_disposable %}, IDisposable{% endif %}
 {
     private unsafe RustHandle<Raw.{{ name }}>? _inner;
 
@@ -110,6 +110,12 @@ public partial class {{ name }}{% if manually_disposable %}: IDisposable{% endif
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
 
 {%- if manually_disposable %}

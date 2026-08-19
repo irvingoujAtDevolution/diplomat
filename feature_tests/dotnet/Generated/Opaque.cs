@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class Opaque: IDisposable
+public partial class Opaque : IDiplomatScoped, IDisposable
 {
     private unsafe RustHandle<Raw.Opaque>? _inner;
 
@@ -196,6 +196,12 @@ public partial class Opaque: IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.

@@ -8,18 +8,18 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class OpaqueThinVec: IDisposable
+public partial class OpaqueThinVec : IDiplomatScoped, IDisposable
 {
     private unsafe RustHandle<Raw.OpaqueThinVec>? _inner;
 
     private static readonly unsafe RustDestructor<Raw.OpaqueThinVec> _destroy = Raw.OpaqueThinVec.Destroy;
 
     /// <returns>
-    /// A <c>OpaqueThin</c> allocated on Rust side.
+    /// A view into the Rust-backed <c>OpaqueThin</c>.
     /// </returns>
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+    /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
     /// </remarks>
     public OpaqueThin? First
     {
@@ -117,7 +117,7 @@ public partial class OpaqueThinVec: IDisposable
     /// </returns>
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+    /// The returned value keeps its borrowed backing storage alive until cleanup.
     /// </remarks>
     public OpaqueThinIter Iter()
     {
@@ -154,11 +154,11 @@ public partial class OpaqueThinVec: IDisposable
     }
 
     /// <returns>
-    /// A <c>OpaqueThin</c> allocated on Rust side.
+    /// A view into the Rust-backed <c>OpaqueThin</c>.
     /// </returns>
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+    /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
     /// </remarks>
     public OpaqueThin? Get(nuint idx)
     {
@@ -179,11 +179,11 @@ public partial class OpaqueThinVec: IDisposable
 
     /// <exception cref="InvalidOperationException"></exception>
     /// <returns>
-    /// A <c>OpaqueThin</c> allocated on Rust side.
+    /// A view into the Rust-backed <c>OpaqueThin</c>.
     /// </returns>
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+    /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
     /// </remarks>
     public OpaqueThin TryFirst(bool fail)
     {
@@ -208,11 +208,11 @@ public partial class OpaqueThinVec: IDisposable
 
     /// <exception cref="InvalidOperationException"></exception>
     /// <returns>
-    /// A <c>OpaqueThin</c> allocated on Rust side.
+    /// A view into the Rust-backed <c>OpaqueThin</c>.
     /// </returns>
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+    /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
     /// </remarks>
     public OpaqueThin? TryGet(nuint idx, bool fail)
     {
@@ -241,7 +241,7 @@ public partial class OpaqueThinVec: IDisposable
     /// </returns>
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+    /// The returned value keeps its borrowed backing storage alive until cleanup.
     /// </remarks>
     public OpaqueThinIter TryIter(bool fail)
     {
@@ -269,7 +269,7 @@ public partial class OpaqueThinVec: IDisposable
     /// </returns>
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+    /// The returned value keeps its borrowed backing storage alive until cleanup.
     /// </remarks>
     public OpaqueThinIter? OptionalIter(bool some)
     {
@@ -350,6 +350,12 @@ public partial class OpaqueThinVec: IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.

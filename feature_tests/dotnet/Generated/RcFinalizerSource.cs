@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class RcFinalizerSource
+public partial class RcFinalizerSource : IDiplomatScoped
 {
     private unsafe RustHandle<Raw.RcFinalizerSource>? _inner;
 
@@ -79,7 +79,7 @@ public partial class RcFinalizerSource
     /// </returns>
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+    /// The returned value keeps its borrowed backing storage alive until cleanup.
     /// </remarks>
     public RcFinalizerDependent MakeDependent()
     {
@@ -162,6 +162,12 @@ public partial class RcFinalizerSource
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     ~RcFinalizerSource()
     {

@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class RenamedDeprecatedOpaque
+public partial class RenamedDeprecatedOpaque : IDiplomatScoped
 {
     private unsafe RustHandle<Raw.RenamedDeprecatedOpaque>? _inner;
 
@@ -85,6 +85,12 @@ public partial class RenamedDeprecatedOpaque
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     ~RenamedDeprecatedOpaque()
     {

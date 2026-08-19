@@ -37,7 +37,7 @@ public class PropertyTests
 
         vec.FirstC = "after";
 
-        using OpaqueThin first = vec.First!;
+        OpaqueThin first = vec.First!;
         Assert.Equal("after", first.C);
     }
 

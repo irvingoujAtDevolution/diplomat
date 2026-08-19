@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class Locale
+public partial class Locale : IDiplomatScoped
 {
     private unsafe RustHandle<Raw.Locale>? _inner;
 
@@ -32,19 +32,17 @@ public partial class Locale
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe Locale(Raw.Locale* handle, object[] edges)
+    internal unsafe Locale(Raw.Locale* handle, params object[] edges)
     {
         _inner = RustHandle<Raw.Locale>.Owned(handle, _destroy, edges);
     }
 
-    /// <summary>
-    /// Wraps a handle that already knows whether it owns the pointer. A
-    /// borrowed return passes a non-owning handle, so cleanup leaves Rust's
-    /// pointer alone.
-    /// </summary>
-    internal unsafe Locale(RustHandle<Raw.Locale> inner)
+    internal unsafe Locale(
+        Raw.Locale* handle,
+        BorrowKind capability,
+        params object[] edges)
     {
-        _inner = inner;
+        _inner = RustHandle<Raw.Locale>.Borrowed(handle, capability, edges);
     }
 
     /// <returns>
@@ -75,35 +73,40 @@ public partial class Locale
         return _inner.Ptr;
     }
 
-    /// <summary>
-    /// Retains this value's native resource for a new direct dependent.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">
-    /// This <c>Locale</c> was already disposed/finalized, so there is
-    /// nothing left to lend a dependent.
-    /// </exception>
-    internal unsafe IDisposable DiplomatRetainDependency()
+    internal unsafe BorrowLease<Raw.Locale> BorrowShared()
     {
-        if (_inner is null || _inner.IsNull)
+        RustHandle<Raw.Locale>? inner = _inner;
+        if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("Locale");
         }
-        return _inner.Retain();
+        return inner.BorrowShared();
+    }
+
+    internal unsafe BorrowLease<Raw.Locale> BorrowExclusive()
+    {
+        RustHandle<Raw.Locale>? inner = _inner;
+        if (inner is null || inner.IsNull)
+        {
+            throw new ObjectDisposedException("Locale");
+        }
+        return inner.BorrowExclusive();
     }
 
     private void Cleanup()
     {
         unsafe
         {
-            RustHandle<Raw.Locale>? inner = _inner;
-            if (inner is null)
-            {
-                return;
-            }
-
-            _inner = null;
-            inner.Release();
+            RustHandle<Raw.Locale>? inner =
+                System.Threading.Interlocked.Exchange(ref _inner, null);
+            inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     ~Locale()
     {

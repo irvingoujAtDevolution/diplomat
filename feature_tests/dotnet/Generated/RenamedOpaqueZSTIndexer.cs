@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class RenamedOpaqueZSTIndexer
+public partial class RenamedOpaqueZSTIndexer : IDiplomatScoped
 {
     private unsafe RustHandle<Raw.RenamedOpaqueZSTIndexer>? _inner;
 
@@ -117,6 +117,12 @@ public partial class RenamedOpaqueZSTIndexer
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     ~RenamedOpaqueZSTIndexer()
     {

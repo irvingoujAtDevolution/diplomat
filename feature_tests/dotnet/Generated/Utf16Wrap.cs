@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class Utf16Wrap: IDisposable
+public partial class Utf16Wrap : IDiplomatScoped, IDisposable
 {
     private unsafe RustHandle<Raw.Utf16Wrap>? _inner;
 
@@ -88,7 +88,7 @@ public partial class Utf16Wrap: IDisposable
 
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+    /// The returned value keeps its borrowed backing storage alive until cleanup.
     /// </remarks>
     public DiplomatBorrowedSpan<char> BorrowCont()
     {
@@ -147,6 +147,12 @@ public partial class Utf16Wrap: IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.

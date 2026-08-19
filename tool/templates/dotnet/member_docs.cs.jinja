@@ -3,13 +3,29 @@
 {%- endfor %}
 {%- if let Some(opaque_name) = docs.returns_opaque %}
     /// <returns>
+{%- if let Some(lifetime) = docs.lifetime %}
+{%- if lifetime.scoped_return %}
+    /// A scoped use of the Rust-backed <c>{{ opaque_name }}</c>.
+{%- else if lifetime.versioned_return %}
+    /// A view into the Rust-backed <c>{{ opaque_name }}</c>.
+{%- else %}
     /// A <c>{{ opaque_name }}</c> allocated on Rust side.
+{%- endif %}
+{%- else %}
+    /// A <c>{{ opaque_name }}</c> allocated on Rust side.
+{%- endif %}
     /// </returns>
 {%- endif %}
 {%- if let Some(lifetime) = docs.lifetime %}
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+{%- if lifetime.scoped_return %}
+    /// Dispose the returned scope when you finish using the value so the borrow ends promptly.
+{%- else if lifetime.versioned_return %}
+    /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
+{%- else %}
+    /// The returned value keeps its borrowed backing storage alive until cleanup.
+{%- endif %}
 {%- if lifetime.pinned_inputs %}
     /// <br/>
     /// The buffer passed via <c>ReadOnlyMemory</c> stays pinned until the returned value is disposed; do not mutate it while the returned value is in use.

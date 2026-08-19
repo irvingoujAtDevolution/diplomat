@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class BorrowSafetyProbe: IDisposable
+public partial class BorrowSafetyProbe : IDiplomatScoped, IDisposable
 {
     private unsafe RustHandle<Raw.BorrowSafetyProbe>? _inner;
 
@@ -227,6 +227,12 @@ public partial class BorrowSafetyProbe: IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.

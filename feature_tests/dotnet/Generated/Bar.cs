@@ -8,18 +8,18 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class Bar
+public partial class Bar : IDiplomatScoped
 {
     private unsafe RustHandle<Raw.Bar>? _inner;
 
     private static readonly unsafe RustDestructor<Raw.Bar> _destroy = Raw.Bar.Destroy;
 
     /// <returns>
-    /// A <c>Foo</c> allocated on Rust side.
+    /// A view into the Rust-backed <c>Foo</c>.
     /// </returns>
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The caller is responsible for keeping any borrowed backing storage alive and undisposed while the returned value is in use.
+    /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
     /// </remarks>
     public Foo Foo
     {
@@ -112,6 +112,12 @@ public partial class Bar
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
+    }
+
+    void IDiplomatScoped.EndScope()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
     ~Bar()
     {
