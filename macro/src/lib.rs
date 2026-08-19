@@ -282,6 +282,17 @@ struct FuncGen<'a> {
     attrs: &'a crate::ast::Attrs,
 }
 
+fn success_payload_tokens(ty: &ast::TypeName) -> (syn::Type, Option<TokenStream>) {
+    let ffi_safe_ty = ty.ffi_safe_version().to_syn();
+    let conversion = match ty {
+        ast::TypeName::Unit => None,
+        ast::TypeName::Ordering => Some(quote! { |value| value as i8 }),
+        _ if !ty.is_ffi_safe() => Some(quote! { <#ffi_safe_ty>::from }),
+        _ => None,
+    };
+    (ffi_safe_ty, conversion)
+}
+
 fn gen_custom_function(func_info: FuncGen) -> Item {
     let mut all_params = vec![];
 
@@ -337,15 +348,16 @@ fn gen_custom_function(func_info: FuncGen) -> Item {
     };
 
     let (return_tokens, maybe_into) = if let Some(return_type) = func_info.return_type {
-        if let ast::TypeName::Result(ok, _, StdlibOrDiplomat::Stdlib) = return_type {
-            let return_type_syn = return_type.ffi_safe_version().to_syn();
-            let conversion = if ok.is_owned_byte_slice() {
-                let ok = ok.ffi_safe_version().to_syn();
-                quote! { .map(<#ok>::from).into() }
-            } else {
-                quote! { .into() }
-            };
-            (quote! { -> #return_type_syn }, conversion)
+        if let ast::TypeName::Result(ok, err, StdlibOrDiplomat::Stdlib) = return_type {
+            let (ok_syn, ok_conversion) = success_payload_tokens(ok);
+            let err_syn = err.to_syn();
+            let ok_map = ok_conversion
+                .map(|conversion| quote! { .map(#conversion) })
+                .unwrap_or_default();
+            (
+                quote! { -> diplomat_runtime::DiplomatResult<#ok_syn, #err_syn> },
+                quote! { #ok_map .into() },
+            )
         } else if let ast::TypeName::StrReference(_, _, StdlibOrDiplomat::Stdlib)
         | ast::TypeName::StrSlice(.., StdlibOrDiplomat::Stdlib)
         | ast::TypeName::PrimitiveSlice(_, _, StdlibOrDiplomat::Stdlib) = return_type
@@ -369,27 +381,14 @@ fn gen_custom_function(func_info: FuncGen) -> Item {
                 }
                 // anything else goes through DiplomatResult
                 _ => {
-                    // Same fat-pointer rule as Result Ok: owned byte slices must
-                    // cross as `DiplomatOwnedSlice<u8>`, not raw `Box<[u8]>`.
-                    let (ty_s, payload_map) = if ty.is_owned_byte_slice() {
-                        let ty_s = ty.ffi_safe_version().to_syn();
-                        (ty_s.clone(), quote! { .map(<#ty_s>::from) })
-                    } else {
-                        (ty.to_syn(), quote! {})
-                    };
+                    let (ty_s, payload_conversion) = success_payload_tokens(ty);
+                    let payload_map = payload_conversion
+                        .map(|conversion| quote! { .map(#conversion) })
+                        .unwrap_or_default();
                     let conversion = if *is_std_option == StdlibOrDiplomat::Stdlib {
                         quote! { #payload_map .ok_or(()).into() }
-                    } else if ty.is_owned_byte_slice() {
-                        // DiplomatOption already on the wire: map the Some arm only.
-                        quote! { #payload_map }
                     } else {
-                        quote! {}
-                    };
-
-                    let conversion = if **ty == ast::TypeName::Ordering {
-                        quote! { .map(|i| i as i8) #conversion }
-                    } else {
-                        conversion
+                        payload_map
                     };
                     (
                         quote! { -> diplomat_runtime::DiplomatResult<#ty_s, ()> },
