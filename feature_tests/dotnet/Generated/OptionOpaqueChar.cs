@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class OptionOpaqueChar : IDiplomatScoped
+public partial class OptionOpaqueChar : IDiplomatScoped, IDisposable
 {
     private unsafe RustHandle<Raw.OptionOpaqueChar>? _inner;
 
@@ -49,10 +49,6 @@ public partial class OptionOpaqueChar : IDiplomatScoped
     {
         unsafe
         {
-            if (_inner is null || _inner.IsNull)
-            {
-                throw new ObjectDisposedException("OptionOpaqueChar");
-            }
             using (BorrowLease<Raw.OptionOpaqueChar> selfLease = BorrowShared())
             {
                 Raw.OptionOpaqueChar.AssertChar(selfLease.Ptr, ch);
@@ -66,11 +62,12 @@ public partial class OptionOpaqueChar : IDiplomatScoped
     /// </summary>
     internal unsafe Raw.OptionOpaqueChar* AsFFI()
     {
-        if (_inner is null || _inner.IsNull)
+        RustHandle<Raw.OptionOpaqueChar>? inner = _inner;
+        if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("OptionOpaqueChar");
         }
-        return _inner.Ptr;
+        return inner.Ptr;
     }
 
     internal unsafe BorrowLease<Raw.OptionOpaqueChar> BorrowShared()
@@ -108,6 +105,26 @@ public partial class OptionOpaqueChar : IDiplomatScoped
         Cleanup();
         GC.SuppressFinalize(this);
     }
+
+    /// <summary>
+    /// Requests/releases this wrapper's own ownership reference.
+    /// </summary>
+    /// <remarks>
+    /// This releases this wrapper's claim. The native resource may stay alive
+    /// while other wrappers still hold claims. Disposing an exclusive borrowed
+    /// wrapper also ends its scope. Versioned shared views borrowed from that
+    /// scope become invalid and throw before their next native call.
+    /// After this call, this <c>OptionOpaqueChar</c> instance itself is unusable:
+    /// its methods (and any attempt to start a new borrow from it) throw
+    /// <see cref="ObjectDisposedException"/> immediately, regardless of
+    /// whether the physical native destruction happened yet.
+    /// </remarks>
+    public void Dispose()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
+    }
+
     ~OptionOpaqueChar()
     {
         try

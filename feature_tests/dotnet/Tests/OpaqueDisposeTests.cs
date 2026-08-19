@@ -5,9 +5,7 @@ using Xunit;
 
 namespace Somelib.FeatureTests;
 
-// End-to-end coverage for `#[diplomat::attr(dotnet, manually_disposable)]`.
-// DefaultDropProbe has no attribute (finalizer-only). DisposableDropProbe opts in.
-public class ManuallyDisposableOptInTests
+public class OpaqueDisposeTests
 {
     [MethodImpl(MethodImplOptions.NoInlining
 #if !NETFRAMEWORK
@@ -36,10 +34,10 @@ public class ManuallyDisposableOptInTests
     }
 
     [Fact]
-    public void DefaultProbe_UsesFinalizerOnly_AndDropsExactlyOnce()
+    public void DefaultProbe_ImplementsIDisposable_AndFinalizerDropsExactlyOnce()
     {
         DefaultDropProbe.ResetDropCount();
-        Assert.DoesNotContain(typeof(IDisposable), typeof(DefaultDropProbe).GetInterfaces());
+        Assert.Contains(typeof(IDisposable), typeof(DefaultDropProbe).GetInterfaces());
 
         WeakReference weak = CreateDefaultProbeAndDropReference();
         ForceGcUntil(() => !weak.IsAlive && DefaultDropProbe.DropCount() == 1ul);
@@ -49,7 +47,7 @@ public class ManuallyDisposableOptInTests
     }
 
     [Fact]
-    public void ManuallyDisposable_ImplementsIDisposable_AndDisposeDropsNativeOnce()
+    public void Dispose_DropsNativeOnce()
     {
         DisposableDropProbe.ResetDropCount();
         Assert.Contains(typeof(IDisposable), typeof(DisposableDropProbe).GetInterfaces());
@@ -62,13 +60,12 @@ public class ManuallyDisposableOptInTests
         Assert.Equal(1ul, DisposableDropProbe.DropCount());
         Assert.Throws<ObjectDisposedException>(() => probe.IsAlive());
 
-        // Idempotent: second Dispose must not double-drop.
         probe.Dispose();
         Assert.Equal(1ul, DisposableDropProbe.DropCount());
     }
 
     [Fact]
-    public void ManuallyDisposable_UsingBlock_DisposesAtScopeExit()
+    public void UsingBlock_DisposesAtScopeExit()
     {
         DisposableDropProbe.ResetDropCount();
 
@@ -85,7 +82,7 @@ public class ManuallyDisposableOptInTests
     }
 
     [Fact]
-    public void ManuallyDisposable_NoDoubleDropAfterDisposeThenFinalizerPass()
+    public void DisposeThenFinalizerPass_DoesNotDoubleDrop()
     {
         DisposableDropProbe.ResetDropCount();
 

@@ -208,7 +208,7 @@ public class PinLifetimeTests
         Assert.True(dependentSeq != 0 && sourceSeq != 0);
         Assert.True(
             dependentSeq < sourceSeq,
-            $"expected finalizer-only dependent (seq {dependentSeq}) to be destroyed before source (seq {sourceSeq})"
+            $"expected finalized dependent (seq {dependentSeq}) to be destroyed before source (seq {sourceSeq})"
         );
 
         ForceGcUntil(() => !bufferRef.IsAlive);

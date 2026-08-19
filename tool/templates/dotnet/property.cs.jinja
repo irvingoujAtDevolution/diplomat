@@ -8,12 +8,6 @@
         {
             unsafe
             {
-{%- if is_opaque && method.is_instance() %}
-                if (_inner is null || _inner.IsNull)
-                {
-                    throw new ObjectDisposedException("{{ name }}");
-                }
-{%- endif %}
 {%- include "dotnet/method_body.cs.jinja" %}
             }
         }
@@ -24,12 +18,6 @@
         {
             unsafe
             {
-{%- if is_opaque && method.is_instance() %}
-                if (_inner is null || _inner.IsNull)
-                {
-                    throw new ObjectDisposedException("{{ name }}");
-                }
-{%- endif %}
 {%- include "dotnet/method_body.cs.jinja" %}
             }
         }

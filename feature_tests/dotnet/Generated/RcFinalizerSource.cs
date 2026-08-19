@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class RcFinalizerSource : IDiplomatScoped
+public partial class RcFinalizerSource : IDiplomatScoped, IDisposable
 {
     private unsafe RustHandle<Raw.RcFinalizerSource>? _inner;
 
@@ -61,10 +61,6 @@ public partial class RcFinalizerSource : IDiplomatScoped
     {
         unsafe
         {
-            if (_inner is null || _inner.IsNull)
-            {
-                throw new ObjectDisposedException("RcFinalizerSource");
-            }
             using (BorrowLease<Raw.RcFinalizerSource> selfLease = BorrowShared())
             {
                 var result = Raw.RcFinalizerSource.Id(selfLease.Ptr);
@@ -85,10 +81,6 @@ public partial class RcFinalizerSource : IDiplomatScoped
     {
         unsafe
         {
-            if (_inner is null || _inner.IsNull)
-            {
-                throw new ObjectDisposedException("RcFinalizerSource");
-            }
             using (BorrowLease<Raw.RcFinalizerSource> selfLease = BorrowShared())
             {
                 Raw.RcFinalizerDependent* result = Raw.RcFinalizerSource.MakeDependent(selfLease.Ptr);
@@ -127,11 +119,12 @@ public partial class RcFinalizerSource : IDiplomatScoped
     /// </summary>
     internal unsafe Raw.RcFinalizerSource* AsFFI()
     {
-        if (_inner is null || _inner.IsNull)
+        RustHandle<Raw.RcFinalizerSource>? inner = _inner;
+        if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RcFinalizerSource");
         }
-        return _inner.Ptr;
+        return inner.Ptr;
     }
 
     internal unsafe BorrowLease<Raw.RcFinalizerSource> BorrowShared()
@@ -169,6 +162,26 @@ public partial class RcFinalizerSource : IDiplomatScoped
         Cleanup();
         GC.SuppressFinalize(this);
     }
+
+    /// <summary>
+    /// Requests/releases this wrapper's own ownership reference.
+    /// </summary>
+    /// <remarks>
+    /// This releases this wrapper's claim. The native resource may stay alive
+    /// while other wrappers still hold claims. Disposing an exclusive borrowed
+    /// wrapper also ends its scope. Versioned shared views borrowed from that
+    /// scope become invalid and throw before their next native call.
+    /// After this call, this <c>RcFinalizerSource</c> instance itself is unusable:
+    /// its methods (and any attempt to start a new borrow from it) throw
+    /// <see cref="ObjectDisposedException"/> immediately, regardless of
+    /// whether the physical native destruction happened yet.
+    /// </remarks>
+    public void Dispose()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
+    }
+
     ~RcFinalizerSource()
     {
         try

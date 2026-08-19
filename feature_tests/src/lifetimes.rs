@@ -494,8 +494,7 @@ pub mod ffi {
         }
     }
 
-    // Dedicated drop probes for dotnet opt-in IDisposable behavior:
-    // one unmarked opaque (finalizer-only default), and one opt-in opaque.
+    // Paired probes verify unmarked and legacy-marked opaques share lifecycle behavior.
     #[diplomat::attr(not(dotnet), disable)]
     #[diplomat::opaque]
     pub struct DefaultDropProbe;
@@ -542,13 +541,13 @@ pub mod ffi {
     //
     // These exercise the .NET-only reference-counted borrow-dependency
     // mechanism directly (see `tool/templates/dotnet/RustHandle.cs.jinja`):
-    // an IDisposable opt-in "source", a borrowed (non-owning) "view" of it,
+    // an IDisposable "source", a borrowed (non-owning) "view" of it,
     // an owned-but-borrowing "dependent" that has its own Rust destructor
     // while holding a reference into the source (a direct RC edge), a second
     // layer of transitive dependency (a dependent of a dependent — only the
     // *direct* edge at each layer is ever recorded by the generator; the
     // full chain is only reachable by each layer's own recursive Release()),
-    // and a finalizer-only (non-opt-in) parent/child pair for the same
+    // and a parent/child pair for the same
     // destruction-ordering invariant exercised via the finalizer path
     // instead of explicit `Dispose()`.
     //
@@ -734,8 +733,7 @@ pub mod ffi {
         }
     }
 
-    // Finalizer-only (default, non-opt-in) parent/child pair exercising the
-    // same destruction-ordering invariant without explicit `Dispose()`.
+    // This pair exercises the finalizer fallback without explicit `Dispose()`.
     #[diplomat::attr(not(dotnet), disable)]
     #[diplomat::opaque]
     pub struct RcFinalizerSource(u64);

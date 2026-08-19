@@ -48,7 +48,7 @@ public class RcBorrowDependencyTests
         RcFinalizerDependent.ResetDropStats();
     }
 
-    // ── Borrowed view / source explicit Dispose (opt-in IDisposable) ───────
+    // ── Borrowed view / source explicit Dispose ───────────────────────────
 
     [Fact]
     public void BorrowedView_KeepsSourceNativeAllocationAlive_AfterSourceDispose()
@@ -229,13 +229,13 @@ public class RcBorrowDependencyTests
         Assert.Equal(1ul, RcSource.DropCount());
     }
 
-    // ── Finalizer-only (default, non-opt-in) parent/child ordering ─────────
+    // ── Finalizer fallback parent/child ordering ──────────────────────────
 
     [Fact]
-    public void FinalizerOnlyProbes_AreNotIDisposable()
+    public void FinalizerFallbackProbes_AreIDisposable()
     {
-        Assert.DoesNotContain(typeof(IDisposable), typeof(RcFinalizerSource).GetInterfaces());
-        Assert.DoesNotContain(typeof(IDisposable), typeof(RcFinalizerDependent).GetInterfaces());
+        Assert.Contains(typeof(IDisposable), typeof(RcFinalizerSource).GetInterfaces());
+        Assert.Contains(typeof(IDisposable), typeof(RcFinalizerDependent).GetInterfaces());
     }
 
     [MethodImpl(MethodImplOptions.NoInlining
@@ -251,7 +251,7 @@ public class RcBorrowDependencyTests
     }
 
     [Fact]
-    public void FinalizerOnlyPair_DependentDestroyedBeforeSource_ViaFinalizers()
+    public void FinalizerFallbackPair_DependentDestroyedBeforeSource()
     {
         ResetAllDropStats();
 
@@ -274,7 +274,7 @@ public class RcBorrowDependencyTests
         Assert.True(dependentSeq != 0 && sourceSeq != 0);
         Assert.True(
             dependentSeq < sourceSeq,
-            $"expected finalizer-only dependent (seq {dependentSeq}) to be destroyed before source (seq {sourceSeq})"
+            $"expected finalized dependent (seq {dependentSeq}) to be destroyed before source (seq {sourceSeq})"
         );
     }
 }

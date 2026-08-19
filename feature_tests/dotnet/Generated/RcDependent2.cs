@@ -49,10 +49,6 @@ public partial class RcDependent2 : IDiplomatScoped, IDisposable
     {
         unsafe
         {
-            if (_inner is null || _inner.IsNull)
-            {
-                throw new ObjectDisposedException("RcDependent2");
-            }
             using (BorrowLease<Raw.RcDependent2> selfLease = BorrowShared())
             {
                 var result = Raw.RcDependent2.Id(selfLease.Ptr);
@@ -91,11 +87,12 @@ public partial class RcDependent2 : IDiplomatScoped, IDisposable
     /// </summary>
     internal unsafe Raw.RcDependent2* AsFFI()
     {
-        if (_inner is null || _inner.IsNull)
+        RustHandle<Raw.RcDependent2>? inner = _inner;
+        if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RcDependent2");
         }
-        return _inner.Ptr;
+        return inner.Ptr;
     }
 
     internal unsafe BorrowLease<Raw.RcDependent2> BorrowShared()
@@ -133,16 +130,15 @@ public partial class RcDependent2 : IDiplomatScoped, IDisposable
         Cleanup();
         GC.SuppressFinalize(this);
     }
+
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.
     /// </summary>
     /// <remarks>
-    /// This only relinquishes THIS wrapper's own reference; the underlying
-    /// native resource is not necessarily destroyed when this method
-    /// returns. If another wrapper still holds a live borrow-dependency on
-    /// it (see <c>RustHandle.cs</c>), the actual Rust destructor call
-    /// is deferred until that borrower releases its own reference too — so
-    /// existing borrowers obtained before this call remain fully valid.
+    /// This releases this wrapper's claim. The native resource may stay alive
+    /// while other wrappers still hold claims. Disposing an exclusive borrowed
+    /// wrapper also ends its scope. Versioned shared views borrowed from that
+    /// scope become invalid and throw before their next native call.
     /// After this call, this <c>RcDependent2</c> instance itself is unusable:
     /// its methods (and any attempt to start a new borrow from it) throw
     /// <see cref="ObjectDisposedException"/> immediately, regardless of
@@ -153,6 +149,7 @@ public partial class RcDependent2 : IDiplomatScoped, IDisposable
         Cleanup();
         GC.SuppressFinalize(this);
     }
+
     ~RcDependent2()
     {
         try

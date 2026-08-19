@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class OpaqueMut : IDiplomatScoped
+public partial class OpaqueMut : IDiplomatScoped, IDisposable
 {
     private unsafe RustHandle<Raw.OpaqueMut>? _inner;
 
@@ -62,11 +62,12 @@ public partial class OpaqueMut : IDiplomatScoped
     /// </summary>
     internal unsafe Raw.OpaqueMut* AsFFI()
     {
-        if (_inner is null || _inner.IsNull)
+        RustHandle<Raw.OpaqueMut>? inner = _inner;
+        if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("OpaqueMut");
         }
-        return _inner.Ptr;
+        return inner.Ptr;
     }
 
     internal unsafe BorrowLease<Raw.OpaqueMut> BorrowShared()
@@ -104,6 +105,26 @@ public partial class OpaqueMut : IDiplomatScoped
         Cleanup();
         GC.SuppressFinalize(this);
     }
+
+    /// <summary>
+    /// Requests/releases this wrapper's own ownership reference.
+    /// </summary>
+    /// <remarks>
+    /// This releases this wrapper's claim. The native resource may stay alive
+    /// while other wrappers still hold claims. Disposing an exclusive borrowed
+    /// wrapper also ends its scope. Versioned shared views borrowed from that
+    /// scope become invalid and throw before their next native call.
+    /// After this call, this <c>OpaqueMut</c> instance itself is unusable:
+    /// its methods (and any attempt to start a new borrow from it) throw
+    /// <see cref="ObjectDisposedException"/> immediately, regardless of
+    /// whether the physical native destruction happened yet.
+    /// </remarks>
+    public void Dispose()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
+    }
+
     ~OpaqueMut()
     {
         try

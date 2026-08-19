@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class RenamedMixinTest : IDiplomatScoped
+public partial class RenamedMixinTest : IDiplomatScoped, IDisposable
 {
     private unsafe RustHandle<Raw.RenamedMixinTest>? _inner;
 
@@ -67,11 +67,12 @@ public partial class RenamedMixinTest : IDiplomatScoped
     /// </summary>
     internal unsafe Raw.RenamedMixinTest* AsFFI()
     {
-        if (_inner is null || _inner.IsNull)
+        RustHandle<Raw.RenamedMixinTest>? inner = _inner;
+        if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RenamedMixinTest");
         }
-        return _inner.Ptr;
+        return inner.Ptr;
     }
 
     internal unsafe BorrowLease<Raw.RenamedMixinTest> BorrowShared()
@@ -109,6 +110,26 @@ public partial class RenamedMixinTest : IDiplomatScoped
         Cleanup();
         GC.SuppressFinalize(this);
     }
+
+    /// <summary>
+    /// Requests/releases this wrapper's own ownership reference.
+    /// </summary>
+    /// <remarks>
+    /// This releases this wrapper's claim. The native resource may stay alive
+    /// while other wrappers still hold claims. Disposing an exclusive borrowed
+    /// wrapper also ends its scope. Versioned shared views borrowed from that
+    /// scope become invalid and throw before their next native call.
+    /// After this call, this <c>RenamedMixinTest</c> instance itself is unusable:
+    /// its methods (and any attempt to start a new borrow from it) throw
+    /// <see cref="ObjectDisposedException"/> immediately, regardless of
+    /// whether the physical native destruction happened yet.
+    /// </remarks>
+    public void Dispose()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
+    }
+
     ~RenamedMixinTest()
     {
         try

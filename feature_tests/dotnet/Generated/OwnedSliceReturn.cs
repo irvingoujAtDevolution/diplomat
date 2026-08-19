@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class OwnedSliceReturn : IDiplomatScoped
+public partial class OwnedSliceReturn : IDiplomatScoped, IDisposable
 {
     private unsafe RustHandle<Raw.OwnedSliceReturn>? _inner;
 
@@ -59,11 +59,12 @@ public partial class OwnedSliceReturn : IDiplomatScoped
     /// </summary>
     internal unsafe Raw.OwnedSliceReturn* AsFFI()
     {
-        if (_inner is null || _inner.IsNull)
+        RustHandle<Raw.OwnedSliceReturn>? inner = _inner;
+        if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("OwnedSliceReturn");
         }
-        return _inner.Ptr;
+        return inner.Ptr;
     }
 
     internal unsafe BorrowLease<Raw.OwnedSliceReturn> BorrowShared()
@@ -101,6 +102,26 @@ public partial class OwnedSliceReturn : IDiplomatScoped
         Cleanup();
         GC.SuppressFinalize(this);
     }
+
+    /// <summary>
+    /// Requests/releases this wrapper's own ownership reference.
+    /// </summary>
+    /// <remarks>
+    /// This releases this wrapper's claim. The native resource may stay alive
+    /// while other wrappers still hold claims. Disposing an exclusive borrowed
+    /// wrapper also ends its scope. Versioned shared views borrowed from that
+    /// scope become invalid and throw before their next native call.
+    /// After this call, this <c>OwnedSliceReturn</c> instance itself is unusable:
+    /// its methods (and any attempt to start a new borrow from it) throw
+    /// <see cref="ObjectDisposedException"/> immediately, regardless of
+    /// whether the physical native destruction happened yet.
+    /// </remarks>
+    public void Dispose()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
+    }
+
     ~OwnedSliceReturn()
     {
         try

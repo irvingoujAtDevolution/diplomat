@@ -5,8 +5,7 @@
 //! Every opaque Rust handle maps to a partial class backed by the same
 //! `RustHandle<T>` (`tool/templates/dotnet/RustHandle.cs.jinja`) — a class that
 //! holds the pointer, destructor, edges, lifetime claims, and borrow state.
-//! Opaques are finalizer-only by default; `#[diplomat::attr(dotnet, manually_disposable)]`
-//! opts a type into a public `IDisposable` surface.
+//! Every opaque implements `IDisposable` and keeps a finalizer as a fallback.
 //! Slices, `&DiplomatStr` (unvalidated UTF-8) and `&DiplomatStr16` pin
 //! zero-copy; a validated `&str` still copies, since only a transcode from a
 //! real `System.String` can guarantee well-formed UTF-8. Callbacks are
@@ -2533,7 +2532,7 @@ mod test {
     }
 
     #[test]
-    fn opaque_defaults_to_finalizer_only_cleanup() {
+    fn opaque_defaults_to_idisposable_with_finalizer_fallback() {
         let (files, errors) = run_dotnet(quote! {
             #[diplomat::bridge]
             mod ffi {
@@ -2556,12 +2555,23 @@ mod test {
         );
         let plain = files.get("Plain.cs").expect("expected Plain.cs output");
         assert!(
-            plain.contains("public partial class Plain") && !plain.contains(": IDisposable"),
-            "default opaque should not implement IDisposable:\n{plain}"
+            plain.contains("public partial class Plain : IDiplomatScoped, IDisposable"),
+            "every opaque should implement IDisposable:\n{plain}"
         );
         assert!(
-            !plain.contains("public void Dispose()"),
-            "default opaque should not expose public Dispose:\n{plain}"
+            plain.contains("public void Dispose()")
+                && plain.contains("Cleanup();")
+                && plain.contains("GC.SuppressFinalize(this);"),
+            "every opaque should expose Dispose through the shared cleanup path:\n{plain}"
+        );
+        assert!(
+            !plain.contains("_inner is null || _inner.IsNull"),
+            "generated code must not read the wrapper field twice across concurrent Dispose:\n{plain}"
+        );
+        assert!(
+            plain.contains("Versioned shared views borrowed from that")
+                && !plain.contains("remain fully valid"),
+            "Dispose docs must cover exclusive scoped wrappers:\n{plain}"
         );
         assert!(
             plain.contains("private void Cleanup()")
@@ -2569,14 +2579,12 @@ mod test {
                 && plain.contains("try")
                 && plain.contains("Cleanup();")
                 && plain.contains("catch"),
-            "default opaque should use finalizer fallback through Cleanup:\n{plain}"
+            "every opaque should keep the finalizer fallback through Cleanup:\n{plain}"
         );
     }
 
     #[test]
-    fn opaque_manually_disposable_opt_in_emits_public_dispose() {
-        // Generate both shapes from one bridge so the attribute is what flips
-        // the public Dispose surface, not some ambient backend default.
+    fn manually_disposable_does_not_change_opaque_output() {
         let (files, errors) = run_dotnet(quote! {
             #[diplomat::bridge]
             mod ffi {
@@ -2617,36 +2625,37 @@ mod test {
             .get("FinalizerOnly.cs")
             .expect("expected FinalizerOnly.cs output");
         assert!(
-            finalizer_only.contains("public partial class FinalizerOnly")
-                && !finalizer_only.contains(": IDisposable")
-                && !finalizer_only.contains("public void Dispose()"),
-            "unmarked opaque must stay finalizer-only:\n{finalizer_only}"
+            finalizer_only
+                .contains("public partial class FinalizerOnly : IDiplomatScoped, IDisposable")
+                && finalizer_only.contains("public void Dispose()")
+                && finalizer_only.contains("GC.SuppressFinalize(this);"),
+            "unmarked opaque must expose the standard disposable surface:\n{finalizer_only}"
         );
         assert!(
             finalizer_only.contains("private void Cleanup()")
                 && finalizer_only.contains("~FinalizerOnly()"),
-            "unmarked opaque still needs private cleanup + finalizer:\n{finalizer_only}"
+            "unmarked opaque must keep private cleanup and the finalizer fallback:\n{finalizer_only}"
         );
 
         let manual = files.get("Manual.cs").expect("expected Manual.cs output");
         assert!(
             manual.contains("public partial class Manual : IDiplomatScoped, IDisposable"),
-            "`manually_disposable` must generate `IDisposable` alongside the scoped interface:\n{manual}"
+            "`manually_disposable` must not change the standard disposable surface:\n{manual}"
         );
         assert!(
             manual.contains("public void Dispose()")
                 && manual.contains("Cleanup();")
                 && manual.contains("GC.SuppressFinalize(this);"),
-            "`manually_disposable` must expose Dispose() that suppresses finalization:\n{manual}"
+            "the standard Dispose must suppress finalization:\n{manual}"
         );
         assert!(
             manual.contains("~Manual()") && manual.contains("try") && manual.contains("catch"),
-            "opted-in opaque should still keep finalizer fallback:\n{manual}"
+            "marked opaque must keep the finalizer fallback:\n{manual}"
         );
         assert!(
             manual.contains("public void Ping()")
                 && manual.contains("ObjectDisposedException(\"Manual\")"),
-            "instance methods on a manually_disposable opaque must reject use-after-dispose:\n{manual}"
+            "instance methods must reject use-after-dispose:\n{manual}"
         );
     }
 
@@ -2735,7 +2744,7 @@ mod test {
     }
 
     #[test]
-    fn non_dotnet_gated_manually_disposable_does_not_affect_dotnet_codegen() {
+    fn non_dotnet_gated_manually_disposable_keeps_default_dotnet_codegen() {
         let (files, errors) = run_dotnet(quote! {
             #[diplomat::bridge]
             mod ffi {
@@ -2759,8 +2768,9 @@ mod test {
         );
         let gated = files.get("Gated.cs").expect("expected Gated.cs output");
         assert!(
-            !gated.contains(": IDisposable") && !gated.contains("public void Dispose()"),
-            "dotnet-disabled manually_disposable attr must not change dotnet output:\n{gated}"
+            gated.contains("public partial class Gated : IDiplomatScoped, IDisposable")
+                && gated.contains("public void Dispose()"),
+            "dotnet-disabled manually_disposable attr must keep the default disposable output:\n{gated}"
         );
     }
 
@@ -3133,28 +3143,28 @@ mod test {
     }
 
     #[test]
-    fn a_property_named_dispose_is_accepted_without_manually_disposable_opt_in() {
-        let (files, errors) = run_dotnet(property_test_module(quote! {
+    fn an_opaque_property_colliding_with_dispose_is_rejected() {
+        let (_files, errors) = run_dotnet(property_test_module(quote! {
             #[diplomat::attr(auto, getter = "dispose")]
             pub fn is_disposed(&self) -> bool {
                 unimplemented!()
             }
         }));
 
-        assert!(
-            errors.is_empty(),
-            "unexpected diagnostics: {}",
-            errors.join("\n")
+        assert_eq!(
+            errors.len(),
+            1,
+            "expected exactly one diagnostic: {errors:?}"
         );
-        let config = files.get("Config.cs").expect("expected Config.cs output");
         assert!(
-            config.contains("public bool Dispose"),
-            "without dotnet manually_disposable opt-in, an opaque may expose a Dispose-named property:\n{config}"
+            errors[0].contains("two members named `Dispose`"),
+            "the diagnostic must reject the generated Dispose collision; got: {}",
+            errors[0]
         );
     }
 
     #[test]
-    fn a_property_colliding_with_dispose_is_rejected_when_manually_disposable_opted_in() {
+    fn manually_disposable_does_not_change_dispose_collision() {
         let (_files, errors) = run_dotnet(property_test_module_with_type_attrs(
             quote! {
                 #[diplomat::attr(dotnet, manually_disposable)]

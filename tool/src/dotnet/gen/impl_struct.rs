@@ -93,9 +93,6 @@ struct ImplStructTemplate<'ctx, 'tcx> {
     fields: Vec<StructField>,
     methods: Vec<MethodInfo<'tcx>>,
     properties: Vec<PropertyInfo<'tcx>>,
-    /// Always false: a struct is a value type, so there is no handle to check.
-    /// Read by `property.cs.jinja`, which both impl templates include.
-    is_opaque: bool,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -134,7 +131,6 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             fields,
             methods,
             properties,
-            is_opaque: false,
         }
         .render()
         .expect("Failed to render struct impl template")

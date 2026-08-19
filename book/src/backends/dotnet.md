@@ -66,13 +66,12 @@ to null on the second read. Setters keep `&mut self`; assigning is the point.
 
 Names must not collide either. A property that would share its name with a method, a
 struct field, the type that contains it, or one of the members Diplomat always generates
-(`AsFFI`, `FromFFI`, and opt-in `Dispose` on opaques) is rejected, because C# would not
+(`AsFFI`, `FromFFI`, and `Dispose` on opaques) is rejected, because C# would not
 compile the result.
 
 A getter that returns an owned `Box<[u8]>` (`RustVec`) hands back a value you own, so
-dispose it — `using var x = thing.Data;`. A getter returning an owned opaque can be used
-the same way only when that opaque is opted into
-`#[diplomat::attr(dotnet, manually_disposable)]`.
+dispose it — `using var x = thing.Data;`. A getter returning an owned opaque supports the
+same pattern because every generated opaque implements `IDisposable`.
 
 In accessor position a string-shaped parameter is always `string`, even for
 `&DiplomatStr` (which is `byte[]` everywhere else, zero-copy and unvalidated). A property
@@ -105,15 +104,15 @@ The reference count is updated with `Interlocked` so a user-thread retain can
 race a finalizer-thread token release on the same handle without lost updates.
 Teardown still runs only on the thread that drives the count to zero.
 
-By default, generated opaques are **finalizer-only**: no public `Dispose()`, cleanup runs
-through a private idempotent path invoked by the finalizer. Add
-`#[diplomat::attr(dotnet, manually_disposable)]` on an opaque type declaration to generate
-`: IDisposable` plus a public `Dispose()` that runs the same cleanup and
-`GC.SuppressFinalize(this)`. `Dispose()` releases this wrapper's ownership reference but
-does not necessarily destroy the native value immediately: existing borrowers keep it
-alive and remain valid. The disposed wrapper itself rejects further use with
-`ObjectDisposedException`. In both modes, native calls are followed by
-`GC.KeepAlive(this)` to prevent finalization while P/Invoke is still using the pointer.
+Every generated opaque implements `IDisposable` and keeps a finalizer as a fallback.
+`Dispose()` runs the same private idempotent cleanup path and calls
+`GC.SuppressFinalize(this)`. It releases this wrapper's ownership reference but does not
+necessarily destroy the native value immediately: existing borrowers keep it alive and
+remain valid. The disposed wrapper itself rejects further use with
+`ObjectDisposedException`. Native calls are followed by `GC.KeepAlive(this)` to prevent
+finalization while P/Invoke is still using the pointer. The legacy
+`#[diplomat::attr(dotnet, manually_disposable)]` attribute is accepted but does not change
+.NET output.
 
 ## String encoding
 

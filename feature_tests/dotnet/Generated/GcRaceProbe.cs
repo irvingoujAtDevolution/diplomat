@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class GcRaceProbe : IDiplomatScoped
+public partial class GcRaceProbe : IDiplomatScoped, IDisposable
 {
     private unsafe RustHandle<Raw.GcRaceProbe>? _inner;
 
@@ -61,10 +61,6 @@ public partial class GcRaceProbe : IDiplomatScoped
     {
         unsafe
         {
-            if (_inner is null || _inner.IsNull)
-            {
-                throw new ObjectDisposedException("GcRaceProbe");
-            }
             using (BorrowLease<Raw.GcRaceProbe> selfLease = BorrowShared())
             {
                 var result = Raw.GcRaceProbe.DropsDuringSpin(selfLease.Ptr, millis);
@@ -79,11 +75,12 @@ public partial class GcRaceProbe : IDiplomatScoped
     /// </summary>
     internal unsafe Raw.GcRaceProbe* AsFFI()
     {
-        if (_inner is null || _inner.IsNull)
+        RustHandle<Raw.GcRaceProbe>? inner = _inner;
+        if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("GcRaceProbe");
         }
-        return _inner.Ptr;
+        return inner.Ptr;
     }
 
     internal unsafe BorrowLease<Raw.GcRaceProbe> BorrowShared()
@@ -121,6 +118,26 @@ public partial class GcRaceProbe : IDiplomatScoped
         Cleanup();
         GC.SuppressFinalize(this);
     }
+
+    /// <summary>
+    /// Requests/releases this wrapper's own ownership reference.
+    /// </summary>
+    /// <remarks>
+    /// This releases this wrapper's claim. The native resource may stay alive
+    /// while other wrappers still hold claims. Disposing an exclusive borrowed
+    /// wrapper also ends its scope. Versioned shared views borrowed from that
+    /// scope become invalid and throw before their next native call.
+    /// After this call, this <c>GcRaceProbe</c> instance itself is unusable:
+    /// its methods (and any attempt to start a new borrow from it) throw
+    /// <see cref="ObjectDisposedException"/> immediately, regardless of
+    /// whether the physical native destruction happened yet.
+    /// </remarks>
+    public void Dispose()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
+    }
+
     ~GcRaceProbe()
     {
         try

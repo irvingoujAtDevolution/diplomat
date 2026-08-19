@@ -61,10 +61,6 @@ public partial class RcSource : IDiplomatScoped, IDisposable
     {
         unsafe
         {
-            if (_inner is null || _inner.IsNull)
-            {
-                throw new ObjectDisposedException("RcSource");
-            }
             using (BorrowLease<Raw.RcSource> selfLease = BorrowShared())
             {
                 var result = Raw.RcSource.Id(selfLease.Ptr);
@@ -85,10 +81,6 @@ public partial class RcSource : IDiplomatScoped, IDisposable
     {
         unsafe
         {
-            if (_inner is null || _inner.IsNull)
-            {
-                throw new ObjectDisposedException("RcSource");
-            }
             using (BorrowLease<Raw.RcSource> selfLease = BorrowShared())
             {
                 Raw.RcSource* result = Raw.RcSource.View(selfLease.Ptr);
@@ -109,10 +101,6 @@ public partial class RcSource : IDiplomatScoped, IDisposable
     {
         unsafe
         {
-            if (_inner is null || _inner.IsNull)
-            {
-                throw new ObjectDisposedException("RcSource");
-            }
             using (BorrowLease<Raw.RcSource> selfLease = BorrowExclusive())
             {
                 Raw.RcSource* result = Raw.RcSource.ViewMut(selfLease.Ptr);
@@ -126,10 +114,6 @@ public partial class RcSource : IDiplomatScoped, IDisposable
     {
         unsafe
         {
-            if (_inner is null || _inner.IsNull)
-            {
-                throw new ObjectDisposedException("RcSource");
-            }
             using (BorrowLease<Raw.RcSource> selfLease = BorrowExclusive())
             {
                 var result = Raw.RcSource.PingMutable(selfLease.Ptr);
@@ -150,10 +134,6 @@ public partial class RcSource : IDiplomatScoped, IDisposable
     {
         unsafe
         {
-            if (_inner is null || _inner.IsNull)
-            {
-                throw new ObjectDisposedException("RcSource");
-            }
             using (BorrowLease<Raw.RcSource> selfLease = BorrowShared())
             {
                 Raw.RcDependent* result = Raw.RcSource.MakeDependent(selfLease.Ptr);
@@ -192,11 +172,12 @@ public partial class RcSource : IDiplomatScoped, IDisposable
     /// </summary>
     internal unsafe Raw.RcSource* AsFFI()
     {
-        if (_inner is null || _inner.IsNull)
+        RustHandle<Raw.RcSource>? inner = _inner;
+        if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("RcSource");
         }
-        return _inner.Ptr;
+        return inner.Ptr;
     }
 
     internal unsafe BorrowLease<Raw.RcSource> BorrowShared()
@@ -234,16 +215,15 @@ public partial class RcSource : IDiplomatScoped, IDisposable
         Cleanup();
         GC.SuppressFinalize(this);
     }
+
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.
     /// </summary>
     /// <remarks>
-    /// This only relinquishes THIS wrapper's own reference; the underlying
-    /// native resource is not necessarily destroyed when this method
-    /// returns. If another wrapper still holds a live borrow-dependency on
-    /// it (see <c>RustHandle.cs</c>), the actual Rust destructor call
-    /// is deferred until that borrower releases its own reference too — so
-    /// existing borrowers obtained before this call remain fully valid.
+    /// This releases this wrapper's claim. The native resource may stay alive
+    /// while other wrappers still hold claims. Disposing an exclusive borrowed
+    /// wrapper also ends its scope. Versioned shared views borrowed from that
+    /// scope become invalid and throw before their next native call.
     /// After this call, this <c>RcSource</c> instance itself is unusable:
     /// its methods (and any attempt to start a new borrow from it) throw
     /// <see cref="ObjectDisposedException"/> immediately, regardless of
@@ -254,6 +234,7 @@ public partial class RcSource : IDiplomatScoped, IDisposable
         Cleanup();
         GC.SuppressFinalize(this);
     }
+
     ~RcSource()
     {
         try

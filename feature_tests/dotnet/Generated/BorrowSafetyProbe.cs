@@ -101,10 +101,6 @@ public partial class BorrowSafetyProbe : IDiplomatScoped, IDisposable
     {
         unsafe
         {
-            if (_inner is null || _inner.IsNull)
-            {
-                throw new ObjectDisposedException("BorrowSafetyProbe");
-            }
             using (BorrowLease<Raw.BorrowSafetyProbe> selfLease = BorrowShared())
             {
                 Raw.BorrowSafetyProbe.HoldShared(selfLease.Ptr);
@@ -117,10 +113,6 @@ public partial class BorrowSafetyProbe : IDiplomatScoped, IDisposable
     {
         unsafe
         {
-            if (_inner is null || _inner.IsNull)
-            {
-                throw new ObjectDisposedException("BorrowSafetyProbe");
-            }
             using (BorrowLease<Raw.BorrowSafetyProbe> selfLease = BorrowShared())
             {
                 var result = Raw.BorrowSafetyProbe.PingShared(selfLease.Ptr);
@@ -158,10 +150,6 @@ public partial class BorrowSafetyProbe : IDiplomatScoped, IDisposable
     {
         unsafe
         {
-            if (_inner is null || _inner.IsNull)
-            {
-                throw new ObjectDisposedException("BorrowSafetyProbe");
-            }
             using (BorrowLease<Raw.BorrowSafetyProbe> selfLease = BorrowExclusive())
             {
                 Raw.BorrowSafetyProbe.HoldMutable(selfLease.Ptr);
@@ -174,10 +162,6 @@ public partial class BorrowSafetyProbe : IDiplomatScoped, IDisposable
     {
         unsafe
         {
-            if (_inner is null || _inner.IsNull)
-            {
-                throw new ObjectDisposedException("BorrowSafetyProbe");
-            }
             using (BorrowLease<Raw.BorrowSafetyProbe> selfLease = BorrowExclusive())
             {
                 var result = Raw.BorrowSafetyProbe.PingMutable(selfLease.Ptr);
@@ -192,11 +176,12 @@ public partial class BorrowSafetyProbe : IDiplomatScoped, IDisposable
     /// </summary>
     internal unsafe Raw.BorrowSafetyProbe* AsFFI()
     {
-        if (_inner is null || _inner.IsNull)
+        RustHandle<Raw.BorrowSafetyProbe>? inner = _inner;
+        if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("BorrowSafetyProbe");
         }
-        return _inner.Ptr;
+        return inner.Ptr;
     }
 
     internal unsafe BorrowLease<Raw.BorrowSafetyProbe> BorrowShared()
@@ -234,16 +219,15 @@ public partial class BorrowSafetyProbe : IDiplomatScoped, IDisposable
         Cleanup();
         GC.SuppressFinalize(this);
     }
+
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.
     /// </summary>
     /// <remarks>
-    /// This only relinquishes THIS wrapper's own reference; the underlying
-    /// native resource is not necessarily destroyed when this method
-    /// returns. If another wrapper still holds a live borrow-dependency on
-    /// it (see <c>RustHandle.cs</c>), the actual Rust destructor call
-    /// is deferred until that borrower releases its own reference too — so
-    /// existing borrowers obtained before this call remain fully valid.
+    /// This releases this wrapper's claim. The native resource may stay alive
+    /// while other wrappers still hold claims. Disposing an exclusive borrowed
+    /// wrapper also ends its scope. Versioned shared views borrowed from that
+    /// scope become invalid and throw before their next native call.
     /// After this call, this <c>BorrowSafetyProbe</c> instance itself is unusable:
     /// its methods (and any attempt to start a new borrow from it) throw
     /// <see cref="ObjectDisposedException"/> immediately, regardless of
@@ -254,6 +238,7 @@ public partial class BorrowSafetyProbe : IDiplomatScoped, IDisposable
         Cleanup();
         GC.SuppressFinalize(this);
     }
+
     ~BorrowSafetyProbe()
     {
         try

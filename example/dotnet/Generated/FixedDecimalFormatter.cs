@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class FixedDecimalFormatter : IDiplomatScoped
+public partial class FixedDecimalFormatter : IDiplomatScoped, IDisposable
 {
     private unsafe RustHandle<Raw.FixedDecimalFormatter>? _inner;
 
@@ -74,10 +74,6 @@ public partial class FixedDecimalFormatter : IDiplomatScoped
     {
         unsafe
         {
-            if (_inner is null || _inner.IsNull)
-            {
-                throw new ObjectDisposedException("FixedDecimalFormatter");
-            }
             if (value == null) throw new ArgumentNullException(nameof(value));
             using (BorrowLease<Raw.FixedDecimalFormatter> selfLease = BorrowShared())
             using (BorrowLease<Raw.FixedDecimal> valueLease = value.BorrowShared())
@@ -103,11 +99,12 @@ public partial class FixedDecimalFormatter : IDiplomatScoped
     /// </summary>
     internal unsafe Raw.FixedDecimalFormatter* AsFFI()
     {
-        if (_inner is null || _inner.IsNull)
+        RustHandle<Raw.FixedDecimalFormatter>? inner = _inner;
+        if (inner is null || inner.IsNull)
         {
             throw new ObjectDisposedException("FixedDecimalFormatter");
         }
-        return _inner.Ptr;
+        return inner.Ptr;
     }
 
     internal unsafe BorrowLease<Raw.FixedDecimalFormatter> BorrowShared()
@@ -145,6 +142,26 @@ public partial class FixedDecimalFormatter : IDiplomatScoped
         Cleanup();
         GC.SuppressFinalize(this);
     }
+
+    /// <summary>
+    /// Requests/releases this wrapper's own ownership reference.
+    /// </summary>
+    /// <remarks>
+    /// This releases this wrapper's claim. The native resource may stay alive
+    /// while other wrappers still hold claims. Disposing an exclusive borrowed
+    /// wrapper also ends its scope. Versioned shared views borrowed from that
+    /// scope become invalid and throw before their next native call.
+    /// After this call, this <c>FixedDecimalFormatter</c> instance itself is unusable:
+    /// its methods (and any attempt to start a new borrow from it) throw
+    /// <see cref="ObjectDisposedException"/> immediately, regardless of
+    /// whether the physical native destruction happened yet.
+    /// </remarks>
+    public void Dispose()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
+    }
+
     ~FixedDecimalFormatter()
     {
         try
