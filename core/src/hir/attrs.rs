@@ -684,7 +684,7 @@ impl Attrs {
                                 let value = meta.value()?;
 
                                 let ahead = value.lookahead1();
-                                let str_val: String = if ahead.peek(syn::LitFloat) {
+                                let str_val = if ahead.peek(syn::LitFloat) {
                                     let s: syn::LitFloat = value.parse()?;
                                     s.base10_parse::<f64>()?.to_string()
                                 } else if ahead.peek(syn::LitInt) {
