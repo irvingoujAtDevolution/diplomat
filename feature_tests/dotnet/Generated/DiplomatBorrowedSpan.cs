@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
 
 namespace Somelib.Diplomat;
 
@@ -8,11 +10,11 @@ public delegate void DiplomatBorrowedSpanAction<T>(ReadOnlySpan<T> span) where T
 
 /// <summary>
 /// A zero-copy view over memory Rust still owns (a borrowed <c>&amp;str</c> /
-/// <c>&amp;[T]</c> return). Unlike <c>RustVec</c>, there's nothing to free
-/// here — Rust still owns this memory, so there's no <c>IDisposable</c> and
-/// no native allocation of its own to free. <c>edges</c> contains retained
-/// references to whatever opaque values this was borrowed from, keeping their
-/// native allocations alive while this view is reachable.
+/// <c>&amp;[T]</c> return). This does not free that memory. It holds a versioned
+/// lifetime claim on the opaque it was borrowed from, so the source allocation
+/// stays alive until this view is disposed or becomes unreachable. A mutable call on a source
+/// invalidates this view: the next <see cref="WithSpan"/> or <see cref="Clone"/>
+/// throws <see cref="InvalidOperationException"/>.
 /// </summary>
 /// <remarks>
 /// This intentionally does not expose a public <c>Span</c>-returning
@@ -24,14 +26,15 @@ public delegate void DiplomatBorrowedSpanAction<T>(ReadOnlySpan<T> span) where T
 /// directly, so it can never outlive this object's own lifetime. This is a
 /// reference type: assigning it to another variable aliases the same object,
 /// so the retained parent references are released exactly once after all
-/// aliases become unreachable. <see cref="Clone"/> is the explicit,
-/// independent data copy.
+/// aliases become unreachable or after <see cref="Dispose"/>. <see cref="Clone"/>
+/// is the explicit, independent data copy.
 /// </remarks>
-public sealed unsafe class DiplomatBorrowedSpan<T> where T : unmanaged
+public sealed unsafe class DiplomatBorrowedSpan<T> : IDisposable where T : unmanaged
 {
     private readonly T* _ptr;
     private readonly int _len;
-    private readonly object[] _edges;
+    private object[] _edges;
+    private int _disposed;
 
     internal DiplomatBorrowedSpan(T* ptr, nuint len, object[] edges)
     {
@@ -66,29 +69,104 @@ public sealed unsafe class DiplomatBorrowedSpan<T> where T : unmanaged
         {
             throw new ArgumentNullException(nameof(action));
         }
-        action(new ReadOnlySpan<T>(_ptr, _len));
-        GC.KeepAlive(this);
+        IDisposable[] acquired = AcquireDependencies();
+        try
+        {
+            action(new ReadOnlySpan<T>(_ptr, _len));
+        }
+        finally
+        {
+            ReleaseDependencies(acquired);
+            GC.KeepAlive(this);
+        }
     }
 
     /// <summary>An explicit, independent copy — never implicit.</summary>
     public T[] Clone()
     {
-        T[] result = new ReadOnlySpan<T>(_ptr, _len).ToArray();
-        GC.KeepAlive(this);
-        return result;
+        IDisposable[] acquired = AcquireDependencies();
+        try
+        {
+            return new ReadOnlySpan<T>(_ptr, _len).ToArray();
+        }
+        finally
+        {
+            ReleaseDependencies(acquired);
+            GC.KeepAlive(this);
+        }
+    }
+
+    /// <summary>
+    /// Releases this view's lifetime claim. Further <see cref="WithSpan"/> or
+    /// <see cref="Clone"/> calls throw <see cref="ObjectDisposedException"/>.
+    /// </summary>
+    public void Dispose()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
 
     ~DiplomatBorrowedSpan()
     {
         try
         {
-            foreach (object edge in _edges)
-            {
-                (edge as IDisposable)?.Dispose();
-            }
+            Cleanup();
         }
         catch
         {
+        }
+    }
+
+    private IDisposable[] AcquireDependencies()
+    {
+        object[] edges = Volatile.Read(ref _edges);
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            throw new ObjectDisposedException(nameof(DiplomatBorrowedSpan<T>));
+        }
+
+        List<IDisposable>? acquired = null;
+        try
+        {
+            foreach (object edge in edges)
+            {
+                if (edge is IVersionedBorrow dependency)
+                {
+                    (acquired ??= new List<IDisposable>()).Add(dependency.Acquire());
+                }
+            }
+
+            return acquired?.ToArray() ?? System.Array.Empty<IDisposable>();
+        }
+        catch
+        {
+            if (acquired is not null)
+            {
+                ReleaseDependencies(acquired.ToArray());
+            }
+            throw;
+        }
+    }
+
+    private static void ReleaseDependencies(IDisposable[] dependencies)
+    {
+        for (int i = dependencies.Length - 1; i >= 0; i--)
+        {
+            dependencies[i].Dispose();
+        }
+    }
+
+    private void Cleanup()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        object[] edges = Interlocked.Exchange(ref _edges, System.Array.Empty<object>());
+        foreach (object edge in edges)
+        {
+            (edge as IDisposable)?.Dispose();
         }
     }
 }

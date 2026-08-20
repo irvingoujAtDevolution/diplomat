@@ -308,7 +308,6 @@ pub mod ffi {
     // via transparent_convert and non-owning references. Iterators, iterables, and getters
     // are all handled via attributes, which may have slightly different codepaths.
     #[diplomat::opaque]
-    #[diplomat::attr(dotnet, manually_disposable)]
     #[diplomat::transparent_convert]
     #[diplomat::attr(demo_gen, disable)]
     pub struct OpaqueThin(pub crate::lifetimes::Internal);
@@ -340,7 +339,6 @@ pub mod ffi {
     }
 
     #[diplomat::opaque_mut]
-    #[diplomat::attr(dotnet, manually_disposable)]
     pub struct OpaqueThinVec(std::vec::Vec<crate::lifetimes::Internal>);
 
     impl OpaqueThinVec {
@@ -514,7 +512,6 @@ pub mod ffi {
     }
 
     #[diplomat::attr(not(dotnet), disable)]
-    #[diplomat::attr(dotnet, manually_disposable)]
     #[diplomat::opaque]
     pub struct DisposableDropProbe;
 
@@ -559,7 +556,6 @@ pub mod ffi {
     // convention above.
 
     #[diplomat::attr(not(dotnet), disable)]
-    #[diplomat::attr(dotnet, manually_disposable)]
     #[diplomat::opaque_mut]
     pub struct RcSource(u64);
 
@@ -609,7 +605,6 @@ pub mod ffi {
     }
 
     #[diplomat::attr(not(dotnet), disable)]
-    #[diplomat::attr(dotnet, manually_disposable)]
     #[diplomat::opaque]
     pub struct RcDependent<'a>(&'a RcSource, u64);
 
@@ -643,7 +638,6 @@ pub mod ffi {
     }
 
     #[diplomat::attr(not(dotnet), disable)]
-    #[diplomat::attr(dotnet, manually_disposable)]
     #[diplomat::opaque]
     pub struct RcDependent2<'b, 'a: 'b>(&'b RcDependent<'a>, u64);
 
@@ -667,7 +661,6 @@ pub mod ffi {
     }
 
     #[diplomat::attr(not(dotnet), disable)]
-    #[diplomat::attr(dotnet, manually_disposable)]
     #[diplomat::opaque_mut]
     pub struct BorrowSafetyProbe;
 
@@ -801,7 +794,6 @@ pub mod ffi {
     // `Drop` reads the borrowed slice and records a checksum, so a
     // moved/corrupted buffer is directly observable from C#.
     #[diplomat::attr(not(dotnet), disable)]
-    #[diplomat::attr(dotnet, manually_disposable)]
     #[diplomat::opaque]
     pub struct PinnedRcSource<'a>(pub(crate) &'a [u8]);
 
@@ -841,7 +833,6 @@ pub mod ffi {
     }
 
     #[diplomat::attr(not(dotnet), disable)]
-    #[diplomat::attr(dotnet, manually_disposable)]
     #[diplomat::opaque]
     pub struct PinnedRcDependent<'a>(&'a PinnedRcSource<'a>);
 

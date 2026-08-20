@@ -142,7 +142,7 @@ public partial class MyString : IDiplomatScoped, IDisposable
 
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
     /// </remarks>
     public DiplomatBorrowedSpan<byte> Borrow()
     {
@@ -152,7 +152,7 @@ public partial class MyString : IDiplomatScoped, IDisposable
             {
                 var result = Raw.MyString.Borrow(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { selfLease.Transfer() });
+                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { selfLease.TransferVersioned() });
             }
         }
     }

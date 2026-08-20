@@ -9,9 +9,9 @@ internal interface IDiplomatScoped
     void EndScope();
 }
 
-public readonly ref struct ScopedUse<T> where T : class
+public ref struct ScopedUse<T> where T : class
 {
-    private readonly T? _value;
+    private T? _value;
 
     internal ScopedUse(T value)
     {
@@ -25,6 +25,8 @@ public readonly ref struct ScopedUse<T> where T : class
 
     public void Dispose()
     {
-        (_value as IDiplomatScoped)?.EndScope();
+        T? value = _value;
+        _value = null;
+        (value as IDiplomatScoped)?.EndScope();
     }
 }

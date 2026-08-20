@@ -84,7 +84,7 @@ public partial class Utf16Wrap : IDiplomatScoped, IDisposable
 
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
     /// </remarks>
     public DiplomatBorrowedSpan<char> BorrowCont()
     {
@@ -94,7 +94,7 @@ public partial class Utf16Wrap : IDiplomatScoped, IDisposable
             {
                 var result = Raw.Utf16Wrap.BorrowCont(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new DiplomatBorrowedSpan<char>(result.Ptr, result.Len, new object[] { selfLease.Transfer() });
+                return new DiplomatBorrowedSpan<char>(result.Ptr, result.Len, new object[] { selfLease.TransferVersioned() });
             }
         }
     }

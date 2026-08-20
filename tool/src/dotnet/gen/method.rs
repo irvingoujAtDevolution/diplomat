@@ -485,8 +485,8 @@ impl DotnetReturnType {
                 Self::opaque_construction(name, &raw_expr, dependencies, pins, ownership)
             }
             Self::Struct(name) => format!("{name}.FromFFI({raw_expr})"),
-            // Rust still owns this memory. The sealed span wrapper retains its
-            // opaque sources and releases those tokens from its finalizer.
+            // Shared borrowed spans version the source like shared opaque views.
+            // Mutation is allowed after the call returns; WithSpan/Clone re-check.
             Self::BorrowedSpan(elem) => {
                 debug_assert!(
                     pins.is_empty(),
@@ -494,7 +494,7 @@ impl DotnetReturnType {
                 );
                 let transferred_dependencies: Vec<String> = dependencies
                     .iter()
-                    .map(|dependency| format!("{dependency}.Transfer()"))
+                    .map(|dependency| format!("{dependency}.TransferVersioned()"))
                     .collect();
                 format!(
                     "new DiplomatBorrowedSpan<{}>({raw_expr}.Ptr, {raw_expr}.Len, {})",
@@ -795,8 +795,9 @@ impl MemberDocs {
             lifetime: method.lifetime_warning.then(|| LifetimeNote {
                 scoped_return: matches!(method.return_type, DotnetReturnType::Opaque(_))
                     && method.ownership.is_borrowed_mutable(),
-                versioned_return: matches!(method.return_type, DotnetReturnType::Opaque(_))
-                    && method.ownership.is_borrowed_shared(),
+                versioned_return: (matches!(method.return_type, DotnetReturnType::Opaque(_))
+                    && method.ownership.is_borrowed_shared())
+                    || matches!(method.return_type, DotnetReturnType::BorrowedSpan(_)),
                 pinned_inputs: method.has_pinned_inputs(),
             }),
         }
@@ -1465,8 +1466,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                     }
                     // A pinned param roots its holder; any other slice/string
                     // param is call-scoped, so a borrowing return would dangle.
-                    // BorrowedSpan is intentionally not a pin owner: it would
-                    // keep the input pinned until nondeterministic finalization.
+                    // Borrowed-span pin ownership is not implemented.
                     LifetimeEdgeKind::SliceParam => match arm.pin_for(&edge.param_name) {
                         Some(pin) => {
                             if !pins.contains(&pin.pin_local) {
@@ -1478,9 +1478,8 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                                 "[.NET backend] {what} borrows from slice/string parameter \
                                      `{}`; only owned opaque success returns borrowing from \
                                      `&[u8]`/`&[u32]`/`&DiplomatStr`/`&DiplomatStr16` parameters \
-                                     are supported — a borrowed span (`&str`/`&[T]`) would defer \
-                                     unpinning until finalization, and other positions still pin \
-                                     only for the duration of the call",
+                                     are supported — borrowed-span pin ownership is not implemented, \
+                                     and other positions still pin only for the duration of the call",
                                 edge.param_name
                             ));
                             return None;
@@ -1682,9 +1681,8 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             }
             hir::SuccessType::OutType(hir::Type::Slice(slice)) => match slice {
                 hir::Slice::Str(Some(lifetime), encoding) => {
-                    // `'static` string returns have no managed owner to root
-                    // and no dispose path on DiplomatBorrowedSpan — reject
-                    // until there's an explicit static-slice design.
+                    // `'static` string returns have no managed owner to root.
+                    // Reject until there's an explicit static-slice design.
                     if matches!(lifetime, hir::MaybeStatic::Static) {
                         self.errors.push_error(
                             "[.NET backend] `'static` string returns are not supported \
@@ -1707,9 +1705,10 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                             return None;
                         }
                     };
-                    // Span never owns the bytes — pin holders must not ride
-                    // on it (no Dispose to unpin). Slice-param borrow edges
-                    // are rejected later via ownership == Borrowed.
+                    // Pin holders must not ride on a borrowed span: unpinning
+                    // a caller buffer has to be deterministic, and a versioned
+                    // claim is not a pin. Slice-param borrow edges are rejected
+                    // later via ownership == Borrowed.
                     ownership = Ownership::Borrowed(hir::Mutability::Immutable);
                     DotnetReturnType::BorrowedSpan(elem)
                 }

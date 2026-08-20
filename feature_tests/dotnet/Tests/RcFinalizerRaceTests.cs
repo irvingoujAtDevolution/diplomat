@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Somelib;
 using Xunit;
 
@@ -54,56 +55,68 @@ public class RcFinalizerRaceTests
     [Fact]
     public void RetainOnUserThread_WhileFinalizerThreadReleases_KeepsRefCountConsistent()
     {
+        // Drain leftovers, then root the owner against parallel GC.Collect.
+        DrainFinalizers();
         RcSource.ResetDropStats();
 
         RcSource source = RcSource.Create(42);
-
-        const int Iterations = 400_000;
-        bool prematureDestruction = false;
-        for (int i = 0; i < Iterations; i++)
+        GCHandle root = GCHandle.Alloc(source);
+        try
         {
-            // Detect a lost Retain() as soon as it manifests, and bail out
-            // before the next View() call would P/Invoke into freed memory.
-            if (RcSource.DropCount() != 0)
+            const int Iterations = 400_000;
+            bool prematureDestruction = false;
+            for (int i = 0; i < Iterations; i++)
             {
-                prematureDestruction = true;
-                break;
+                // Detect a lost Retain() as soon as it manifests, and bail out
+                // before the next View() call would P/Invoke into freed memory.
+                if (RcSource.DropCount() != 0)
+                {
+                    prematureDestruction = true;
+                    break;
+                }
+
+                CreateAndAbandonView(source);
+
+                // Kick dead views onto the finalizer queue WITHOUT waiting, so
+                // the finalizer thread drains (and Decrement()s) concurrently
+                // with this thread's ongoing Retain()s.
+                if ((i & 2047) == 0)
+                {
+                    GC.Collect(0);
+                }
             }
 
-            CreateAndAbandonView(source);
+            // Let every abandoned view finish finalizing so all decrements have
+            // been applied before examining the final state.
+            DrainFinalizers();
 
-            // Kick dead views onto the finalizer queue WITHOUT waiting, so
-            // the finalizer thread drains (and Decrement()s) concurrently
-            // with this thread's ongoing Retain()s.
-            if ((i & 2047) == 0)
+            Assert.False(
+                prematureDestruction,
+                "lost Retain(): the native RcSource was destroyed while the owning wrapper " +
+                "was still live and undisposed (use-after-free window)"
+            );
+            Assert.Equal(0ul, RcSource.DropCount());
+
+            // Every view token has been released; the only remaining reference
+            // is the source wrapper's own. Releasing it must destroy the native
+            // value exactly once.
+            source.Dispose();
+            DrainFinalizers();
+
+            ulong drops = RcSource.DropCount();
+            Assert.True(
+                drops == 1ul,
+                $"lost Release(): expected exactly one native destruction after the last " +
+                $"reference was released, got {drops} — a finalizer-thread Decrement() and a " +
+                $"user-thread Retain() overwrote each other (refcount corruption)"
+            );
+        }
+        finally
+        {
+            if (root.IsAllocated)
             {
-                GC.Collect(0);
+                root.Free();
             }
         }
-
-        // Let every abandoned view finish finalizing so all decrements have
-        // been applied before examining the final state.
-        DrainFinalizers();
-
-        Assert.False(
-            prematureDestruction,
-            "lost Retain(): the native RcSource was destroyed while the owning wrapper " +
-            "was still live and undisposed (use-after-free window)"
-        );
-        Assert.Equal(0ul, RcSource.DropCount());
-
-        // Every view token has been released; the only remaining reference
-        // is the source wrapper's own. Releasing it must destroy the native
-        // value exactly once.
-        source.Dispose();
-        DrainFinalizers();
-
-        ulong drops = RcSource.DropCount();
-        Assert.True(
-            drops == 1ul,
-            $"lost Release(): expected exactly one native destruction after the last " +
-            $"reference was released, got {drops} — a finalizer-thread Decrement() and a " +
-            $"user-thread Retain() overwrote each other (refcount corruption)"
-        );
     }
 }

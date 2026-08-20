@@ -137,6 +137,7 @@ public class RcBorrowDependencyTests
         RcSource sharedSubview = mutableScope.Value.View();
 
         mutableScope.Dispose();
+        Assert.False(mutableScope.HasValue);
 
         Assert.True(source.PingMutable());
         Assert.Throws<InvalidOperationException>(() => sharedSubview.Id());

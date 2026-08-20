@@ -106,4 +106,28 @@ public class MyStringTests
         Assert.Equal("rooted 餐", decoded);
         GC.KeepAlive(view);
     }
+
+    [Fact]
+    public void Borrow_ThenMutate_InvalidatesView()
+    {
+        using MyString value = MyString.New(Utf8("old"));
+        DiplomatBorrowedSpan<byte> view = value.Borrow();
+
+        value.Str = "new 餐";
+
+        Assert.Throws<InvalidOperationException>(() => view.WithSpan(_ => { }));
+        Assert.Throws<InvalidOperationException>(() => view.Clone());
+    }
+
+    [Fact]
+    public void Borrow_Dispose_UnblocksMutationAndRejectsFurtherUse()
+    {
+        using MyString value = MyString.New(Utf8("old"));
+        DiplomatBorrowedSpan<byte> view = value.Borrow();
+
+        view.Dispose();
+        value.Str = "new 餐";
+        Assert.Equal("new 餐", value.Str);
+        Assert.Throws<ObjectDisposedException>(() => view.WithSpan(_ => { }));
+    }
 }

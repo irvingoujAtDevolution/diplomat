@@ -51,7 +51,7 @@ internal sealed unsafe class BorrowLease<T> : IBorrowLease, IDisposable where T 
 
     IDisposable IBorrowLease.Transfer() => Transfer();
 
-    IDisposable IBorrowLease.TransferVersioned()
+    internal IDisposable TransferVersioned()
     {
         RustHandle<T>? owner = Interlocked.Exchange(ref _owner, null);
         if (owner is null)
@@ -72,6 +72,8 @@ internal sealed unsafe class BorrowLease<T> : IBorrowLease, IDisposable where T 
             throw;
         }
     }
+
+    IDisposable IBorrowLease.TransferVersioned() => TransferVersioned();
 
     public void Dispose()
     {

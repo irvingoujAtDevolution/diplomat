@@ -38,18 +38,18 @@
 //!   .NET Framework floor, the `DiplomatPinnedMemory` helper is emitted only
 //!   when a run actually pins (see `uses_pinned_memory`).
 //! * Borrowed opaque returns (`&T`, `&mut T`, `Option<&T>`) use a non-owning
-//!   handle. The returned wrapper takes over the input's current shared or
-//!   exclusive lease.
+//!   handle. Shared views version the source lease; exclusive views keep it
+//!   until `ScopedUse<T>` ends.
 //! * Borrowed string/slice returns (`&'a str` / `&'a [u8]` / `&'a [u32]`) wrap
 //!   the same `(ptr, len)` shape as an input slice in `DiplomatBorrowedSpan<T>`,
-//!   rooted with the same retained dependencies a borrowed opaque return
-//!   uses. It exposes `WithSpan(...)` (scoped, zero-copy, read-only access)
-//!   and `Clone()` (an explicit, independent `T[]`) — never a bare
+//!   rooted with a versioned lifetime claim like a shared opaque view. It
+//!   exposes `WithSpan(...)` (scoped, zero-copy, read-only access) and
+//!   `Clone()` (an explicit, independent `T[]`) — never a bare
 //!   `Span`-returning property, since nothing would keep the view's
-//!   dependencies retained once the span escaped it. The sealed span wrapper
-//!   releases its retained opaque dependencies from its finalizer. Borrowed
-//!   spans still cannot own pins: their release would be deferred until
-//!   finalization (`Ownership::Borrowed` structurally never produces pins; see
+//!   dependencies retained once the span escaped it. Mutation of a source
+//!   invalidates the view; `Dispose` drops the claim without waiting for GC.
+//!   Borrowed spans still cannot own pins: their release would be deferred until
+//!   cleanup (`Ownership::Borrowed` structurally never produces pins; see
 //!   `gen::method::output_keep_alive_edges`). Wrapping one in `Result`/`Option`
 //!   isn't supported yet.
 //! * An owned `Box<[u8]>` return wraps the `DiplomatOwnedSliceU8` `(ptr, len)`
@@ -305,7 +305,6 @@ pub(crate) fn attr_support() -> BackendAttrSupport {
     a.traits_are_send = false;
     a.traits_are_sync = false;
     a.generate_mocking_interface = false;
-    a.manually_disposable = true;
 
     a
 }
@@ -2297,9 +2296,14 @@ mod test {
         );
         assert!(
             my_string.contains(
-                "new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { selfLease.Transfer() })"
+                "new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { selfLease.TransferVersioned() })"
             ),
             "the returned view should retain `this` as an RC dependency:\n{my_string}"
+        );
+        assert!(
+            my_string
+                .contains("A mutable call on a source invalidates this view. Its next call throws"),
+            "borrowed span returns must document versioned invalidation:\n{my_string}"
         );
 
         let span = files
@@ -2319,8 +2323,8 @@ mod test {
             "an independent copy should be a separate, explicitly-named operation:\n{span}"
         );
         assert!(
-            !span.contains("void Dispose()"),
-            "the view never owns the memory, so it shouldn't be IDisposable:\n{span}"
+            span.contains("public void Dispose()") && span.contains(": IDisposable"),
+            "the view holds a versioned lifetime claim, so it must be IDisposable:\n{span}"
         );
         assert!(
             span.contains("~DiplomatBorrowedSpan()"),
@@ -2377,7 +2381,7 @@ mod test {
         );
         assert!(
             buffer.contains(
-                "new DiplomatBorrowedSpan<uint>(result.Ptr, result.Len, new object[] { selfLease.Transfer() })"
+                "new DiplomatBorrowedSpan<uint>(result.Ptr, result.Len, new object[] { selfLease.TransferVersioned() })"
             ),
             "the returned view should retain `this` as an RC dependency:\n{buffer}"
         );
@@ -2448,11 +2452,9 @@ mod test {
         );
     }
 
-    // A borrowed span that borrows a slice/string param would pin that
-    // buffer onto DiplomatBorrowedSpan._edges, but the span has no Dispose
-    // and the pin holder has no finalizer — permanent pin. Reject rather
-    // than generate a leaky binding. (Owned opaque success returns that
-    // borrow a slice param remain supported: their Dispose unpins.)
+    // A borrowed span that borrows a slice/string param is rejected:
+    // borrowed-span pin ownership is not implemented. (Owned opaque success
+    // returns that borrow a slice param remain supported: their Dispose unpins.)
     #[test]
     fn borrowed_span_return_borrowing_slice_param_is_rejected() {
         let tk_stream = quote! {
@@ -2480,8 +2482,8 @@ mod test {
         );
     }
 
-    // `'static` string returns have no managed owner and no dispose path on
-    // the span — reject until there's an explicit static-slice design.
+    // `'static` string returns have no managed owner to root — reject until
+    // there's an explicit static-slice design.
     #[test]
     fn static_string_return_is_rejected() {
         let tk_stream = quote! {
@@ -2580,197 +2582,6 @@ mod test {
                 && plain.contains("Cleanup();")
                 && plain.contains("catch"),
             "every opaque should keep the finalizer fallback through Cleanup:\n{plain}"
-        );
-    }
-
-    #[test]
-    fn manually_disposable_does_not_change_opaque_output() {
-        let (files, errors) = run_dotnet(quote! {
-            #[diplomat::bridge]
-            mod ffi {
-                #[diplomat::opaque]
-                pub struct FinalizerOnly;
-
-                impl FinalizerOnly {
-                    #[diplomat::attr(auto, constructor)]
-                    pub fn new() -> Box<Self> {
-                        unimplemented!()
-                    }
-
-                    pub fn ping(&self) {}
-                }
-
-                #[diplomat::attr(dotnet, manually_disposable)]
-                #[diplomat::opaque]
-                pub struct Manual;
-
-                impl Manual {
-                    #[diplomat::attr(auto, constructor)]
-                    pub fn new() -> Box<Self> {
-                        unimplemented!()
-                    }
-
-                    pub fn ping(&self) {}
-                }
-            }
-        });
-
-        assert!(
-            errors.is_empty(),
-            "unexpected diagnostics: {}",
-            errors.join("\n")
-        );
-
-        let finalizer_only = files
-            .get("FinalizerOnly.cs")
-            .expect("expected FinalizerOnly.cs output");
-        assert!(
-            finalizer_only
-                .contains("public partial class FinalizerOnly : IDiplomatScoped, IDisposable")
-                && finalizer_only.contains("public void Dispose()")
-                && finalizer_only.contains("GC.SuppressFinalize(this);"),
-            "unmarked opaque must expose the standard disposable surface:\n{finalizer_only}"
-        );
-        assert!(
-            finalizer_only.contains("private void Cleanup()")
-                && finalizer_only.contains("~FinalizerOnly()"),
-            "unmarked opaque must keep private cleanup and the finalizer fallback:\n{finalizer_only}"
-        );
-
-        let manual = files.get("Manual.cs").expect("expected Manual.cs output");
-        assert!(
-            manual.contains("public partial class Manual : IDiplomatScoped, IDisposable"),
-            "`manually_disposable` must not change the standard disposable surface:\n{manual}"
-        );
-        assert!(
-            manual.contains("public void Dispose()")
-                && manual.contains("Cleanup();")
-                && manual.contains("GC.SuppressFinalize(this);"),
-            "the standard Dispose must suppress finalization:\n{manual}"
-        );
-        assert!(
-            manual.contains("~Manual()") && manual.contains("try") && manual.contains("catch"),
-            "marked opaque must keep the finalizer fallback:\n{manual}"
-        );
-        assert!(
-            manual.contains("public void Ping()")
-                && manual.contains("ObjectDisposedException(\"Manual\")"),
-            "instance methods must reject use-after-dispose:\n{manual}"
-        );
-    }
-
-    #[test]
-    fn manually_disposable_attr_requires_simple_path() {
-        let errors = lowering_errors(
-            quote! {
-                #[diplomat::bridge]
-                mod ffi {
-                    #[diplomat::attr(dotnet, manually_disposable = true)]
-                    #[diplomat::opaque]
-                    pub struct Bad;
-                }
-            },
-            true,
-        );
-
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.contains("`manually_disposable` must be a simple path")),
-            "expected simple-path validation error, got: {errors:?}"
-        );
-    }
-
-    #[test]
-    fn manually_disposable_attr_invalid_contexts_are_rejected() {
-        let errors = lowering_errors(
-            quote! {
-                #[diplomat::bridge]
-                mod ffi {
-                    #[diplomat::attr(dotnet, manually_disposable)]
-                    pub struct NotOpaque {
-                        value: u8,
-                    }
-
-                    #[diplomat::attr(dotnet, manually_disposable)]
-                    pub enum NotOpaqueEnum {
-                        A,
-                    }
-
-                    #[diplomat::opaque]
-                    pub struct GoodOpaque;
-
-                    impl GoodOpaque {
-                        #[diplomat::attr(dotnet, manually_disposable)]
-                        pub fn bad(&self) {
-                        }
-                    }
-                }
-            },
-            true,
-        );
-
-        let wrong_context_count = errors
-            .iter()
-            .filter(|e| e.contains("`manually_disposable` can only be used on opaque types"))
-            .count();
-        assert_eq!(
-            wrong_context_count, 3,
-            "expected 3 context errors (struct, enum, method), got: {errors:?}"
-        );
-    }
-
-    #[test]
-    fn manually_disposable_attr_duplicate_is_rejected() {
-        let errors = lowering_errors(
-            quote! {
-                #[diplomat::bridge]
-                mod ffi {
-                    #[diplomat::attr(dotnet, manually_disposable)]
-                    #[diplomat::attr(dotnet, manually_disposable)]
-                    #[diplomat::opaque]
-                    pub struct Duplicate;
-                }
-            },
-            true,
-        );
-
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.contains("Duplicate `manually_disposable` attribute")),
-            "expected duplicate-manually_disposable error, got: {errors:?}"
-        );
-    }
-
-    #[test]
-    fn non_dotnet_gated_manually_disposable_keeps_default_dotnet_codegen() {
-        let (files, errors) = run_dotnet(quote! {
-            #[diplomat::bridge]
-            mod ffi {
-                #[diplomat::attr(not(dotnet), manually_disposable)]
-                #[diplomat::opaque]
-                pub struct Gated;
-
-                impl Gated {
-                    #[diplomat::attr(auto, constructor)]
-                    pub fn new() -> Box<Self> {
-                        unimplemented!()
-                    }
-                }
-            }
-        });
-
-        assert!(
-            errors.is_empty(),
-            "unexpected diagnostics: {}",
-            errors.join("\n")
-        );
-        let gated = files.get("Gated.cs").expect("expected Gated.cs output");
-        assert!(
-            gated.contains("public partial class Gated : IDiplomatScoped, IDisposable")
-                && gated.contains("public void Dispose()"),
-            "dotnet-disabled manually_disposable attr must keep the default disposable output:\n{gated}"
         );
     }
 
@@ -3159,32 +2970,6 @@ mod test {
         assert!(
             errors[0].contains("two members named `Dispose`"),
             "the diagnostic must reject the generated Dispose collision; got: {}",
-            errors[0]
-        );
-    }
-
-    #[test]
-    fn manually_disposable_does_not_change_dispose_collision() {
-        let (_files, errors) = run_dotnet(property_test_module_with_type_attrs(
-            quote! {
-                #[diplomat::attr(dotnet, manually_disposable)]
-            },
-            quote! {
-                #[diplomat::attr(auto, getter = "dispose")]
-                pub fn is_disposed(&self) -> bool {
-                    unimplemented!()
-                }
-            },
-        ));
-
-        assert_eq!(
-            errors.len(),
-            1,
-            "expected exactly one diagnostic: {errors:?}"
-        );
-        assert!(
-            errors[0].contains("two members named `Dispose`"),
-            "the collision must be reported; got: {}",
             errors[0]
         );
     }
