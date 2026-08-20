@@ -2296,7 +2296,7 @@ mod test {
         );
         assert!(
             my_string.contains(
-                "new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { selfLease.TransferVersioned() })"
+                "new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { selfLease })"
             ),
             "the returned view should retain `this` as an RC dependency:\n{my_string}"
         );
@@ -2330,7 +2330,7 @@ mod test {
             span.contains("~DiplomatBorrowedSpan()"),
             "the view finalizer must release retained source dependencies:\n{span}"
         );
-        // Oversize construction must free caller-built borrow tokens and
+        // Oversize construction must free caller-built borrow leases and
         // suppress the incomplete finalizer before throwing - same shape as
         // RustVec. Throwing with `_edges` still null leaves the finalizer to
         // NRE (swallowed) and leak the parent native retain.
@@ -2381,9 +2381,53 @@ mod test {
         );
         assert!(
             buffer.contains(
-                "new DiplomatBorrowedSpan<uint>(result.Ptr, result.Len, new object[] { selfLease.TransferVersioned() })"
+                "new DiplomatBorrowedSpan<uint>(result.Ptr, result.Len, new object[] { selfLease })"
             ),
             "the returned view should retain `this` as an RC dependency:\n{buffer}"
+        );
+    }
+
+    #[test]
+    fn borrowed_span_captures_optional_opaque_leases_without_dereferencing_null() {
+        let tk_stream = quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::opaque]
+                pub struct Source;
+
+                impl Source {
+                    pub fn borrow<'a>(
+                        first: Option<&'a Source>,
+                        second: Option<&'a Source>,
+                    ) -> &'a [u8] {
+                        unimplemented!()
+                    }
+                }
+            }
+        };
+
+        let (files, errors) = run_dotnet(tk_stream);
+        assert!(
+            errors.is_empty(),
+            "unexpected diagnostics: {}",
+            errors.join("\n")
+        );
+
+        let source = files.get("Source.cs").expect("expected Source.cs output");
+        assert!(
+            source.contains(
+                "new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { firstLease!, secondLease! })"
+            ),
+            "the span constructor should receive nullable leases without invoking them:\n{source}"
+        );
+
+        let span = files
+            .get("DiplomatBorrowedSpan.cs")
+            .expect("expected DiplomatBorrowedSpan.cs output");
+        assert!(
+            span.contains("if (_edges[i] is IBorrowLease lease)")
+                && span.contains("_edges[i] = lease.TransferVersioned();"),
+            "the span must capture only present leases inside its constructor:\n{span}"
         );
     }
 

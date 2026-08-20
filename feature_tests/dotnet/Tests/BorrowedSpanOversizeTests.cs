@@ -8,13 +8,13 @@ namespace Somelib.FeatureTests;
 
 // Repro for the oversize DiplomatBorrowedSpan constructor path.
 //
-// Call sites build retain-token edges *before* `new DiplomatBorrowedSpan(...)`.
-// Those edges are IDisposable tokens (see RustHandle.Retain). If construction
+// Call sites build borrow-lease edges *before* `new DiplomatBorrowedSpan(...)`.
+// The constructor normally converts those leases to versioned tokens. If construction
 // throws because `len` does not fit a .NET Span — without disposing the edges
 // and without SuppressFinalize on the half-built object — then:
 //   1. `_edges` is still null
 //   2. ~DiplomatBorrowedSpan NREs on the foreach, catch {} swallows it
-//   3. the retain tokens are never released → parent native alloc leaks
+//   3. the borrow leases are never released → parent native alloc leaks
 //
 // We use a pure-managed counting edge so this is deterministic and does not
 // fight process-global native drop counters from other tests.
@@ -53,7 +53,7 @@ public class BorrowedSpanOversizeTests
     }
 
     [Fact]
-    public void OversizeConstructor_ThrowsAndDisposesRetainEdgesImmediately()
+    public void OversizeConstructor_ThrowsAndDisposesBorrowEdgesImmediately()
     {
         var edge = new CountingEdge();
         object[] edges = new object[] { edge };
@@ -70,7 +70,7 @@ public class BorrowedSpanOversizeTests
 
     /// <summary>
     /// Guards the NRE-swallowed-in-finalizer failure mode: even after the
-    /// half-built object becomes unreachable, the retain edge must end up
+    /// half-built object becomes unreachable, the borrow edge must end up
     /// disposed. A correct ctor does this before throw; a broken one never does.
     /// </summary>
     [Fact]

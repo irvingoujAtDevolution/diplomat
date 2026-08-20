@@ -52,6 +52,9 @@ internal partial struct BorrowSafetyProbe
     [return: MarshalAs(UnmanagedType.U1)]
     internal static unsafe extern bool PingMutable(BorrowSafetyProbe* handle);
 
+    [DllImport(DiplomatNativeLib.Name, EntryPoint = "BorrowSafetyProbe_borrow_static_from_optional", CallingConvention = CallingConvention.Cdecl)]
+    internal static unsafe extern DiplomatSliceU8 BorrowStaticFromOptional(BorrowSafetyProbe* first, BorrowSafetyProbe* second);
+
     [DllImport(DiplomatNativeLib.Name, EntryPoint = "BorrowSafetyProbe_destroy", CallingConvention = CallingConvention.Cdecl)]
     internal static unsafe extern void Destroy(BorrowSafetyProbe* handle);
 }

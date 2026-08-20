@@ -94,7 +94,7 @@ public partial class Utf16Wrap : IDiplomatScoped, IDisposable
             {
                 var result = Raw.Utf16Wrap.BorrowCont(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new DiplomatBorrowedSpan<char>(result.Ptr, result.Len, new object[] { selfLease.TransferVersioned() });
+                return new DiplomatBorrowedSpan<char>(result.Ptr, result.Len, new object[] { selfLease });
             }
         }
     }

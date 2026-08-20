@@ -492,14 +492,10 @@ impl DotnetReturnType {
                     pins.is_empty(),
                     "a borrowed-span return never has pins of its own"
                 );
-                let transferred_dependencies: Vec<String> = dependencies
-                    .iter()
-                    .map(|dependency| format!("{dependency}.TransferVersioned()"))
-                    .collect();
                 format!(
                     "new DiplomatBorrowedSpan<{}>({raw_expr}.Ptr, {raw_expr}.Len, {})",
                     elem.element_type(),
-                    dependencies_array_expr(&transferred_dependencies)
+                    dependencies_array_expr(dependencies)
                 )
             }
             Self::Unit | Self::Write => String::new(),

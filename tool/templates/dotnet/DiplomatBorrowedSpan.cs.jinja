@@ -39,7 +39,7 @@ public sealed unsafe class DiplomatBorrowedSpan<T> : IDisposable where T : unman
     internal DiplomatBorrowedSpan(T* ptr, nuint len, object[] edges)
     {
         // Mirror RustVec: .NET Span/Memory lengths are int-sized. Call sites
-        // build retain-token edges before construction; on the oversize path
+        // build borrow-lease edges before construction; on the oversize path
         // release them and suppress this incomplete finalizer before throwing.
         // Otherwise ~DiplomatBorrowedSpan NREs on the still-null `_edges`
         // field, catch {} swallows it, and the parent retain leaks.
@@ -55,6 +55,22 @@ public sealed unsafe class DiplomatBorrowedSpan<T> : IDisposable where T : unman
         _ptr = ptr;
         _len = (int)len;
         _edges = edges;
+        try
+        {
+            for (int i = 0; i < _edges.Length; i++)
+            {
+                if (_edges[i] is IBorrowLease lease)
+                {
+                    _edges[i] = lease.TransferVersioned();
+                }
+            }
+        }
+        catch
+        {
+            Cleanup();
+            GC.SuppressFinalize(this);
+            throw;
+        }
     }
 
     public int Length => _len;

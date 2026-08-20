@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Somelib;
+using Somelib.Diplomat;
 using Xunit;
 
 namespace Somelib.FeatureTests;
@@ -100,5 +101,25 @@ public sealed class RuntimeBorrowSafetyTests
         }
 
         Assert.Equal(1ul, BorrowSafetyProbe.DropCount());
+    }
+
+    [Fact]
+    public void BorrowedSpan_TransfersOnlyPresentOptionalSourceLeases()
+    {
+        BorrowSafetyProbe.ResetDropCount();
+        BorrowSafetyProbe source = BorrowSafetyProbe.Create();
+        DiplomatBorrowedSpan<byte> span = BorrowSafetyProbe.BorrowStaticFromOptional(source, null);
+
+        Assert.Equal(new byte[] { 1, 2, 3 }, span.Clone());
+
+        source.Dispose();
+        Assert.Equal(0ul, BorrowSafetyProbe.DropCount());
+
+        span.Dispose();
+        Assert.Equal(1ul, BorrowSafetyProbe.DropCount());
+
+        using DiplomatBorrowedSpan<byte> staticSpan =
+            BorrowSafetyProbe.BorrowStaticFromOptional(null, null);
+        Assert.Equal(new byte[] { 1, 2, 3 }, staticSpan.Clone());
     }
 }

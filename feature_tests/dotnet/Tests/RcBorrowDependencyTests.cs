@@ -99,7 +99,7 @@ public class RcBorrowDependencyTests
     public void SharedView_AllowsSourceMutation_AndThenFailsOnUse()
     {
         using RcSource source = RcSource.Create(7);
-        RcSource view = source.View();
+        using RcSource view = source.View();
 
         Assert.Equal(7ul, view.Id());
         Assert.Throws<InvalidOperationException>(() => view.PingMutable());
@@ -107,7 +107,7 @@ public class RcBorrowDependencyTests
 
         Assert.Throws<InvalidOperationException>(() => view.Id());
 
-        RcSource refreshed = source.View();
+        using RcSource refreshed = source.View();
         Assert.Equal(7ul, refreshed.Id());
     }
 
@@ -134,7 +134,7 @@ public class RcBorrowDependencyTests
     {
         using RcSource source = RcSource.Create(7);
         var mutableScope = source.ViewMut();
-        RcSource sharedSubview = mutableScope.Value.View();
+        using RcSource sharedSubview = mutableScope.Value.View();
 
         mutableScope.Dispose();
         Assert.False(mutableScope.HasValue);

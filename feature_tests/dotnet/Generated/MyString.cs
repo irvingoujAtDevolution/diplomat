@@ -152,7 +152,7 @@ public partial class MyString : IDiplomatScoped, IDisposable
             {
                 var result = Raw.MyString.Borrow(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { selfLease.TransferVersioned() });
+                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { selfLease });
             }
         }
     }

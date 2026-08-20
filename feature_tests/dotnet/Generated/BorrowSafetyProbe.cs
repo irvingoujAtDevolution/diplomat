@@ -171,6 +171,25 @@ public partial class BorrowSafetyProbe : IDiplomatScoped, IDisposable
         }
     }
 
+    /// <remarks>
+    /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
+    /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
+    /// </remarks>
+    public static DiplomatBorrowedSpan<byte> BorrowStaticFromOptional(BorrowSafetyProbe? first, BorrowSafetyProbe? second)
+    {
+        unsafe
+        {
+            using (BorrowLease<Raw.BorrowSafetyProbe>? firstLease = first == null ? null : first.BorrowShared())
+            using (BorrowLease<Raw.BorrowSafetyProbe>? secondLease = second == null ? null : second.BorrowShared())
+            {
+                var result = Raw.BorrowSafetyProbe.BorrowStaticFromOptional(firstLease == null ? null : firstLease.Ptr, secondLease == null ? null : secondLease.Ptr);
+                GC.KeepAlive(first);
+                GC.KeepAlive(second);
+                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { firstLease!, secondLease! });
+            }
+        }
+    }
+
     /// <summary>
     /// Returns the underlying raw handle.
     /// </summary>

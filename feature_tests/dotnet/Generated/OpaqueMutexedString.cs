@@ -94,7 +94,7 @@ public partial class OpaqueMutexedString : IDiplomatScoped, IDisposable
             {
                 var result = Raw.OpaqueMutexedString.DummyStr(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { selfLease.TransferVersioned() });
+                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { selfLease });
             }
         }
     }

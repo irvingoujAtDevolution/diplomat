@@ -724,6 +724,14 @@ pub mod ffi {
         pub fn ping_mutable(&mut self) -> bool {
             true
         }
+
+        pub fn borrow_static_from_optional<'a>(
+            first: Option<&'a BorrowSafetyProbe>,
+            second: Option<&'a BorrowSafetyProbe>,
+        ) -> &'a [u8] {
+            let _ = (first, second);
+            &[1, 2, 3]
+        }
     }
 
     // This pair exercises the finalizer fallback without explicit `Dispose()`.
