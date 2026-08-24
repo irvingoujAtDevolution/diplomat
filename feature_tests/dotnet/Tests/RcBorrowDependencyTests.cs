@@ -175,6 +175,21 @@ public class RcBorrowDependencyTests
         );
     }
 
+    [Fact]
+    public void OwnedBorrowingDependent_BlocksSourceMutationUntilDisposed()
+    {
+        using RcSource source = RcSource.Create(11);
+        RcDependent dependent = source.MakeDependent();
+
+        Assert.Equal(11ul, source.Id());
+        Assert.Equal(11ul, dependent.SourceId());
+        Assert.Throws<InvalidOperationException>(() => source.PingMutable());
+
+        dependent.Dispose();
+
+        Assert.True(source.PingMutable());
+    }
+
     // ── Transitive/direct dependency chain (only direct edges recorded) ────
 
     [Fact]

@@ -61,6 +61,9 @@ pub struct Attrs {
     pub demo_attrs: DemoInfo,
     /// From #[diplomat::attr()]. If true, generates a mocking interface for this type.
     pub generate_mocking_interface: bool,
+    /// Legacy .NET compatibility attribute. This remains accepted for source
+    /// compatibility but no longer changes generated output.
+    pub manually_disposable: bool,
     /// From #[diplomat::attr()]. If true, Diplomat will check that this struct has the same memory layout in backends which support it. Allows this struct to be used in slices ([`super::Slice::Struct`]) and to be borrowed in function parameters.
     pub abi_compatible: bool,
     /// From #[diplomat::attr()], found on structs. If true, Diplomat will allow &mut T references to the struct, and the backend may change the types of fields to better support mutation.
@@ -570,6 +573,22 @@ impl Attrs {
                             }
                             this.generate_mocking_interface = true;
                         }
+                        "manually_disposable" => {
+                            if let Meta::Path(_) = attr.meta {
+                                if this.manually_disposable {
+                                    errors.push(LoweringError::Other(
+                                        "Duplicate `manually_disposable` attribute".into(),
+                                    ));
+                                } else {
+                                    this.manually_disposable = true;
+                                }
+                            } else {
+                                errors.push(LoweringError::Other(
+                                    "`manually_disposable` must be a simple path".into(),
+                                ));
+                            }
+                            warn_auto(errors);
+                        }
                         "abi_compatible" => {
                             if !support.abi_compatibles {
                                 maybe_error_unsupported(
@@ -650,7 +669,7 @@ impl Attrs {
                         }
                         _ => {
                             errors.push(LoweringError::Other(format!(
-                                "Unknown diplomat attribute {path}: expected one of: `disable, rename, namespace, constructor, stringifier, comparison, named_constructor, getter, setter, custom_extra_code, indexer, error, default_value`"
+                                "Unknown diplomat attribute {path}: expected one of: `disable, rename, namespace, constructor, stringifier, comparison, named_constructor, getter, setter, custom_extra_code, indexer, error, default_value, manually_disposable`"
                             )));
                         }
                     },
@@ -752,6 +771,7 @@ impl Attrs {
             default,
             demo_attrs: _,
             generate_mocking_interface,
+            manually_disposable,
             abi_compatible,
             mut_struct_ref,
             tuple,
@@ -1136,6 +1156,12 @@ impl Attrs {
             ));
         }
 
+        if *manually_disposable && !matches!(context, AttributeContext::Type(TypeDef::Opaque(..))) {
+            errors.push(LoweringError::Other(
+                "`manually_disposable` can only be used on opaque types".to_string(),
+            ));
+        }
+
         if *abi_compatible && !matches!(context, AttributeContext::Type(TypeDef::Struct(..))) {
             errors.push(LoweringError::Other(
                 "`abi_compatible` can only be used on non-output-only struct types.".into(),
@@ -1235,6 +1261,7 @@ impl Attrs {
             demo_attrs: Default::default(),
             // Not inherited
             generate_mocking_interface: false,
+            manually_disposable: false,
             abi_compatible: false,
             mut_struct_ref: false,
             // Not inherited
@@ -1335,6 +1362,8 @@ pub struct BackendAttrSupport {
     pub traits_are_sync: bool,
     /// Whether to generate mocking interface.
     pub generate_mocking_interface: bool,
+    /// Whether this backend accepts the legacy no-op `manually_disposable` attribute.
+    pub manually_disposable: bool,
     /// Passing of structs that only hold (non-slice) primitive types
     /// (for use in slices and languages that support taking direct pointers to structs):
     pub abi_compatibles: bool,
@@ -1397,6 +1426,7 @@ impl BackendAttrSupport {
             traits_are_send: true,
             traits_are_sync: true,
             generate_mocking_interface: true,
+            manually_disposable: true,
             abi_compatibles: true,
             struct_refs: true,
             mut_struct_refs: true,
@@ -1438,6 +1468,7 @@ impl BackendAttrSupport {
             "custom_errors" => Some(self.custom_errors),
             "traits_are_send" => Some(self.traits_are_send),
             "traits_are_sync" => Some(self.traits_are_sync),
+            "manually_disposable" => Some(self.manually_disposable),
             "abi_compatibles" => Some(self.abi_compatibles),
             "struct_refs" => Some(self.struct_refs),
             "mut_struct_refs" => Some(self.mut_struct_refs),
@@ -1590,6 +1621,7 @@ impl AttributeValidator for BasicAttributeValidator {
                 traits_are_send,
                 traits_are_sync,
                 generate_mocking_interface,
+                manually_disposable,
                 abi_compatibles,
                 struct_refs,
                 mut_struct_refs,
@@ -1631,6 +1663,7 @@ impl AttributeValidator for BasicAttributeValidator {
                 "traits_are_send" => traits_are_send,
                 "traits_are_sync" => traits_are_sync,
                 "generate_mocking_interface" => generate_mocking_interface,
+                "manually_disposable" => manually_disposable,
                 "abi_compatibles" => abi_compatibles,
                 "struct_refs" => struct_refs,
                 "mut_struct_refs" => mut_struct_refs,

@@ -111,7 +111,17 @@ Every generated opaque implements `IDisposable` and keeps a finalizer as a fallb
 necessarily destroy the native value immediately: existing borrowers keep it alive and
 remain valid. The disposed wrapper itself rejects further use with
 `ObjectDisposedException`. Native calls are followed by `GC.KeepAlive(this)` to prevent
-finalization while P/Invoke is still using the pointer.
+finalization while P/Invoke is still using the pointer. The legacy
+`#[diplomat::attr(dotnet, manually_disposable)]` attribute is accepted for source
+compatibility but is otherwise ignored because every opaque is already disposable. It is
+scheduled for removal in the next breaking release ([#1260](https://github.com/rust-diplomat/diplomat/issues/1260)).
+
+Shared versioned views do not keep their source borrowed between calls: a mutable source
+call can proceed and invalidates the old view. Exclusive `ScopedUse<T>` values and owned
+values that borrow from a source are different: they keep a real source borrow until
+disposed. A conflicting source mutation throws `InvalidOperationException` until that
+scope or dependent is disposed. Dispose these values deterministically rather than waiting
+for the GC if the source needs to be mutated again.
 
 ## String encoding
 

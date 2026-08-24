@@ -122,4 +122,23 @@ public sealed class RuntimeBorrowSafetyTests
             BorrowSafetyProbe.BorrowStaticFromOptional(null, null);
         Assert.Equal(new byte[] { 1, 2, 3 }, staticSpan.Clone());
     }
+
+    [Fact]
+    public void BorrowedSpan_SameOptionalSourceTwice_ReleasesBothClaimsAndInvalidates()
+    {
+        BorrowSafetyProbe.ResetDropCount();
+        BorrowSafetyProbe source = BorrowSafetyProbe.Create();
+        DiplomatBorrowedSpan<byte> span =
+            BorrowSafetyProbe.BorrowStaticFromOptional(source, source);
+
+        Assert.Equal(new byte[] { 1, 2, 3 }, span.Clone());
+        Assert.True(source.PingMutable());
+        Assert.Throws<InvalidOperationException>(() => span.Clone());
+
+        source.Dispose();
+        Assert.Equal(0ul, BorrowSafetyProbe.DropCount());
+
+        span.Dispose();
+        Assert.Equal(1ul, BorrowSafetyProbe.DropCount());
+    }
 }
