@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class DataProvider : IDiplomatScoped, IDisposable
+public partial class DataProvider : IDisposable
 {
     private unsafe RustHandle<Raw.DataProvider>? _inner;
 
@@ -112,12 +112,6 @@ public partial class DataProvider : IDiplomatScoped, IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
-    }
-
-    void IDiplomatScoped.EndScope()
-    {
-        Cleanup();
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>

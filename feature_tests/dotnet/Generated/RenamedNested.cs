@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class RenamedNested : IDiplomatScoped, IDisposable
+public partial class RenamedNested : IDisposable
 {
     private unsafe RustHandle<Raw.RenamedNested>? _inner;
 
@@ -86,12 +86,6 @@ public partial class RenamedNested : IDiplomatScoped, IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
-    }
-
-    void IDiplomatScoped.EndScope()
-    {
-        Cleanup();
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>

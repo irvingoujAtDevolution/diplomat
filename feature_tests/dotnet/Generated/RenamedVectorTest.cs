@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class RenamedVectorTest : IDiplomatScoped, IDisposable
+public partial class RenamedVectorTest : IDisposable
 {
     private unsafe RustHandle<Raw.RenamedVectorTest>? _inner;
 
@@ -139,12 +139,6 @@ public partial class RenamedVectorTest : IDiplomatScoped, IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
-    }
-
-    void IDiplomatScoped.EndScope()
-    {
-        Cleanup();
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>

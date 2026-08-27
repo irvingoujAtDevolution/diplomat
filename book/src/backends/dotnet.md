@@ -95,8 +95,8 @@ Every `RustHandle<T>` is a small reference-counted class: pointer, destructor, e
 lifetime claims, and borrow state live in exactly one place. Construction starts the claim
 count at 1 (the owning wrapper). Each `BorrowLease` adds one claim and a shared or exclusive
 mode. A returned borrowed value takes over that lease: shared views convert it to a versioned
-token (`TransferVersioned()`), exclusive views keep the exclusive lease until
-`ScopedUse<T>` ends, and owned-borrowing returns keep the transferred lease until cleanup.
+token (`TransferVersioned()`), exclusive views keep the exclusive lease until their bare
+wrapper is disposed, and owned-borrowing returns keep the transferred lease until cleanup.
 Physical native destruction waits until the last claim is gone, in whatever order managed
 lifetimes end. Cleanup always runs the native destructor first, then disposes every edge
 (pins and borrow tokens).
@@ -117,11 +117,11 @@ compatibility but is otherwise ignored because every opaque is already disposabl
 scheduled for removal in the next breaking release ([#1260](https://github.com/rust-diplomat/diplomat/issues/1260)).
 
 Shared versioned views do not keep their source borrowed between calls: a mutable source
-call can proceed and invalidates the old view. Exclusive `ScopedUse<T>` values and owned
-values that borrow from a source are different: they keep a real source borrow until
-disposed. A conflicting source mutation throws `InvalidOperationException` until that
-scope or dependent is disposed. Dispose these values deterministically rather than waiting
-for the GC if the source needs to be mutated again.
+call can proceed and invalidates the old view. Exclusive views are bare wrappers, and owned
+values that borrow from a source keep a real source borrow until disposed. A conflicting
+source mutation throws `InvalidOperationException` until that view or dependent is disposed.
+Dispose these values deterministically rather than waiting for the GC if the source needs to
+be mutated again.
 
 ## String encoding
 

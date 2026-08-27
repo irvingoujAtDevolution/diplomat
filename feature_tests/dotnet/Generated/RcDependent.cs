@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class RcDependent : IDiplomatScoped, IDisposable
+public partial class RcDependent : IDisposable
 {
     private unsafe RustHandle<Raw.RcDependent>? _inner;
 
@@ -156,12 +156,6 @@ public partial class RcDependent : IDiplomatScoped, IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
-    }
-
-    void IDiplomatScoped.EndScope()
-    {
-        Cleanup();
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>

@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class OpaqueSliceView : IDiplomatScoped, IDisposable
+public partial class OpaqueSliceView : IDisposable
 {
     private unsafe RustHandle<Raw.OpaqueSliceView>? _inner;
 
@@ -219,12 +219,6 @@ public partial class OpaqueSliceView : IDiplomatScoped, IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
-    }
-
-    void IDiplomatScoped.EndScope()
-    {
-        Cleanup();
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>

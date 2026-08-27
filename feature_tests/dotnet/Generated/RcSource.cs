@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class RcSource : IDiplomatScoped, IDisposable
+public partial class RcSource : IDisposable
 {
     private unsafe RustHandle<Raw.RcSource>? _inner;
 
@@ -91,13 +91,13 @@ public partial class RcSource : IDiplomatScoped, IDisposable
     }
 
     /// <returns>
-    /// A scoped use of the Rust-backed <c>RcSource</c>.
+    /// An exclusive view into the Rust-backed <c>RcSource</c>.
     /// </returns>
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// Dispose the returned scope when you finish using the value so the borrow ends promptly.
+    /// Dispose the returned value to end the exclusive borrow on the receiver.
     /// </remarks>
-    public ScopedUse<RcSource> ViewMut()
+    public RcSource ViewMut()
     {
         unsafe
         {
@@ -105,7 +105,7 @@ public partial class RcSource : IDiplomatScoped, IDisposable
             {
                 Raw.RcSource* result = Raw.RcSource.ViewMut(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new ScopedUse<RcSource>(new RcSource(result, BorrowKind.Exclusive, selfLease));
+                return new RcSource(result, BorrowKind.Exclusive, selfLease);
             }
         }
     }
@@ -208,12 +208,6 @@ public partial class RcSource : IDiplomatScoped, IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
-    }
-
-    void IDiplomatScoped.EndScope()
-    {
-        Cleanup();
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>

@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class FixedDecimal : IDiplomatScoped, IDisposable
+public partial class FixedDecimal : IDisposable
 {
     private unsafe RustHandle<Raw.FixedDecimal>? _inner;
 
@@ -136,12 +136,6 @@ public partial class FixedDecimal : IDiplomatScoped, IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
-    }
-
-    void IDiplomatScoped.EndScope()
-    {
-        Cleanup();
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>

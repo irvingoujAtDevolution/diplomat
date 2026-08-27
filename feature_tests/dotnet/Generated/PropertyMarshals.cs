@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class PropertyMarshals : IDiplomatScoped, IDisposable
+public partial class PropertyMarshals : IDisposable
 {
     private unsafe RustHandle<Raw.PropertyMarshals>? _inner;
 
@@ -291,12 +291,6 @@ public partial class PropertyMarshals : IDiplomatScoped, IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
-    }
-
-    void IDiplomatScoped.EndScope()
-    {
-        Cleanup();
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>

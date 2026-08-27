@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class RenamedAttrOpaque2 : IDiplomatScoped, IDisposable
+public partial class RenamedAttrOpaque2 : IDisposable
 {
     private unsafe RustHandle<Raw.RenamedAttrOpaque2>? _inner;
 
@@ -86,12 +86,6 @@ public partial class RenamedAttrOpaque2 : IDiplomatScoped, IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
-    }
-
-    void IDiplomatScoped.EndScope()
-    {
-        Cleanup();
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>

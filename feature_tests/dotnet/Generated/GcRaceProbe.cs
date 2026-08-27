@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class GcRaceProbe : IDiplomatScoped, IDisposable
+public partial class GcRaceProbe : IDisposable
 {
     private unsafe RustHandle<Raw.GcRaceProbe>? _inner;
 
@@ -111,12 +111,6 @@ public partial class GcRaceProbe : IDiplomatScoped, IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
-    }
-
-    void IDiplomatScoped.EndScope()
-    {
-        Cleanup();
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>

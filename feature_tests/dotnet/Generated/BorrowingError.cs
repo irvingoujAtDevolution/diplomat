@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class BorrowingError : IDiplomatScoped, IDisposable
+public partial class BorrowingError : IDisposable
 {
     private unsafe RustHandle<Raw.BorrowingError>? _inner;
 
@@ -106,12 +106,6 @@ public partial class BorrowingError : IDiplomatScoped, IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
-    }
-
-    void IDiplomatScoped.EndScope()
-    {
-        Cleanup();
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>

@@ -38,8 +38,8 @@
 //!   .NET Framework floor, the `DiplomatPinnedMemory` helper is emitted only
 //!   when a run actually pins (see `uses_pinned_memory`).
 //! * Borrowed opaque returns (`&T`, `&mut T`, `Option<&T>`) use a non-owning
-//!   handle. Shared views version the source lease; exclusive views keep it
-//!   until `ScopedUse<T>` ends.
+//!   handle. Shared views version the source lease. Exclusive views return bare
+//!   wrappers whose `Dispose()` ends the exclusive borrow.
 //! * Borrowed string/slice returns (`&'a str` / `&'a [u8]` / `&'a [u32]`) wrap
 //!   the same `(ptr, len)` shape as an input slice in `DiplomatBorrowedSpan<T>`,
 //!   rooted with a versioned lifetime claim like a shared opaque view. It
@@ -160,12 +160,6 @@ struct NativeLibTemplate<'a> {
 #[derive(Template)]
 #[template(path = "dotnet/BorrowLease.cs.jinja", escape = "none")]
 struct BorrowLeaseTemplate<'a> {
-    namespace: &'a str,
-}
-
-#[derive(Template)]
-#[template(path = "dotnet/ScopedUse.cs.jinja", escape = "none")]
-struct ScopedUseTemplate<'a> {
     namespace: &'a str,
 }
 
@@ -555,15 +549,6 @@ pub(crate) fn run<'tcx>(
     );
     add_cs_file(
         &files,
-        "ScopedUse.cs".to_string(),
-        ScopedUseTemplate {
-            namespace: &namespace,
-        }
-        .render()
-        .expect("ScopedUse template render failed"),
-    );
-    add_cs_file(
-        &files,
         "RustHandle.cs".to_string(),
         RustHandleTemplate {
             namespace: &namespace,
@@ -870,15 +855,15 @@ mod test {
         let foo = files.get("Foo.cs").expect("expected Foo.cs output");
         assert_eq!(
             foo.lines()
-                .find(|line| line.trim_start().starts_with("public ScopedUse<Foo>"))
+                .find(|line| line.trim_start().starts_with("public Foo"))
                 .map(str::trim),
-            Some("public ScopedUse<Foo> BorrowedReturnMut()")
+            Some("public Foo BorrowedReturnMut()")
         );
         assert_eq!(
             foo.lines()
-                .find(|line| line.trim_start().starts_with("return new ScopedUse<Foo>"))
+                .find(|line| line.trim_start().starts_with("return new Foo"))
                 .map(str::trim),
-            Some("return new ScopedUse<Foo>(new Foo(result, BorrowKind.Exclusive, selfLease));")
+            Some("return new Foo(result, BorrowKind.Exclusive, selfLease);")
         );
     }
 
@@ -2602,7 +2587,7 @@ mod test {
         );
         let plain = files.get("Plain.cs").expect("expected Plain.cs output");
         assert!(
-            plain.contains("public partial class Plain : IDiplomatScoped, IDisposable"),
+            plain.contains("public partial class Plain : IDisposable"),
             "every opaque should implement IDisposable:\n{plain}"
         );
         assert!(
@@ -2672,8 +2657,7 @@ mod test {
             .get("FinalizerOnly.cs")
             .expect("expected FinalizerOnly.cs output");
         assert!(
-            finalizer_only
-                .contains("public partial class FinalizerOnly : IDiplomatScoped, IDisposable")
+            finalizer_only.contains("public partial class FinalizerOnly : IDisposable")
                 && finalizer_only.contains("public void Dispose()")
                 && finalizer_only.contains("GC.SuppressFinalize(this);"),
             "unmarked opaque must expose the standard disposable surface:\n{finalizer_only}"
@@ -2686,7 +2670,7 @@ mod test {
 
         let manual = files.get("Manual.cs").expect("expected Manual.cs output");
         assert!(
-            manual.contains("public partial class Manual : IDiplomatScoped, IDisposable"),
+            manual.contains("public partial class Manual : IDisposable"),
             "`manually_disposable` must not change the standard disposable surface:\n{manual}"
         );
         assert!(
@@ -2815,7 +2799,7 @@ mod test {
         );
         let gated = files.get("Gated.cs").expect("expected Gated.cs output");
         assert!(
-            gated.contains("public partial class Gated : IDiplomatScoped, IDisposable")
+            gated.contains("public partial class Gated : IDisposable")
                 && gated.contains("public void Dispose()"),
             "dotnet-disabled manually_disposable attr must keep the default disposable output:\n{gated}"
         );
@@ -3270,7 +3254,6 @@ mod test {
         );
         let config = files.get("Config.cs").expect("expected Config.cs output");
         assert!(config.contains("public void EndScope()"));
-        assert!(config.contains("void IDiplomatScoped.EndScope()"));
     }
 
     #[test]

@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class OwnedSliceReturn : IDiplomatScoped, IDisposable
+public partial class OwnedSliceReturn : IDisposable
 {
     private unsafe RustHandle<Raw.OwnedSliceReturn>? _inner;
 
@@ -95,12 +95,6 @@ public partial class OwnedSliceReturn : IDiplomatScoped, IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
-    }
-
-    void IDiplomatScoped.EndScope()
-    {
-        Cleanup();
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>

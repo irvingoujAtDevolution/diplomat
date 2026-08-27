@@ -464,9 +464,7 @@ impl DotnetReturnType {
                 format!("new {name}({raw_expr}, BorrowKind.Shared{edges})")
             }
             Ownership::Borrowed(hir::Mutability::Mutable) => {
-                format!(
-                    "new ScopedUse<{name}>(new {name}({raw_expr}, BorrowKind.Exclusive{edges}))"
-                )
+                format!("new {name}({raw_expr}, BorrowKind.Exclusive{edges})")
             }
         }
     }
@@ -506,11 +504,8 @@ impl DotnetReturnType {
         }
     }
 
-    fn option_none_expr(&self, ownership: Ownership) -> String {
+    fn option_none_expr(&self) -> String {
         match self {
-            Self::Opaque(name) if ownership.is_borrowed_mutable() => {
-                format!("default(ScopedUse<{name}>)")
-            }
             Self::Opaque(_) => "null".to_string(),
             Self::Unit | Self::Write => unreachable!("unit/write options are rejected earlier"),
             Self::OwnedByteSlice => {
@@ -534,7 +529,7 @@ impl DotnetReturnType {
             "{} ? {} : {}",
             option_expr.is_some_expr(),
             self.idiomatic_value_expr(option_expr.option_value(), dependencies, pins, ownership),
-            self.option_none_expr(ownership)
+            self.option_none_expr()
         )
     }
 
@@ -547,7 +542,7 @@ impl DotnetReturnType {
     ) -> String {
         match self {
             Self::Opaque(name) => {
-                let none = self.option_none_expr(ownership);
+                let none = self.option_none_expr();
                 format!(
                     "{raw_expr} == null ? {none} : {}",
                     Self::opaque_construction(name, &raw_expr, dependencies, pins, ownership)
@@ -906,11 +901,7 @@ impl MethodInfo<'_> {
     /// `?` suffix tells C# 8+ "this might be null" and triggers
     /// `Nullable<T>` for value types.
     pub(super) fn idiomatic_return_type(&self) -> String {
-        if matches!(self.return_type, DotnetReturnType::Opaque(_))
-            && self.ownership.is_borrowed_mutable()
-        {
-            format!("ScopedUse<{}>", self.return_type)
-        } else if self.option_info.is_some() {
+        if self.option_info.is_some() {
             format!("{}?", self.return_type)
         } else {
             self.return_type.to_string()
@@ -1542,7 +1533,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
         let value = match kind {
             AccessorKind::Getter => AccessorValue::nullable_if(
                 nullable && !ownership.is_borrowed_mutable(),
-                self.return_marshal(return_type, ownership)?,
+                self.return_marshal(return_type)?,
             ),
             // HIR guarantees a setter takes exactly one parameter, so the first
             // one is the value being assigned.
@@ -1569,16 +1560,9 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
     }
 
     /// How a getter's return value presents as a property.
-    fn return_marshal(
-        &self,
-        return_type: &DotnetReturnType,
-        ownership: Ownership,
-    ) -> Option<AccessorMarshal> {
+    fn return_marshal(&self, return_type: &DotnetReturnType) -> Option<AccessorMarshal> {
         Some(match return_type {
             DotnetReturnType::Primitive(p) => AccessorMarshal::Primitive(*p),
-            DotnetReturnType::Opaque(name) if ownership.is_borrowed_mutable() => {
-                AccessorMarshal::ScopedOpaque(name.clone())
-            }
             DotnetReturnType::Opaque(name) => AccessorMarshal::Opaque(name.clone()),
             DotnetReturnType::Struct(name) => AccessorMarshal::Struct(name.clone()),
             DotnetReturnType::Enum(name) => AccessorMarshal::Enum(name.clone()),

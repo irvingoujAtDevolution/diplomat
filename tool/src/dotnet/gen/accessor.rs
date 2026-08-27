@@ -61,7 +61,6 @@ pub(super) enum AccessorMarshal {
     Enum(String),
     Struct(String),
     Opaque(String),
-    ScopedOpaque(String),
     WrittenUtf8,
     ValidatedUtf8Param,
     UnvalidatedUtf8Param,
@@ -86,7 +85,6 @@ impl AccessorMarshal {
             Self::Enum(name) => PropertyShape::Enum(name.clone()),
             Self::Struct(name) => PropertyShape::Struct(name.clone()),
             Self::Opaque(name) => PropertyShape::Opaque(name.clone()),
-            Self::ScopedOpaque(name) => PropertyShape::ScopedOpaque(name.clone()),
             Self::WrittenUtf8 => PropertyShape::Text,
             Self::ValidatedUtf8Param => PropertyShape::Text,
             Self::UnvalidatedUtf8Param => PropertyShape::Text,
@@ -107,7 +105,6 @@ impl AccessorMarshal {
             Self::Enum(_) => "an enum",
             Self::Struct(_) => "a struct by value",
             Self::Opaque(_) => "an opaque handle",
-            Self::ScopedOpaque(_) => "a scoped opaque borrow",
             Self::WrittenUtf8 => "UTF-8 written into a `DiplomatWrite`",
             Self::ValidatedUtf8Param => "a validated UTF-8 string (`&str`)",
             Self::UnvalidatedUtf8Param => "an unvalidated UTF-8 string (`&DiplomatStr`)",
@@ -178,7 +175,6 @@ enum PropertyShape {
     Enum(String),
     Struct(String),
     Opaque(String),
-    ScopedOpaque(String),
     /// `string` — the one surface several marshals share.
     Text,
     OwnedBytes,
@@ -195,7 +191,6 @@ impl PropertyType {
             PropertyShape::Enum(name)
             | PropertyShape::Struct(name)
             | PropertyShape::Opaque(name) => name.clone(),
-            PropertyShape::ScopedOpaque(name) => format!("ScopedUse<{name}>"),
             PropertyShape::Text => "string".to_string(),
             PropertyShape::OwnedBytes => "RustVec".to_string(),
             PropertyShape::BorrowedSpan(elem) => {

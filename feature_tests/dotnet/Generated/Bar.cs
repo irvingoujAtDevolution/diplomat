@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class Bar : IDiplomatScoped, IDisposable
+public partial class Bar : IDisposable
 {
     private unsafe RustHandle<Raw.Bar>? _inner;
 
@@ -109,12 +109,6 @@ public partial class Bar : IDiplomatScoped, IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
-    }
-
-    void IDiplomatScoped.EndScope()
-    {
-        Cleanup();
-        GC.SuppressFinalize(this);
     }
 
     /// <summary>
