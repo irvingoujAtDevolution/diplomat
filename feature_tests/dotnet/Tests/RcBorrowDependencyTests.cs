@@ -245,9 +245,9 @@ public class RcBorrowDependencyTests
     // ── Finalizer fallback parent/child ordering ──────────────────────────
 
     [Fact]
-    public void FinalizerFallbackProbes_AreIDisposable()
+    public void FinalizerFallback_UsesUnmarkedSourceAndMarkedDependent()
     {
-        Assert.Contains(typeof(IDisposable), typeof(RcFinalizerSource).GetInterfaces());
+        Assert.DoesNotContain(typeof(IDisposable), typeof(RcFinalizerSource).GetInterfaces());
         Assert.Contains(typeof(IDisposable), typeof(RcFinalizerDependent).GetInterfaces());
     }
 

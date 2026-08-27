@@ -8,7 +8,7 @@ namespace Somelib;
 
 #nullable enable
 
-public partial class SliceParseError : IDisposable
+public partial class SliceParseError
 {
     private unsafe RustHandle<Raw.SliceParseError>? _inner;
 
@@ -86,25 +86,6 @@ public partial class SliceParseError : IDisposable
                 System.Threading.Interlocked.Exchange(ref _inner, null);
             inner?.Release();
         }
-    }
-
-    /// <summary>
-    /// Requests/releases this wrapper's own ownership reference.
-    /// </summary>
-    /// <remarks>
-    /// This releases this wrapper's claim. The native resource may stay alive
-    /// while other wrappers still hold claims. Disposing an exclusive borrowed
-    /// wrapper also ends its scope. Versioned shared views borrowed from that
-    /// scope become invalid and throw before their next native call.
-    /// After this call, this <c>SliceParseError</c> instance itself is unusable:
-    /// its methods (and any attempt to start a new borrow from it) throw
-    /// <see cref="ObjectDisposedException"/> immediately, regardless of
-    /// whether the physical native destruction happened yet.
-    /// </remarks>
-    public void Dispose()
-    {
-        Cleanup();
-        GC.SuppressFinalize(this);
     }
 
     ~SliceParseError()

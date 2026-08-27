@@ -312,7 +312,6 @@ public partial class OpaqueThinVec : IDisposable
             inner?.Release();
         }
     }
-
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.
     /// </summary>

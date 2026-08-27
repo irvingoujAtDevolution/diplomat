@@ -333,7 +333,12 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                     properties,
                 } = members;
                 let raw = self.gen_opaque_raw(display_name.clone(), opaque_def, raw_methods);
-                let content = self.gen_opaque_impl(display_name, methods, properties);
+                let content = self.gen_opaque_impl(
+                    display_name,
+                    methods,
+                    properties,
+                    opaque_def.attrs.manually_disposable,
+                );
                 (Some(raw), content)
             }
             PreparedType::Struct {

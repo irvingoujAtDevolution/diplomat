@@ -8,7 +8,7 @@ namespace {{ namespace }};
 
 #nullable enable
 
-public partial class {{ name }} : IDisposable
+public partial class {{ name }}{% if manually_disposable %} : IDisposable{% endif %}
 {
     private unsafe RustHandle<Raw.{{ name }}>? _inner;
 
@@ -107,6 +107,7 @@ public partial class {{ name }} : IDisposable
         }
     }
 
+{%- if manually_disposable %}
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.
     /// </summary>
@@ -125,6 +126,7 @@ public partial class {{ name }} : IDisposable
         Cleanup();
         GC.SuppressFinalize(this);
     }
+{%- endif %}
 
     ~{{ name }}()
     {

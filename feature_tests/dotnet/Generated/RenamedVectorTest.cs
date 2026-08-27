@@ -140,7 +140,6 @@ public partial class RenamedVectorTest : IDisposable
             inner?.Release();
         }
     }
-
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.
     /// </summary>

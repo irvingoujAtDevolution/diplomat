@@ -167,7 +167,6 @@ public partial class PinnedRcSource : IDisposable
             inner?.Release();
         }
     }
-
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.
     /// </summary>

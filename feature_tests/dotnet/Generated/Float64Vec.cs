@@ -137,7 +137,6 @@ public partial class Float64Vec : IDisposable
             inner?.Release();
         }
     }
-
     /// <summary>
     /// Requests/releases this wrapper's own ownership reference.
     /// </summary>
