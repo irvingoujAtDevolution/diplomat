@@ -411,6 +411,7 @@ pub(crate) fn run<'tcx>(
         result_struct_registry: std::cell::RefCell::new(std::collections::HashMap::new()),
         option_struct_registry: std::cell::RefCell::new(std::collections::HashMap::new()),
         callback_struct_registry: std::cell::RefCell::new(std::collections::HashMap::new()),
+        disposal: Default::default(),
     };
 
     /*
@@ -710,6 +711,269 @@ mod test {
         (files.take_files(), errors)
     }
 
+    fn assert_required_disposal_error(errors: &[String], type_name: &str, rule: u8, method: &str) {
+        let message = errors.join("\n");
+        assert!(message.contains(type_name), "missing type in: {message}");
+        assert!(
+            message.contains(&format!("rule {rule}")),
+            "missing rule in: {message}"
+        );
+        assert!(message.contains(method), "missing method in: {message}");
+    }
+
+    #[test]
+    fn required_disposal_rule1_mutable_borrowed_return_is_rejected() {
+        let (_files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::opaque_mut]
+                pub struct Source;
+
+                #[diplomat::opaque_mut]
+                pub struct View;
+
+                impl Source {
+                    pub fn view_mut<'a>(&'a mut self) -> &'a mut View {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert_required_disposal_error(&errors, "View", 1, "Source::view_mut");
+    }
+
+    #[test]
+    fn required_disposal_rule2_owned_borrowing_return_is_rejected() {
+        let (_files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::opaque]
+                pub struct Source;
+
+                #[diplomat::opaque]
+                pub struct Dependent<'a>(&'a Source);
+
+                impl Source {
+                    pub fn dependent<'a>(&'a self) -> Box<Dependent<'a>> {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert_required_disposal_error(&errors, "Dependent", 2, "Source::dependent");
+    }
+
+    #[test]
+    fn required_disposal_rule2_err_arm_is_rejected() {
+        let (_files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::opaque]
+                pub struct Source;
+
+                #[diplomat::opaque]
+                pub struct BorrowingError<'a>(&'a Source);
+
+                impl Source {
+                    pub fn try_borrow<'a>(
+                        &'a self,
+                    ) -> Result<i32, Box<BorrowingError<'a>>> {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert_required_disposal_error(&errors, "BorrowingError", 2, "Source::try_borrow");
+        assert!(errors.join("\n").contains("error arm"));
+    }
+
+    #[test]
+    fn required_disposal_rule3_shared_view_of_marked_source_is_rejected() {
+        let (_files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::attr(dotnet, manually_disposable)]
+                #[diplomat::opaque]
+                pub struct Source;
+
+                #[diplomat::opaque]
+                pub struct View;
+
+                impl Source {
+                    pub fn view<'a>(&'a self) -> &'a View {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert_required_disposal_error(&errors, "View", 3, "Source::view");
+    }
+
+    #[test]
+    fn required_disposal_rule3_transitive_chain_reports_every_link() {
+        let (_files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::attr(dotnet, manually_disposable)]
+                #[diplomat::opaque]
+                pub struct Source;
+
+                #[diplomat::opaque]
+                pub struct Middle<'a>(&'a Source);
+
+                #[diplomat::opaque]
+                pub struct Outer<'a>(&'a Middle<'a>);
+
+                impl Source {
+                    pub fn middle<'a>(&'a self) -> &'a Middle<'a> {
+                        unimplemented!()
+                    }
+                }
+
+                impl<'a> Middle<'a> {
+                    pub fn outer(&'a self) -> &'a Outer<'a> {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert_eq!(errors.len(), 2, "unexpected diagnostics: {errors:?}");
+        assert_required_disposal_error(&errors, "Middle", 3, "Source::middle");
+        assert_required_disposal_error(&errors, "Outer", 3, "Middle::outer");
+    }
+
+    #[test]
+    fn required_disposal_rule4_pinned_slice_input_is_rejected() {
+        let (_files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::opaque]
+                pub struct View<'a>(&'a [u8]);
+
+                impl<'a> View<'a> {
+                    pub fn parse(data: &'a [u8]) -> Box<Self> {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert_required_disposal_error(&errors, "View", 4, "View::parse");
+    }
+
+    #[test]
+    fn required_disposal_marked_types_pass() {
+        let (_files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::attr(dotnet, manually_disposable)]
+                #[diplomat::opaque_mut]
+                pub struct Source;
+
+                #[diplomat::attr(dotnet, manually_disposable)]
+                #[diplomat::opaque_mut]
+                pub struct MutableView;
+
+                #[diplomat::attr(dotnet, manually_disposable)]
+                #[diplomat::opaque]
+                pub struct Dependent<'a>(&'a Source);
+
+                #[diplomat::attr(dotnet, manually_disposable)]
+                #[diplomat::opaque]
+                pub struct Pinned<'a>(&'a [u8]);
+
+                #[diplomat::attr(dotnet, manually_disposable)]
+                #[diplomat::opaque]
+                pub struct BorrowingError<'a>(&'a Source);
+
+                impl Source {
+                    pub fn view_mut<'a>(&'a mut self) -> &'a mut MutableView {
+                        unimplemented!()
+                    }
+
+                    pub fn dependent<'a>(&'a self) -> Box<Dependent<'a>> {
+                        unimplemented!()
+                    }
+
+                    pub fn pinned<'a>(data: &'a [u8]) -> Box<Pinned<'a>> {
+                        unimplemented!()
+                    }
+
+                    pub fn try_borrow<'a>(
+                        &'a self,
+                    ) -> Result<i32, Box<BorrowingError<'a>>> {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert!(errors.is_empty(), "unexpected diagnostics: {errors:?}");
+    }
+
+    #[test]
+    fn required_disposal_shared_view_of_unmarked_source_is_fine() {
+        let (_files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::opaque]
+                pub struct Source;
+
+                #[diplomat::opaque]
+                pub struct View;
+
+                impl Source {
+                    pub fn view<'a>(&'a self) -> &'a View {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert!(errors.is_empty(), "unexpected diagnostics: {errors:?}");
+    }
+
+    #[test]
+    fn required_disposal_plain_owned_return_is_fine() {
+        let (_files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::opaque]
+                pub struct Factory;
+
+                #[diplomat::opaque]
+                pub struct Product;
+
+                impl Factory {
+                    pub fn product() -> Box<Product> {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert!(errors.is_empty(), "unexpected diagnostics: {errors:?}");
+    }
+
+    #[test]
+    fn required_disposal_marked_but_unused_is_fine() {
+        let (_files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::attr(dotnet, manually_disposable)]
+                #[diplomat::opaque]
+                pub struct Marked;
+            }
+        });
+
+        assert!(errors.is_empty(), "unexpected diagnostics: {errors:?}");
+    }
+
     #[test]
     fn native_lib_and_dylib_name_config_aliases_are_supported() {
         let mut native_lib_config = super::DotnetConfig::default();
@@ -839,6 +1103,7 @@ mod test {
         let tk_stream = quote! {
             #[diplomat::bridge]
             mod ffi {
+                #[diplomat::attr(dotnet, manually_disposable)]
                 #[diplomat::opaque_mut]
                 pub struct Foo;
 
@@ -951,6 +1216,7 @@ mod test {
                 #[diplomat::opaque]
                 pub struct Owner;
 
+                #[diplomat::attr(dotnet, manually_disposable)]
                 #[diplomat::opaque]
                 pub struct Dependent<'a>(&'a Owner);
 
@@ -1014,6 +1280,7 @@ mod test {
                 #[diplomat::opaque]
                 pub struct Owner;
 
+                #[diplomat::attr(dotnet, manually_disposable)]
                 #[diplomat::opaque]
                 pub struct Dependent<'a>(&'a Owner);
 
@@ -1096,6 +1363,7 @@ mod test {
             mod ffi {
                 use diplomat_runtime::DiplomatStr;
 
+                #[diplomat::attr(dotnet, manually_disposable)]
                 #[diplomat::opaque]
                 pub struct Foo<'a>(&'a DiplomatStr);
 
@@ -1177,6 +1445,7 @@ mod test {
                 #[diplomat::opaque]
                 pub struct Parent;
 
+                #[diplomat::attr(dotnet, manually_disposable)]
                 #[diplomat::opaque]
                 pub struct Child<'a>(&'a Parent);
 
@@ -1226,6 +1495,7 @@ mod test {
         let tk_stream = quote! {
             #[diplomat::bridge]
             mod ffi {
+                #[diplomat::attr(dotnet, manually_disposable)]
                 #[diplomat::opaque]
                 pub struct Parsed<'a>(&'a [u8]);
 
@@ -1287,6 +1557,7 @@ mod test {
         let tk_stream = quote! {
             #[diplomat::bridge]
             mod ffi {
+                #[diplomat::attr(dotnet, manually_disposable)]
                 #[diplomat::opaque]
                 pub struct Foo<'a>(&'a [u8]);
 
@@ -1336,6 +1607,7 @@ mod test {
                 #[diplomat::opaque]
                 pub struct Factory;
 
+                #[diplomat::attr(dotnet, manually_disposable)]
                 #[diplomat::opaque]
                 pub struct Product<'a>(&'a [u8]);
 
@@ -1371,6 +1643,7 @@ mod test {
         let tk_stream = quote! {
             #[diplomat::bridge]
             mod ffi {
+                #[diplomat::attr(dotnet, manually_disposable)]
                 #[diplomat::opaque]
                 pub struct Pair<'a>(&'a [u8], &'a [u8]);
 
@@ -1417,6 +1690,7 @@ mod test {
         let tk_stream = quote! {
             #[diplomat::bridge]
             mod ffi {
+                #[diplomat::attr(dotnet, manually_disposable)]
                 #[diplomat::opaque]
                 pub struct View<'a>(&'a [u32]);
 
@@ -1457,6 +1731,7 @@ mod test {
                     pub flag: bool,
                 }
 
+                #[diplomat::attr(dotnet, manually_disposable)]
                 #[diplomat::opaque]
                 pub struct Built<'a>(&'a [u8]);
 
@@ -1647,6 +1922,7 @@ mod test {
             mod ffi {
                 use diplomat_runtime::DiplomatStr16;
 
+                #[diplomat::attr(dotnet, manually_disposable)]
                 #[diplomat::opaque]
                 pub struct Foo<'a>(&'a DiplomatStr16);
 
@@ -1801,6 +2077,7 @@ mod test {
         let tk_stream = quote! {
             #[diplomat::bridge]
             mod ffi {
+                #[diplomat::attr(dotnet, manually_disposable)]
                 #[diplomat::opaque]
                 pub struct Viewer<'a>(&'a [u8]);
 
@@ -1873,6 +2150,7 @@ mod test {
                 #[diplomat::opaque]
                 pub struct Owner;
 
+                #[diplomat::attr(dotnet, manually_disposable)]
                 #[diplomat::opaque]
                 pub struct BorrowingError<'a>(&'a Owner);
 
@@ -1924,6 +2202,7 @@ mod test {
                 #[diplomat::opaque]
                 pub struct Owner;
 
+                #[diplomat::attr(dotnet, manually_disposable)]
                 #[diplomat::opaque]
                 pub struct BorrowingError<'a>(&'a Owner);
 

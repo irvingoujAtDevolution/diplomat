@@ -33,6 +33,7 @@ use super::formatter::DotnetFormatter;
 
 mod accessor;
 mod callback;
+pub(super) mod disposal;
 pub(super) mod fillable;
 mod impl_struct;
 mod lower;
@@ -72,6 +73,7 @@ pub(super) struct ItemGenContext<'ctx, 'tcx> {
     pub result_struct_registry: RefCell<HashMap<String, DotnetResult>>,
     pub option_struct_registry: RefCell<HashMap<String, fillable::DotnetOption>>,
     pub callback_struct_registry: RefCell<HashMap<String, DotnetCallback>>,
+    pub disposal: RefCell<disposal::DisposalRequirements>,
 }
 
 #[derive(Template)]
@@ -248,6 +250,10 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             prepared_types.push(prepared);
         }
 
+        self.disposal
+            .borrow()
+            .finish(self.tcx, self.errors, self.formatter);
+
         let rendered = prepared_types
             .into_iter()
             .map(|prepared| {
@@ -375,7 +381,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
     ) -> TypeMembers<'tcx> {
         let lowered: Vec<(Option<AccessorInfo>, MethodInfo<'tcx>)> = methods
             .iter()
-            .filter_map(|m| self.build_method_info(StructMethodContext::new(m)))
+            .filter_map(|m| self.build_method_info(StructMethodContext::new(m), display_name))
             .collect();
         let raw_methods = lowered.iter().map(|(_, m)| m.clone()).collect();
         let (methods, properties) = accessor::route_members(lowered, self.errors);

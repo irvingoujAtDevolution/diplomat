@@ -4,6 +4,7 @@ mod ffi {
     struct RefListParameter;
 
     #[diplomat::opaque]
+    #[diplomat::attr(dotnet, manually_disposable)]
     struct RefList<'a>((&'a RefListParameter, Option<Box<Self>>));
 
     impl<'b> RefList<'b> {

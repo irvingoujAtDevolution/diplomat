@@ -5,6 +5,7 @@ pub mod ffi {
     use diplomat_runtime::DiplomatStr16;
 
     #[diplomat::opaque]
+    #[diplomat::attr(dotnet, manually_disposable)]
     pub struct Foo<'a>(&'a DiplomatStr);
 
     #[diplomat::opaque]

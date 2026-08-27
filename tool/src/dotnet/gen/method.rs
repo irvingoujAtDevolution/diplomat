@@ -33,6 +33,7 @@ use crate::dotnet::r#gen::fillable::{
 };
 
 use super::accessor::{AccessorInfo, AccessorKind, AccessorMarshal, AccessorValue};
+use super::disposal::ReturnArm;
 use super::{callback::DotnetCallback, DotnetPrimitives, ItemGenContext};
 
 #[derive(Debug, Clone)]
@@ -683,6 +684,8 @@ pub(super) struct ReturnLowering {
     pub(super) error_info: Option<ErrorInfo>,
     pub(super) option_info: Option<OptionInfo>,
     pub(super) ownership: Ownership,
+    pub(super) opaque_id: Option<hir::OpaqueId>,
+    pub(super) error_opaque_id: Option<hir::OpaqueId>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1136,18 +1139,20 @@ struct ImmutableElementShape<'a> {
     mutable_class: &'a str,
 }
 
-/// One output type's keep-alive edges, split by release path: real
-/// cross-wrapper native dependencies (destined for the RC mechanism) versus
-/// this-wrapper-only pin holders (see `output_keep_alive_edges`).
-type OutputKeepAliveEdges = (Vec<String>, Vec<String>);
-
 /// `borrowed_output_keep_alive_edges`'s full result: the success return
 /// wrapper's two keep-alive groups, and the thrown exception's dependency
 /// list.
 struct KeepAliveResult {
     ok_dependencies: Vec<String>,
     ok_pins: Vec<String>,
+    ok_pin_sources: Vec<String>,
     err_dependencies: Vec<String>,
+}
+
+struct OutputKeepAliveEdges {
+    dependencies: Vec<String>,
+    pins: Vec<String>,
+    pin_sources: Vec<String>,
 }
 
 impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
@@ -1162,6 +1167,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
     pub(super) fn build_method_info(
         &self,
         method_context: StructMethodContext<'tcx>,
+        owner_name: &str,
     ) -> Option<(Option<AccessorInfo>, MethodInfo<'tcx>)> {
         let method = method_context.method();
         // Refine the diagnostic context from `Type` to `Type::method` for
@@ -1178,13 +1184,19 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             error_info,
             option_info,
             ownership,
+            opaque_id,
+            error_opaque_id,
         } = self.lower_return(&method.output)?;
 
         // One visitor pass classifies every param AND yields the borrow map,
         // so the pin<->edge name correlation holds by construction.
         let mut visitor = method.borrowing_param_visitor(self.tcx, false);
+        let mut opaque_params = BTreeMap::new();
         if let Some(param_self) = method.param_self.as_ref() {
             visitor.visit_param(&param_self.ty.clone().into(), "this");
+            if let hir::SelfType::Opaque(path) = &param_self.ty {
+                opaque_params.insert("this".to_string(), path.tcx_id);
+            }
         }
         let param_borrows: Vec<(ParamNames, ParamBorrowInfo<'tcx>)> = method
             .params
@@ -1206,6 +1218,9 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                 // Borrow edges are emitted in the idiomatic body, so they follow
                 // the name that body uses.
                 let borrow_info = visitor.visit_param(&param.ty, &local_name);
+                if let hir::Type::Opaque(path) = &param.ty {
+                    opaque_params.insert(local_name.clone(), path.tcx_id);
+                }
                 (
                     ParamNames {
                         raw: raw_name,
@@ -1240,8 +1255,61 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
         let KeepAliveResult {
             ok_dependencies,
             ok_pins: keep_alive_pins,
+            ok_pin_sources,
             err_dependencies,
         } = self.borrowed_output_keep_alive_edges(method, &inputs, &borrow_map, ownership)?;
+        let resolve_dependencies =
+            |dependencies: &[String]| -> Option<Vec<(String, hir::OpaqueId)>> {
+                dependencies
+                .iter()
+                .map(|name| {
+                    opaque_params.get(name).copied().map(|id| (name.clone(), id)).or_else(|| {
+                        self.errors.push_error(format!(
+                            "[.NET backend] no opaque type was recorded for dependency source `{name}`"
+                        ));
+                        None
+                    })
+                })
+                .collect()
+            };
+        let ok_dependency_ids = resolve_dependencies(&ok_dependencies)?;
+        let err_dependency_ids = resolve_dependencies(&err_dependencies)?;
+        let method_path = format!("{owner_name}::{}", method.name.as_str());
+        {
+            let mut disposal = self.disposal.borrow_mut();
+            if let Some(returned) = opaque_id {
+                if ownership.is_borrowed_mutable() {
+                    disposal.record_mutable_borrow(returned, &method_path, ReturnArm::Ok);
+                }
+                for (source_name, source_id) in &ok_dependency_ids {
+                    if ownership.is_owned() {
+                        disposal.record_owned_borrow(
+                            returned,
+                            source_name,
+                            &method_path,
+                            ReturnArm::Ok,
+                        );
+                    }
+                    disposal.record_retain(returned, *source_id, &method_path, ReturnArm::Ok);
+                }
+                if ownership.is_owned() {
+                    for parameter in &ok_pin_sources {
+                        disposal.record_pin(returned, parameter, &method_path, ReturnArm::Ok);
+                    }
+                }
+            }
+            if let Some(returned) = error_opaque_id {
+                for (source_name, source_id) in &err_dependency_ids {
+                    disposal.record_owned_borrow(
+                        returned,
+                        source_name,
+                        &method_path,
+                        ReturnArm::Err,
+                    );
+                    disposal.record_retain(returned, *source_id, &method_path, ReturnArm::Err);
+                }
+            }
+        }
         let keep_alive_sources = self.borrow_dependencies(&inputs, ok_dependencies)?;
         let error_keep_alive_sources = self.borrow_dependencies(&inputs, err_dependencies)?;
         let lifetime_warning = !keep_alive_sources.is_empty() || !keep_alive_pins.is_empty();
@@ -1382,27 +1450,31 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
         } else {
             &[]
         };
-        let (ok_dependencies, ok_pins) = match ok_ty {
+        let ok_edges = match ok_ty {
             Some(ty) => self.output_keep_alive_edges(ty, borrow_map, OutputArm::Ok(ok_pins))?,
-            None => (Vec::new(), Vec::new()),
+            None => OutputKeepAliveEdges {
+                dependencies: Vec::new(),
+                pins: Vec::new(),
+                pin_sources: Vec::new(),
+            },
         };
         let err_dependencies = match err_ty {
             Some(ty) => {
-                let (err_dependencies, err_pins) =
-                    self.output_keep_alive_edges(ty, borrow_map, OutputArm::Err)?;
+                let err_edges = self.output_keep_alive_edges(ty, borrow_map, OutputArm::Err)?;
                 debug_assert!(
-                    err_pins.is_empty(),
+                    err_edges.pins.is_empty() && err_edges.pin_sources.is_empty(),
                     "the error arm can never pin a slice param — OutputArm::pin_for(Err) is \
                      always None"
                 );
-                err_dependencies
+                err_edges.dependencies
             }
             None => Vec::new(),
         };
 
         Some(KeepAliveResult {
-            ok_dependencies,
-            ok_pins,
+            ok_dependencies: ok_edges.dependencies,
+            ok_pins: ok_edges.pins,
+            ok_pin_sources: ok_edges.pin_sources,
             err_dependencies,
         })
     }
@@ -1440,6 +1512,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
 
         let mut dependencies: Vec<String> = Vec::new();
         let mut pins: Vec<String> = Vec::new();
+        let mut pin_sources: Vec<String> = Vec::new();
         for (lt, borrow_info) in borrow_map {
             if !lifetimes.contains(lt) {
                 continue;
@@ -1458,6 +1531,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                         Some(pin) => {
                             if !pins.contains(&pin.pin_local) {
                                 pins.push(pin.pin_local.clone());
+                                pin_sources.push(pin.arg_name.clone());
                             }
                         }
                         None => {
@@ -1489,7 +1563,11 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                 }
             }
         }
-        Some((dependencies, pins))
+        Some(OutputKeepAliveEdges {
+            dependencies,
+            pins,
+            pin_sources,
+        })
     }
 
     /// The accessor role of a method, if HIR gave it one: which half of which
@@ -1634,6 +1712,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
         //    opaque path — this is Path A (pointer-nullable) for Option.
         let mut pointer_nullable = false;
         let mut ownership = Ownership::Owned;
+        let mut opaque_id = None;
         let return_type = match success {
             hir::SuccessType::Unit => DotnetReturnType::Unit,
             hir::SuccessType::Write => DotnetReturnType::Write,
@@ -1651,6 +1730,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                 if p.is_optional() {
                     pointer_nullable = true;
                 }
+                opaque_id = Some(p.tcx_id);
                 DotnetReturnType::Opaque(self.opaque_name(p))
             }
             hir::SuccessType::OutType(hir::Type::Struct(p)) => {
@@ -1785,6 +1865,10 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
         //    struct with a tag byte) but no err payload field, and the
         //    failure arm throws a built-in `InvalidOperationException`
         //    without per-method exception class generation.
+        let error_opaque_id = match failed.as_ref() {
+            Some(Some(hir::Type::Opaque(path))) if path.is_owned() => Some(path.tcx_id),
+            _ => None,
+        };
         let error_info = match failed {
             Some(err) => {
                 let error_type = match err {
@@ -1828,6 +1912,8 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             error_info,
             option_info,
             ownership,
+            opaque_id,
+            error_opaque_id,
         })
     }
 
