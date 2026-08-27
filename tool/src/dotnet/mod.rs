@@ -5,8 +5,15 @@
 //! Every opaque Rust handle maps to a partial class backed by the same
 //! `RustHandle<T>` (`tool/templates/dotnet/RustHandle.cs.jinja`) — a class that
 //! holds the pointer, destructor, edges, lifetime claims, and borrow state.
-//! Opaques marked `manually_disposable` implement `IDisposable`. Every opaque
-//! keeps a finalizer as a fallback.
+//! Opaques marked `manually_disposable` implement `IDisposable`. The generator
+//! requires the attribute when a method returns a mutable borrow, an owned
+//! opaque that borrows from an input, an opaque that pins a managed slice, or
+//! a view that retains a manually disposable opaque. The last rule is
+//! transitive: every returned view in that retention chain must be manually
+//! disposable. A plain owned opaque and a shared view of a non-disposable
+//! source do not require the attribute. Every opaque keeps a finalizer as a
+//! fallback. Consumers should dispose owned-borrowing returns before mutating
+//! their source.
 //! Slices, `&DiplomatStr` (unvalidated UTF-8) and `&DiplomatStr16` pin
 //! zero-copy; a validated `&str` still copies, since only a transcode from a
 //! real `System.String` can guarantee well-formed UTF-8. Callbacks are
@@ -1754,7 +1761,8 @@ mod test {
             .get("BuilderOptions.cs")
             .expect("expected BuilderOptions.cs output");
         assert!(
-            builder.contains("stays pinned until the returned value is disposed; do not mutate it"),
+            builder.contains("stays pinned while the returned value is in use")
+                && builder.contains("Dispose the returned value to unpin it"),
             "struct methods with pinned inputs should carry the pin remark:\n{builder}"
         );
     }

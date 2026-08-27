@@ -20,6 +20,7 @@ public partial class OpaqueThinVec : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
+    /// Dispose the returned value to release its claim on the source.
     /// </remarks>
     public OpaqueThin? First
     {
@@ -110,6 +111,7 @@ public partial class OpaqueThinVec : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// Dispose the returned value to release its borrow and claim on the source.
     /// </remarks>
     public OpaqueThinIter Iter()
     {
@@ -143,6 +145,7 @@ public partial class OpaqueThinVec : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
+    /// Dispose the returned value to release its claim on the source.
     /// </remarks>
     public OpaqueThin? Get(nuint idx)
     {
@@ -164,6 +167,7 @@ public partial class OpaqueThinVec : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
+    /// Dispose the returned value to release its claim on the source.
     /// </remarks>
     public OpaqueThin TryFirst(bool fail)
     {
@@ -189,6 +193,7 @@ public partial class OpaqueThinVec : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
+    /// Dispose the returned value to release its claim on the source.
     /// </remarks>
     public OpaqueThin? TryGet(nuint idx, bool fail)
     {
@@ -214,6 +219,7 @@ public partial class OpaqueThinVec : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// Dispose the returned value to release its borrow and claim on the source.
     /// </remarks>
     public OpaqueThinIter TryIter(bool fail)
     {
@@ -238,6 +244,7 @@ public partial class OpaqueThinVec : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// Dispose the returned value to release its borrow and claim on the source.
     /// </remarks>
     public OpaqueThinIter? OptionalIter(bool some)
     {

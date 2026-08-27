@@ -51,6 +51,7 @@ public partial class OpaqueThinIter : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
+    /// Dispose the returned value to release its claim on the source.
     /// </remarks>
     public OpaqueThin? Next()
     {

@@ -76,6 +76,7 @@ public partial class RcSource : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
+    /// Dispose the returned value to release its claim on the source.
     /// </remarks>
     public RcSource View()
     {
@@ -95,7 +96,8 @@ public partial class RcSource : IDisposable
     /// </returns>
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-    /// Dispose the returned value to end the exclusive borrow on the receiver.
+    /// The returned value holds an exclusive borrow on its source.
+    /// Dispose the returned value to end the exclusive borrow and release its claim on the source.
     /// </remarks>
     public RcSource ViewMut()
     {
@@ -129,6 +131,7 @@ public partial class RcSource : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// Dispose the returned value to release its borrow and claim on the source.
     /// </remarks>
     public RcDependent MakeDependent()
     {

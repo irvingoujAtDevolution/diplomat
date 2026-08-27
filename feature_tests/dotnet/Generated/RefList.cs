@@ -51,6 +51,7 @@ public partial class RefList : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// Dispose the returned value to release its borrow and claim on the source.
     /// </remarks>
     public static RefList Node(RefListParameter data)
     {

@@ -51,6 +51,7 @@ public partial class One : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// Dispose the returned value to release its borrow and claim on the source.
     /// </remarks>
     public static One Transitivity(One hold, One nohold)
     {
@@ -75,6 +76,7 @@ public partial class One : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// Dispose the returned value to release its borrow and claim on the source.
     /// </remarks>
     public static One Cycle(Two hold, One nohold)
     {
@@ -99,6 +101,7 @@ public partial class One : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// Dispose the returned value to release its borrow and claim on the source.
     /// </remarks>
     public static One ManyDependents(One a, One b, Two c, Two d, Two nohold)
     {
@@ -132,6 +135,7 @@ public partial class One : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// Dispose the returned value to release its borrow and claim on the source.
     /// </remarks>
     public static One ReturnOutlivesParam(Two hold, One nohold)
     {
@@ -156,6 +160,7 @@ public partial class One : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// Dispose the returned value to release its borrow and claim on the source.
     /// </remarks>
     public static One DiamondTop(One top, One left, One right, One bottom)
     {
@@ -186,6 +191,7 @@ public partial class One : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// Dispose the returned value to release its borrow and claim on the source.
     /// </remarks>
     public static One DiamondLeft(One top, One left, One right, One bottom)
     {
@@ -216,6 +222,7 @@ public partial class One : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// Dispose the returned value to release its borrow and claim on the source.
     /// </remarks>
     public static One DiamondRight(One top, One left, One right, One bottom)
     {
@@ -246,6 +253,7 @@ public partial class One : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// Dispose the returned value to release its borrow and claim on the source.
     /// </remarks>
     public static One DiamondBottom(One top, One left, One right, One bottom)
     {
@@ -276,6 +284,7 @@ public partial class One : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// Dispose the returned value to release its borrow and claim on the source.
     /// </remarks>
     public static One DiamondAndNestedTypes(One a, One b, One c, One d, One nohold)
     {
@@ -309,6 +318,7 @@ public partial class One : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// Dispose the returned value to release its borrow and claim on the source.
     /// </remarks>
     public static One ImplicitBounds(One explicitHold, One implicitHold, One nohold)
     {
@@ -336,6 +346,7 @@ public partial class One : IDisposable
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
+    /// Dispose the returned value to release its borrow and claim on the source.
     /// </remarks>
     public static One ImplicitBoundsDeep(One @explicit, One implicit1, One implicit2, One nohold)
     {

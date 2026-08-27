@@ -20,15 +20,25 @@
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
 {%- if lifetime.scoped_return %}
-    /// Dispose the returned value to end the exclusive borrow on the receiver.
+    /// The returned value holds an exclusive borrow on its source.
 {%- else if lifetime.versioned_return %}
     /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
 {%- else %}
     /// The returned value keeps its borrowed backing storage alive until cleanup.
 {%- endif %}
+{%- if lifetime.required_disposal_borrow %}
+{%- if lifetime.scoped_return %}
+    /// Dispose the returned value to end the exclusive borrow and release its claim on the source.
+{%- else if lifetime.versioned_return %}
+    /// Dispose the returned value to release its claim on the source.
+{%- else %}
+    /// Dispose the returned value to release its borrow and claim on the source.
+{%- endif %}
+{%- endif %}
 {%- if lifetime.pinned_inputs %}
     /// <br/>
-    /// The buffer passed via <c>ReadOnlyMemory</c> stays pinned until the returned value is disposed; do not mutate it while the returned value is in use.
+    /// The buffer passed via <c>ReadOnlyMemory</c> stays pinned while the returned value is in use.
+    /// Dispose the returned value to unpin it. Do not mutate the buffer while the returned value is in use.
 {%- endif %}
     /// </remarks>
 {%- endif %}

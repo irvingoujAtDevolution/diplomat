@@ -105,23 +105,91 @@ The reference count is updated with `Interlocked` so a user-thread retain can
 race a finalizer-thread token release on the same handle without lost updates.
 Teardown still runs only on the thread that drives the count to zero.
 
-Every generated opaque implements `IDisposable` and keeps a finalizer as a fallback.
-`Dispose()` runs the same private idempotent cleanup path and calls
+Every opaque keeps a finalizer as a fallback. Add
+`#[diplomat::attr(dotnet, manually_disposable)]` to opt into `IDisposable`. The .NET
+generator requires the attribute on a returned opaque in these cases:
+
+1. A method returns a mutable borrow. Only `Dispose()` ends the exclusive borrow.
+
+   ```rust
+   #[diplomat::opaque]
+   #[diplomat::attr(dotnet, manually_disposable)]
+   pub struct View;
+
+   #[diplomat::opaque]
+   pub struct Source(View);
+
+   impl Source {
+       pub fn view_mut(&mut self) -> &mut View { &mut self.0 }
+   }
+   ```
+
+2. A method returns an owned opaque that borrows from the receiver or another opaque
+   parameter. `Dispose()` releases the returned wrapper's borrow and lifetime claim.
+
+   ```rust
+   #[diplomat::opaque]
+   pub struct Parent;
+
+   #[diplomat::opaque]
+   #[diplomat::attr(dotnet, manually_disposable)]
+   pub struct Child<'a>(&'a Parent);
+
+   impl Parent {
+       pub fn child(&self) -> Box<Child<'_>> { Box::new(Child(self)) }
+   }
+   ```
+
+3. A returned view retains an opaque that is manually disposable or is required to be
+   manually disposable. The rule is transitive, so every returned view in the retention
+   chain must carry the attribute.
+
+   ```rust
+   #[diplomat::opaque]
+   #[diplomat::attr(dotnet, manually_disposable)]
+   pub struct Source(View);
+
+   #[diplomat::opaque]
+   #[diplomat::attr(dotnet, manually_disposable)]
+   pub struct View;
+
+   impl Source {
+       pub fn view(&self) -> &View { &self.0 }
+   }
+   ```
+
+4. An owned opaque return borrows a managed slice or string input. The wrapper keeps that
+   managed memory pinned until `Dispose()` unpins it.
+
+   ```rust
+   #[diplomat::opaque]
+   #[diplomat::attr(dotnet, manually_disposable)]
+   pub struct Parser<'a>(&'a [u8]);
+
+   impl Parser<'_> {
+       pub fn parse<'a>(data: &'a [u8]) -> Box<Parser<'a>> {
+           Box::new(Parser(data))
+       }
+   }
+   ```
+
+A plain owned opaque with no borrowed data does not require the attribute. A shared view of
+a source that is not manually disposable does not require it either. You may still opt in
+when no rule requires deterministic cleanup.
+
+`Dispose()` runs the same private idempotent cleanup path as the finalizer and calls
 `GC.SuppressFinalize(this)`. It releases this wrapper's ownership reference but does not
 necessarily destroy the native value immediately: existing borrowers keep it alive and
 remain valid. The disposed wrapper itself rejects further use with
 `ObjectDisposedException`. Native calls are followed by `GC.KeepAlive(this)` to prevent
-finalization while P/Invoke is still using the pointer. The legacy
-`#[diplomat::attr(dotnet, manually_disposable)]` attribute is accepted for source
-compatibility but is otherwise ignored because every opaque is already disposable. It is
-scheduled for removal in the next breaking release ([#1260](https://github.com/rust-diplomat/diplomat/issues/1260)).
+finalization while P/Invoke is still using the pointer.
 
 Shared versioned views do not keep their source borrowed between calls: a mutable source
 call can proceed and invalidates the old view. Exclusive views are bare wrappers, and owned
 values that borrow from a source keep a real source borrow until disposed. A conflicting
 source mutation throws `InvalidOperationException` until that view or dependent is disposed.
 Dispose these values deterministically rather than waiting for the GC if the source needs to
-be mutated again.
+be mutated again. In particular, dispose owned-borrowing returns before mutating their source.
 
 ## String encoding
 

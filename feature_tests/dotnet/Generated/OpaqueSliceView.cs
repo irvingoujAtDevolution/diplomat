@@ -53,7 +53,8 @@ public partial class OpaqueSliceView : IDisposable
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
     /// <br/>
-    /// The buffer passed via <c>ReadOnlyMemory</c> stays pinned until the returned value is disposed; do not mutate it while the returned value is in use.
+    /// The buffer passed via <c>ReadOnlyMemory</c> stays pinned while the returned value is in use.
+    /// Dispose the returned value to unpin it. Do not mutate the buffer while the returned value is in use.
     /// </remarks>
     public static OpaqueSliceView Parse(ReadOnlyMemory<byte> data)
     {
@@ -86,7 +87,8 @@ public partial class OpaqueSliceView : IDisposable
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
     /// <br/>
-    /// The buffer passed via <c>ReadOnlyMemory</c> stays pinned until the returned value is disposed; do not mutate it while the returned value is in use.
+    /// The buffer passed via <c>ReadOnlyMemory</c> stays pinned while the returned value is in use.
+    /// Dispose the returned value to unpin it. Do not mutate the buffer while the returned value is in use.
     /// </remarks>
     public static OpaqueSliceView ParseStrict(ReadOnlyMemory<byte> data)
     {
@@ -118,7 +120,8 @@ public partial class OpaqueSliceView : IDisposable
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// The returned value keeps its borrowed backing storage alive until cleanup.
     /// <br/>
-    /// The buffer passed via <c>ReadOnlyMemory</c> stays pinned until the returned value is disposed; do not mutate it while the returned value is in use.
+    /// The buffer passed via <c>ReadOnlyMemory</c> stays pinned while the returned value is in use.
+    /// Dispose the returned value to unpin it. Do not mutate the buffer while the returned value is in use.
     /// </remarks>
     public static OpaqueSliceView Wrap(ReadOnlyMemory<byte> data)
     {

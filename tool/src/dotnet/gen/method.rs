@@ -713,6 +713,7 @@ pub(super) struct MethodInfo<'ctx> {
     pub(super) inputs: DotnetInputs,
     pub(super) return_type: DotnetReturnType,
     pub(super) lifetime_warning: bool,
+    pub(super) required_disposal_borrow: bool,
     /// Direct opaque-param/`this` borrow edges the returned wrapper retains
     /// by taking over the input's `BorrowLease<T>`: the source's
     /// physical Rust destructor is deferred until this dependent (and every
@@ -769,6 +770,7 @@ pub(super) struct MemberDocs {
 pub(super) struct LifetimeNote {
     pub(super) scoped_return: bool,
     pub(super) versioned_return: bool,
+    pub(super) required_disposal_borrow: bool,
     /// Always false for an accessor: pinning needs the *return* to borrow a
     /// slice parameter, and a setter returns unit while a getter takes none.
     pub(super) pinned_inputs: bool,
@@ -792,6 +794,7 @@ impl MemberDocs {
                 versioned_return: (matches!(method.return_type, DotnetReturnType::Opaque(_))
                     && method.ownership.is_borrowed_shared())
                     || matches!(method.return_type, DotnetReturnType::BorrowedSpan(_)),
+                required_disposal_borrow: method.required_disposal_borrow,
                 pinned_inputs: method.has_pinned_inputs(),
             }),
         }
@@ -816,10 +819,12 @@ impl MemberDocs {
                 let lifetime = docs.lifetime.get_or_insert(LifetimeNote {
                     scoped_return: false,
                     versioned_return: false,
+                    required_disposal_borrow: false,
                     pinned_inputs: false,
                 });
                 lifetime.scoped_return |= note.scoped_return;
                 lifetime.versioned_return |= note.versioned_return;
+                lifetime.required_disposal_borrow |= note.required_disposal_borrow;
                 lifetime.pinned_inputs |= note.pinned_inputs;
             }
         }
@@ -1310,6 +1315,12 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                 }
             }
         }
+        let required_disposal_borrow = opaque_id.is_some()
+            && (ownership.is_borrowed_mutable()
+                || (ownership.is_owned() && !ok_dependency_ids.is_empty())
+                || ok_dependency_ids
+                    .iter()
+                    .any(|(_, source)| self.tcx.resolve_opaque(*source).attrs.manually_disposable));
         let keep_alive_sources = self.borrow_dependencies(&inputs, ok_dependencies)?;
         let error_keep_alive_sources = self.borrow_dependencies(&inputs, err_dependencies)?;
         let lifetime_warning = !keep_alive_sources.is_empty() || !keep_alive_pins.is_empty();
@@ -1374,6 +1385,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                 inputs,
                 return_type,
                 lifetime_warning,
+                required_disposal_borrow,
                 keep_alive_sources,
                 keep_alive_pins,
                 error_keep_alive_sources,
