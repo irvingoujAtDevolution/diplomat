@@ -112,11 +112,11 @@ generator requires the attribute on a returned opaque in these cases:
 1. A method returns a mutable borrow. Only `Dispose()` ends the exclusive borrow.
 
    ```rust
-   #[diplomat::opaque]
+   #[diplomat::opaque_mut]
    #[diplomat::attr(dotnet, manually_disposable)]
    pub struct View;
 
-   #[diplomat::opaque]
+   #[diplomat::opaque_mut]
    pub struct Source(View);
 
    impl Source {
@@ -136,7 +136,7 @@ generator requires the attribute on a returned opaque in these cases:
    pub struct Child<'a>(&'a Parent);
 
    impl Parent {
-       pub fn child(&self) -> Box<Child<'_>> { Box::new(Child(self)) }
+       pub fn child<'a>(&'a self) -> Box<Child<'a>> { Box::new(Child(self)) }
    }
    ```
 

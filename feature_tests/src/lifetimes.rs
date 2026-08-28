@@ -4,6 +4,8 @@ pub mod ffi {
 
     use diplomat_runtime::DiplomatStr16;
 
+    // .NET requires the attribute here: `Bar::foo` hands out a view of this and
+    // `Bar` is disposable, so a finalizer-only `Foo` would defer `Bar`'s release.
     #[diplomat::opaque]
     #[diplomat::attr(dotnet, manually_disposable)]
     pub struct Foo<'a>(&'a DiplomatStr);
@@ -310,6 +312,8 @@ pub mod ffi {
     // The Vec type stores the underlying type, and when it returns accessors, it does so
     // via transparent_convert and non-owning references. Iterators, iterables, and getters
     // are all handled via attributes, which may have slightly different codepaths.
+    // .NET requires the attribute here: `OpaqueThinVec::first` returns a view of
+    // this and the vec is disposable.
     #[diplomat::opaque]
     #[diplomat::attr(dotnet, manually_disposable)]
     #[diplomat::transparent_convert]

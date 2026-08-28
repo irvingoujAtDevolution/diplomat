@@ -4,7 +4,7 @@
 {%- if let Some(opaque_name) = docs.returns_opaque %}
     /// <returns>
 {%- if let Some(lifetime) = docs.lifetime %}
-{%- if lifetime.scoped_return %}
+{%- if lifetime.exclusive_return %}
     /// An exclusive view into the Rust-backed <c>{{ opaque_name }}</c>.
 {%- else if lifetime.versioned_return %}
     /// A view into the Rust-backed <c>{{ opaque_name }}</c>.
@@ -19,7 +19,7 @@
 {%- if let Some(lifetime) = docs.lifetime %}
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
-{%- if lifetime.scoped_return %}
+{%- if lifetime.exclusive_return %}
     /// The returned value holds an exclusive borrow on its source.
 {%- else if lifetime.versioned_return %}
     /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
@@ -27,7 +27,7 @@
     /// The returned value keeps its borrowed backing storage alive until cleanup.
 {%- endif %}
 {%- if lifetime.required_disposal_borrow %}
-{%- if lifetime.scoped_return %}
+{%- if lifetime.exclusive_return %}
     /// Dispose the returned value to end the exclusive borrow and release its claim on the source.
 {%- else if lifetime.versioned_return %}
     /// Dispose the returned value to release its claim on the source.

@@ -718,13 +718,18 @@ mod test {
         (files.take_files(), errors)
     }
 
-    fn assert_required_disposal_error(errors: &[String], type_name: &str, rule: u8, method: &str) {
+    fn assert_required_disposal_error(
+        errors: &[String],
+        type_name: &str,
+        rule: &str,
+        method: &str,
+    ) {
         let message = errors.join("\n");
-        assert!(message.contains(type_name), "missing type in: {message}");
         assert!(
-            message.contains(&format!("rule {rule}")),
-            "missing rule in: {message}"
+            message.contains(&format!("`{type_name}` must be")),
+            "missing type in: {message}"
         );
+        assert!(message.contains(rule), "missing rule in: {message}");
         assert!(message.contains(method), "missing method in: {message}");
     }
 
@@ -747,7 +752,7 @@ mod test {
             }
         });
 
-        assert_required_disposal_error(&errors, "View", 1, "Source::view_mut");
+        assert_required_disposal_error(&errors, "View", "mutable borrow", "Source::view_mut");
     }
 
     #[test]
@@ -769,7 +774,7 @@ mod test {
             }
         });
 
-        assert_required_disposal_error(&errors, "Dependent", 2, "Source::dependent");
+        assert_required_disposal_error(&errors, "Dependent", "owned borrow", "Source::dependent");
     }
 
     #[test]
@@ -793,7 +798,12 @@ mod test {
             }
         });
 
-        assert_required_disposal_error(&errors, "BorrowingError", 2, "Source::try_borrow");
+        assert_required_disposal_error(
+            &errors,
+            "BorrowingError",
+            "owned borrow",
+            "Source::try_borrow",
+        );
         assert!(errors.join("\n").contains("error arm"));
     }
 
@@ -817,7 +827,7 @@ mod test {
             }
         });
 
-        assert_required_disposal_error(&errors, "View", 3, "Source::view");
+        assert_required_disposal_error(&errors, "View", "transitive retention", "Source::view");
     }
 
     #[test]
@@ -850,8 +860,8 @@ mod test {
         });
 
         assert_eq!(errors.len(), 2, "unexpected diagnostics: {errors:?}");
-        assert_required_disposal_error(&errors, "Middle", 3, "Source::middle");
-        assert_required_disposal_error(&errors, "Outer", 3, "Middle::outer");
+        assert_required_disposal_error(&errors, "Middle", "transitive retention", "Source::middle");
+        assert_required_disposal_error(&errors, "Outer", "transitive retention", "Middle::outer");
     }
 
     #[test]
@@ -870,7 +880,7 @@ mod test {
             }
         });
 
-        assert_required_disposal_error(&errors, "View", 4, "View::parse");
+        assert_required_disposal_error(&errors, "View", "pinned input", "View::parse");
     }
 
     #[test]
@@ -979,6 +989,68 @@ mod test {
         });
 
         assert!(errors.is_empty(), "unexpected diagnostics: {errors:?}");
+    }
+
+    #[test]
+    fn required_disposal_reports_one_error_per_type_with_every_trigger() {
+        let (_files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::opaque]
+                pub struct Source;
+
+                #[diplomat::opaque]
+                pub struct Dependent<'a>(&'a Source);
+
+                impl Source {
+                    pub fn dependent_a<'a>(&'a self) -> Box<Dependent<'a>> {
+                        unimplemented!()
+                    }
+
+                    pub fn dependent_b<'a>(&'a self) -> Box<Dependent<'a>> {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert_eq!(errors.len(), 1, "unexpected diagnostics: {errors:?}");
+        assert_required_disposal_error(&errors, "Dependent", "owned borrow", "Source::dependent_a");
+        assert!(errors[0].contains("Source::dependent_b"), "{}", errors[0]);
+        assert_eq!(errors[0].matches("\n  - ").count(), 2, "{}", errors[0]);
+    }
+
+    #[test]
+    fn optional_mutable_borrowed_opaque_return_generates_nullable_view() {
+        let (files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::attr(dotnet, manually_disposable)]
+                #[diplomat::opaque_mut]
+                pub struct Foo;
+
+                impl Foo {
+                    pub fn maybe_mut<'a>(&'a mut self) -> Option<&'a mut Self> {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert!(errors.is_empty(), "unexpected diagnostics: {errors:?}");
+        let foo = files.get("Foo.cs").expect("expected Foo.cs output");
+        assert_eq!(
+            foo.lines()
+                .find(|line| line.trim_start().starts_with("public Foo? MaybeMut"))
+                .map(str::trim),
+            Some("public Foo? MaybeMut()")
+        );
+        assert!(
+            foo.contains(
+                "return result == null ? null : new Foo(result, BorrowKind.Exclusive, selfLease);"
+            ),
+            "an optional mutable borrow must lower to a nullable bare wrapper:\n{foo}"
+        );
     }
 
     #[test]
@@ -1106,7 +1178,7 @@ mod test {
     }
 
     #[test]
-    fn mutable_borrowed_opaque_return_generates_scoped_non_owning_view() {
+    fn mutable_borrowed_opaque_return_generates_exclusive_non_owning_view() {
         let tk_stream = quote! {
             #[diplomat::bridge]
             mod ffi {

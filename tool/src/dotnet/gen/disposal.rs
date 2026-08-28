@@ -1,3 +1,29 @@
+//! Decides which opaques must carry `#[diplomat::attr(dotnet, manually_disposable)]`.
+//!
+//! A generated wrapper can hold something on another object that only its
+//! `Dispose()` releases before the garbage collector gets to it: a borrow on
+//! the source, a lifetime claim on it, or a pin on a managed buffer. If the
+//! wrapper's type has no `Dispose()`, the source stays borrowed, alive, or
+//! pinned until finalization. So a type that can land in one of these positions
+//! has to opt into `IDisposable`, and generation fails when it does not:
+//!
+//! - mutable borrow: a method returns `&mut T`. The wrapper holds an exclusive
+//!   borrow on its source.
+//! - owned borrow: a method returns `Box<T<'a>>` borrowing the receiver or an
+//!   opaque parameter. The wrapper holds a real borrow, so the source cannot be
+//!   mutated until that borrow is released. The `Err` arm counts too.
+//! - transitive retention: the returned value retains, directly or through
+//!   other views, a source that is (or must be) manually disposable. A view
+//!   must not defer a disposable source's release to the GC.
+//! - pinned input: a method returns `Box<T<'a>>` borrowing a slice or string
+//!   parameter, so the wrapper pins managed memory.
+//!
+//! The facts come from the same dependency and pin lists that become the
+//! generated `edges`, recorded while each method is lowered.
+//! [`DisposalRequirements::finish`] then propagates transitive retention as a
+//! fixpoint over the union of marked and required types, so a whole chain is
+//! reported in one run instead of one link per generation.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use diplomat_core::hir::{OpaqueId, TypeContext, TypeDef, TypeId};
@@ -6,25 +32,19 @@ use crate::{dotnet::formatter::DotnetFormatter, ErrorStore};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ReturnArm {
-    Ok,
-    Err,
+    Success,
+    Error,
 }
 
+/// Where a returned value's borrow comes from, named the way the Rust author
+/// wrote it.
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum BorrowSource {
+pub(super) enum BorrowSource {
     Receiver,
     Parameter(String),
 }
 
 impl BorrowSource {
-    fn new(name: &str) -> Self {
-        if name == "this" {
-            Self::Receiver
-        } else {
-            Self::Parameter(name.to_string())
-        }
-    }
-
     fn describe(&self) -> String {
         match self {
             Self::Receiver => "the receiver".to_string(),
@@ -43,6 +63,26 @@ enum TriggerKind {
         source_is_marked: bool,
     },
     PinnedSlice(String),
+}
+
+impl TriggerKind {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::MutableBorrow => "mutable borrow",
+            Self::OwnedBorrow(_) => "owned borrow",
+            Self::Retains { .. } => "transitive retention",
+            Self::PinnedSlice(_) => "pinned input",
+        }
+    }
+
+    fn rank(&self) -> u8 {
+        match self {
+            Self::MutableBorrow => 0,
+            Self::OwnedBorrow(_) => 1,
+            Self::PinnedSlice(_) => 2,
+            Self::Retains { .. } => 3,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,7 +128,7 @@ impl DisposalRequirements {
     pub(super) fn record_owned_borrow(
         &mut self,
         opaque: OpaqueId,
-        source: &str,
+        source: BorrowSource,
         method: &str,
         arm: ReturnArm,
     ) {
@@ -97,7 +137,7 @@ impl DisposalRequirements {
             Trigger {
                 method: method.to_string(),
                 arm,
-                kind: TriggerKind::OwnedBorrow(BorrowSource::new(source)),
+                kind: TriggerKind::OwnedBorrow(source),
             },
         );
     }
@@ -134,6 +174,11 @@ impl DisposalRequirements {
         });
     }
 
+    /// Reports every type that must be `manually_disposable` but is not.
+    ///
+    /// Propagation runs over marked *and* required types. Propagating from the
+    /// marked set alone would report an outer view only after the author marks
+    /// the middle one, one generation per link.
     pub(super) fn finish<'tcx>(
         &self,
         tcx: &'tcx TypeContext,
@@ -194,56 +239,50 @@ impl DisposalRequirements {
             }
         }
 
-        let mut missing: Vec<(String, OpaqueId)> = required
+        let mut missing: Vec<(&str, OpaqueId)> = required
             .difference(&marked)
-            .filter(|id| !tcx.resolve_opaque(**id).attrs.disable)
-            .map(|id| (formatter.fmt_type_name((*id).into()).into_owned(), *id))
+            .map(|id| (*id, tcx.resolve_opaque(*id)))
+            .filter(|(_, def)| !def.attrs.disable)
+            .map(|(id, def)| (def.name.as_str(), id))
             .collect();
-        missing.sort_by(|a, b| a.0.cmp(&b.0));
+        missing.sort_by(|a, b| a.0.cmp(b.0));
 
-        for (display_name, id) in missing {
+        for (rust_name, id) in missing {
             let mut type_triggers = triggers.remove(&id).unwrap_or_default();
             type_triggers.sort_by(|a, b| {
-                a.method
-                    .cmp(&b.method)
-                    .then_with(|| trigger_rule(&a.kind).cmp(&trigger_rule(&b.kind)))
+                a.kind
+                    .rank()
+                    .cmp(&b.kind.rank())
+                    .then_with(|| a.method.cmp(&b.method))
             });
             let mut message = format!(
-                "[.NET backend] `{display_name}` must be `#[diplomat::attr(dotnet, manually_disposable)]`:"
+                "[.NET backend] `{rust_name}` must be `#[diplomat::attr(dotnet, manually_disposable)]`:"
             );
             for trigger in &type_triggers {
                 message.push_str("\n  - ");
-                message.push_str(&trigger.describe(formatter));
+                message.push_str(&trigger.describe(tcx));
             }
-            let _guard = errors.set_context_ty(display_name.into());
+            let _guard = errors.set_context_ty(formatter.fmt_type_name(id.into()));
             errors.push_error(message);
         }
     }
 }
 
-fn trigger_rule(kind: &TriggerKind) -> u8 {
-    match kind {
-        TriggerKind::MutableBorrow => 1,
-        TriggerKind::OwnedBorrow(_) => 2,
-        TriggerKind::Retains { .. } => 3,
-        TriggerKind::PinnedSlice(_) => 4,
-    }
-}
-
 impl Trigger {
-    fn describe(&self, formatter: &DotnetFormatter<'_>) -> String {
-        let error_arm = if self.arm == ReturnArm::Err {
+    fn describe(&self, tcx: &TypeContext) -> String {
+        let label = self.kind.label();
+        let error_arm = if self.arm == ReturnArm::Error {
             " from the error arm"
         } else {
             ""
         };
         match &self.kind {
             TriggerKind::MutableBorrow => format!(
-                "`{}` returns it as a mutable borrow (rule 1: only Dispose() ends the exclusive borrow)",
+                "{label}: `{}` returns it as a mutable borrow; only Dispose() ends the exclusive borrow",
                 self.method
             ),
             TriggerKind::OwnedBorrow(source) => format!(
-                "`{}` returns it{error_arm} as an owned value that borrows from {} (rule 2: the wrapper holds a borrow it must be able to release)",
+                "{label}: `{}` returns it{error_arm} as an owned value that borrows from {}; the wrapper holds a borrow it must be able to release",
                 self.method,
                 source.describe()
             ),
@@ -252,22 +291,24 @@ impl Trigger {
                 root,
                 source_is_marked,
             } => {
-                let source_name = formatter.fmt_type_name((*source).into());
+                let source_name = tcx.resolve_opaque(*source).name.as_str();
                 let relation = if *source_is_marked {
                     "which is manually_disposable".to_string()
                 } else if source == root {
                     "which must be manually_disposable".to_string()
                 } else {
-                    let root_name = formatter.fmt_type_name((*root).into());
-                    format!("which retains the manually_disposable `{root_name}`")
+                    format!(
+                        "which retains the manually_disposable `{}`",
+                        tcx.resolve_opaque(*root).name.as_str()
+                    )
                 };
                 format!(
-                    "`{}` returns it{error_arm} borrowing from `{source_name}`, {relation} (rule 3: a view must not defer a disposable source's release)",
+                    "{label}: `{}` returns it{error_arm} borrowing from `{source_name}`, {relation}; a view must not defer a disposable source's release",
                     self.method
                 )
             }
             TriggerKind::PinnedSlice(parameter) => format!(
-                "`{}` returns it borrowing from slice parameter `{parameter}` (rule 4: the wrapper pins managed memory it must be able to unpin)",
+                "{label}: `{}` returns it borrowing from slice parameter `{parameter}`; the wrapper pins managed memory it must be able to unpin",
                 self.method
             ),
         }
