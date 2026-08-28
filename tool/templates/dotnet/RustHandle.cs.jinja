@@ -131,20 +131,20 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
         }
     }
 
-    private IDisposable[] AcquireDependencies()
+    private IBorrowLease[] AcquireDependencies()
     {
-        List<IDisposable>? acquired = null;
+        List<IBorrowLease>? acquired = null;
         try
         {
             foreach (object edge in _edges)
             {
                 if (edge is IVersionedClaim dependency)
                 {
-                    (acquired ??= new List<IDisposable>()).Add(dependency.Acquire());
+                    (acquired ??= new List<IBorrowLease>()).Add(dependency.Acquire());
                 }
             }
 
-            return acquired?.ToArray() ?? System.Array.Empty<IDisposable>();
+            return acquired?.ToArray() ?? System.Array.Empty<IBorrowLease>();
         }
         catch
         {

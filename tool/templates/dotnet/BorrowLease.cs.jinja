@@ -11,7 +11,7 @@ internal enum BorrowKind
     Exclusive,
 }
 
-internal interface IBorrowLease
+internal interface IBorrowLease : IDisposable
 {
     IDisposable Transfer();
     IDisposable TransferVersioned();
@@ -19,16 +19,17 @@ internal interface IBorrowLease
 
 internal interface IVersionedClaim
 {
-    IDisposable Acquire();
+    /// A dependency hold is always a live shared lease on the source.
+    IBorrowLease Acquire();
 }
 
-internal sealed unsafe class BorrowLease<T> : IBorrowLease, IDisposable where T : unmanaged
+internal sealed unsafe class BorrowLease<T> : IBorrowLease where T : unmanaged
 {
     private RustHandle<T>? _owner;
     private readonly BorrowKind _kind;
-    private IDisposable[] _dependencies;
+    private IBorrowLease[] _dependencies;
 
-    internal BorrowLease(RustHandle<T> owner, BorrowKind kind, IDisposable[] dependencies)
+    internal BorrowLease(RustHandle<T> owner, BorrowKind kind, IBorrowLease[] dependencies)
     {
         _owner = owner;
         _kind = kind;
@@ -93,16 +94,16 @@ internal sealed unsafe class BorrowLease<T> : IBorrowLease, IDisposable where T 
         return owner;
     }
 
-    private IDisposable[] TakeDependencies() => Take(ref _dependencies);
+    private IBorrowLease[] TakeDependencies() => Take(ref _dependencies);
 
-    private static IDisposable[] Take(ref IDisposable[] dependencies)
+    private static IBorrowLease[] Take(ref IBorrowLease[] dependencies)
     {
-        IDisposable[] taken = dependencies;
-        dependencies = System.Array.Empty<IDisposable>();
+        IBorrowLease[] taken = dependencies;
+        dependencies = System.Array.Empty<IBorrowLease>();
         return taken;
     }
 
-    private static void ReleaseDependencies(IDisposable[] dependencies)
+    private static void ReleaseDependencies(IBorrowLease[] dependencies)
     {
         for (int i = dependencies.Length - 1; i >= 0; i--)
         {
@@ -114,9 +115,9 @@ internal sealed unsafe class BorrowLease<T> : IBorrowLease, IDisposable where T 
     {
         private RustHandle<T>? _owner;
         private readonly BorrowKind _kind;
-        private IDisposable[] _dependencies;
+        private IBorrowLease[] _dependencies;
 
-        internal BorrowToken(RustHandle<T> owner, BorrowKind kind, IDisposable[] dependencies)
+        internal BorrowToken(RustHandle<T> owner, BorrowKind kind, IBorrowLease[] dependencies)
         {
             _owner = owner;
             _kind = kind;
@@ -155,7 +156,7 @@ internal sealed unsafe class BorrowLease<T> : IBorrowLease, IDisposable where T 
             _version = version;
         }
 
-        IDisposable IVersionedClaim.Acquire()
+        IBorrowLease IVersionedClaim.Acquire()
         {
             RustHandle<T>? owner = Volatile.Read(ref _owner);
             if (owner is null)

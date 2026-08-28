@@ -85,7 +85,7 @@ public sealed unsafe class DiplomatBorrowedSpan<T> : IDisposable where T : unman
         {
             throw new ArgumentNullException(nameof(action));
         }
-        IDisposable[] acquired = AcquireDependencies();
+        IBorrowLease[] acquired = AcquireDependencies();
         try
         {
             action(new ReadOnlySpan<T>(_ptr, _len));
@@ -100,7 +100,7 @@ public sealed unsafe class DiplomatBorrowedSpan<T> : IDisposable where T : unman
     /// <summary>An explicit, independent copy — never implicit.</summary>
     public T[] Clone()
     {
-        IDisposable[] acquired = AcquireDependencies();
+        IBorrowLease[] acquired = AcquireDependencies();
         try
         {
             return new ReadOnlySpan<T>(_ptr, _len).ToArray();
@@ -133,7 +133,7 @@ public sealed unsafe class DiplomatBorrowedSpan<T> : IDisposable where T : unman
         }
     }
 
-    private IDisposable[] AcquireDependencies()
+    private IBorrowLease[] AcquireDependencies()
     {
         object[] edges = Volatile.Read(ref _edges);
         if (Volatile.Read(ref _disposed) != 0)
@@ -141,18 +141,18 @@ public sealed unsafe class DiplomatBorrowedSpan<T> : IDisposable where T : unman
             throw new ObjectDisposedException(nameof(DiplomatBorrowedSpan<T>));
         }
 
-        List<IDisposable>? acquired = null;
+        List<IBorrowLease>? acquired = null;
         try
         {
             foreach (object edge in edges)
             {
                 if (edge is IVersionedClaim dependency)
                 {
-                    (acquired ??= new List<IDisposable>()).Add(dependency.Acquire());
+                    (acquired ??= new List<IBorrowLease>()).Add(dependency.Acquire());
                 }
             }
 
-            return acquired?.ToArray() ?? System.Array.Empty<IDisposable>();
+            return acquired?.ToArray() ?? System.Array.Empty<IBorrowLease>();
         }
         catch
         {
@@ -164,7 +164,7 @@ public sealed unsafe class DiplomatBorrowedSpan<T> : IDisposable where T : unman
         }
     }
 
-    private static void ReleaseDependencies(IDisposable[] dependencies)
+    private static void ReleaseDependencies(IBorrowLease[] dependencies)
     {
         for (int i = dependencies.Length - 1; i >= 0; i--)
         {
