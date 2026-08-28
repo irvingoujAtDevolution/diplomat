@@ -252,7 +252,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
 
         self.disposal
             .borrow()
-            .finish(self.tcx, self.errors, self.formatter);
+            .report_missing(self.tcx, self.errors, self.formatter);
 
         let rendered = prepared_types
             .into_iter()

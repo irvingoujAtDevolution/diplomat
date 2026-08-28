@@ -1267,7 +1267,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                 .iter()
                 .map(|name| {
                     let (id, source) = opaque_params.get(name).expect(
-                        "an opaque borrow edge always names the receiver or an opaque parameter registered above",
+                        "borrow edges come from visit_param, which saw exactly the receiver and parameters registered in opaque_params",
                     );
                     (source.clone(), *id)
                 })

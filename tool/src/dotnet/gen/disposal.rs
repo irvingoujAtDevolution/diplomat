@@ -20,7 +20,7 @@
 //!
 //! The facts come from the same dependency and pin lists that become the
 //! generated `edges`, recorded while each method is lowered.
-//! [`DisposalRequirements::finish`] then propagates transitive retention as a
+//! [`DisposalRequirements::report_missing`] then propagates transitive retention as a
 //! fixpoint over the union of marked and required types, so a whole chain is
 //! reported in one run instead of one link per generation.
 
@@ -30,6 +30,9 @@ use diplomat_core::hir::{OpaqueId, TypeContext, TypeDef, TypeId};
 
 use crate::{dotnet::formatter::DotnetFormatter, ErrorStore};
 
+/// Which arm of a `Result` return a trigger came from. `OutputArm` in
+/// `method.rs` carries the Ok arm's pin list, so it cannot be copied or
+/// compared; a trigger only needs the tag.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ReturnArm {
     Success,
@@ -179,7 +182,7 @@ impl DisposalRequirements {
     /// Propagation runs over marked *and* required types. Propagating from the
     /// marked set alone would report an outer view only after the author marks
     /// the middle one, one generation per link.
-    pub(super) fn finish<'tcx>(
+    pub(super) fn report_missing<'tcx>(
         &self,
         tcx: &'tcx TypeContext,
         errors: &ErrorStore<'tcx, String>,
