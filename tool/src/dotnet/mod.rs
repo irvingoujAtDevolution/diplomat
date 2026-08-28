@@ -82,7 +82,7 @@
 //! rolls both changes back. A returned borrowed value transfers that same lease
 //! into its edge array instead of acquiring a second lifetime-only token.
 //!
-//! Cleanup order in `RustHandle<T>.Decrement()` (once the refcount reaches
+//! Cleanup order in `RustHandle<T>.DropClaim()` (once the refcount reaches
 //! zero): run the native destructor/Rust `Drop` first, then dispose every
 //! edge. Pins and borrow leases both implement `IDisposable`. This ensures a
 //! dependent's own Rust destructor always finishes reading whatever it
@@ -1396,24 +1396,31 @@ mod test {
             "edges must be threaded into RustHandle's own constructor:\n{rust_handle}"
         );
 
-        // Inside `Decrement()`, the destructor call must textually precede
-        // the edges-disposal loop, and both must be reachable only from the
-        // refcount-reaches-zero branch — never unconditionally on every
-        // release call.
-        let refcount_zero_branch = rust_handle
-            .find("if (Interlocked.Decrement(ref _refCount) != 0)")
-            .expect("Decrement() should early-return unless the refcount just hit zero");
-        let destructor_at = rust_handle
+        // Inside `DropClaim()`, the destructor call must textually precede
+        // the edges release, and both must be reachable only from the
+        // last-claim branch — never unconditionally on every release call.
+        let drop_claim_at = rust_handle
+            .find("internal void DropClaim()")
+            .expect("RustHandle should have DropClaim()");
+        let drop_claim = &rust_handle[drop_claim_at..];
+        let drop_claim_end = drop_claim
+            .find("\n    }")
+            .expect("DropClaim() should have a body");
+        let drop_claim = &drop_claim[..drop_claim_end];
+        let last_claim_gate = drop_claim
+            .find("if (!_claims.Release())")
+            .expect("DropClaim() should early-return unless this was the last claim");
+        let destructor_at = drop_claim
             .find("_destructor(ptr);")
-            .expect("Decrement() should still call the destructor once refcount hits zero");
-        let unpin_at = rust_handle
-            .find("(edge as IDisposable)?.Dispose();")
-            .expect("Decrement() should dispose this wrapper's own edges (pins and dependencies)");
+            .expect("DropClaim() should call the destructor once the last claim is gone");
+        let release_edges_at = drop_claim
+            .find("ReleaseEdges();")
+            .expect("DropClaim() should release this wrapper's own edges (pins and dependencies)");
         assert!(
-            refcount_zero_branch < destructor_at && destructor_at < unpin_at,
-            "the destructor must run, in order, strictly between the \
-             refcount-zero check and the edges-disposal sweep — both gated \
-             on the SAME zero-refcount branch, not on every ReleaseOwnerClaim() call:\n{rust_handle}"
+            last_claim_gate < destructor_at && destructor_at < release_edges_at,
+            "the destructor must run, in order, strictly between the last-claim \
+             check and the edges release — both gated on the SAME last-claim \
+             branch, not on every ReleaseOwnerClaim() call:\n{rust_handle}"
         );
 
         // No opaque wrapper should do its own separate pin-disposal — that
