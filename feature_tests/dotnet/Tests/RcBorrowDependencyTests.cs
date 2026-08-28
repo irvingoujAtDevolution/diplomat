@@ -140,6 +140,42 @@ public class RcBorrowDependencyTests
         Assert.Throws<InvalidOperationException>(() => sharedSubview.Id());
     }
 
+    [Fact]
+    public void SharedViewFromMutableReceiver_IsFreshOnReturn_AndTracksSourceVersion()
+    {
+        using RcSource source = RcSource.Create(7);
+        using RcSource view = source.ViewFromMut();
+
+        Assert.Equal(7ul, view.Id());
+        Assert.Throws<InvalidOperationException>(() => view.PingMutable());
+        Assert.True(source.PingMutable());
+
+        Assert.Throws<InvalidOperationException>(() => view.Id());
+    }
+
+    [Fact]
+    public void OptionalMutableView_WhenPresent_HoldsExclusiveBorrowUntilDisposed()
+    {
+        using RcSource source = RcSource.Create(7);
+        RcSource? view = source.ViewMutIf(true);
+
+        Assert.NotNull(view);
+        Assert.True(view!.PingMutable());
+        Assert.Throws<InvalidOperationException>(() => source.PingMutable());
+
+        view.Dispose();
+        Assert.True(source.PingMutable());
+    }
+
+    [Fact]
+    public void OptionalMutableView_WhenAbsent_LeavesSourceFree()
+    {
+        using RcSource source = RcSource.Create(7);
+
+        Assert.Null(source.ViewMutIf(false));
+        Assert.True(source.PingMutable());
+    }
+
     // ── Owned-borrowing: dependent's own destructor runs before source ─────
 
     [Fact]

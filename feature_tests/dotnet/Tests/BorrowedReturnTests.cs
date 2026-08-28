@@ -322,6 +322,21 @@ public class BorrowedReturnTests
         Assert.Equal("hi", view.C);
     }
 
+    [Fact]
+    public void FallibleCustomBorrowingError_InnerHoldsSharedBorrow_UntilDisposed()
+    {
+        using OpaqueThinVec vec = OpaqueThinVec.CreateSingle(7, 1.5f, Utf8("hi"));
+        BorrowingErrorException ex =
+            Assert.Throws<BorrowingErrorException>(() => vec.TryBorrow(true));
+
+        Assert.Throws<InvalidOperationException>(() => vec.FirstC = "bye");
+
+        ex.Inner.Dispose();
+        vec.FirstC = "bye";
+        using OpaqueThin? first = vec.Get(0);
+        Assert.Equal("bye", first!.C);
+    }
+
     // The Ok arm of `try_borrow` is owned (`int`), so its edges are empty — the
     // only thing that can root the owner for a caught exception is the edge
     // threaded onto the exception (and its inner error). Drop every other

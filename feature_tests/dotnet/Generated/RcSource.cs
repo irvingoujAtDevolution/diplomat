@@ -112,6 +112,48 @@ public partial class RcSource : IDisposable
         }
     }
 
+    /// <returns>
+    /// A view into the Rust-backed <c>RcSource</c>.
+    /// </returns>
+    /// <remarks>
+    /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
+    /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
+    /// Dispose the returned value to release its claim on the source.
+    /// </remarks>
+    public RcSource ViewFromMut()
+    {
+        unsafe
+        {
+            using (BorrowLease<Raw.RcSource> selfLease = BorrowExclusive())
+            {
+                Raw.RcSource* result = Raw.RcSource.ViewFromMut(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return new RcSource(result, BorrowKind.Shared, selfLease);
+            }
+        }
+    }
+
+    /// <returns>
+    /// An exclusive view into the Rust-backed <c>RcSource</c>.
+    /// </returns>
+    /// <remarks>
+    /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
+    /// The returned value holds an exclusive borrow on its source.
+    /// Dispose the returned value to end the exclusive borrow and release its claim on the source.
+    /// </remarks>
+    public RcSource? ViewMutIf(bool present)
+    {
+        unsafe
+        {
+            using (BorrowLease<Raw.RcSource> selfLease = BorrowExclusive())
+            {
+                Raw.RcSource* result = Raw.RcSource.ViewMutIf(selfLease.Ptr, present);
+                GC.KeepAlive(this);
+                return result == null ? null : new RcSource(result, BorrowKind.Exclusive, selfLease);
+            }
+        }
+    }
+
     public bool PingMutable()
     {
         unsafe

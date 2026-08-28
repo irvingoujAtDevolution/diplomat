@@ -592,6 +592,17 @@ pub mod ffi {
             self
         }
 
+        /// A shared view handed out through `&mut self`: the call's exclusive
+        /// lease bumps the version, and the view must still be fresh right after.
+        pub fn view_from_mut<'b>(&'b mut self) -> &'b Self {
+            self
+        }
+
+        /// `Option<&mut T>` return: a nullable exclusive view in C#.
+        pub fn view_mut_if<'b>(&'b mut self, present: bool) -> Option<&'b mut Self> {
+            present.then_some(self)
+        }
+
         pub fn ping_mutable(&mut self) -> bool {
             true
         }
