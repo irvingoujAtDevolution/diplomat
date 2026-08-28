@@ -297,6 +297,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                     &struct_def.methods,
                     &field_names,
                     false,
+                    false,
                 );
                 PreparedType::Struct {
                     display_name,
@@ -315,6 +316,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                     &opaque_def.methods,
                     &[],
                     true,
+                    opaque_def.attrs.manually_disposable,
                 );
                 PreparedType::Opaque {
                     display_name,
@@ -390,6 +392,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
         methods: &'tcx [hir::Method],
         field_names: &[&str],
         is_opaque: bool,
+        has_generated_dispose: bool,
     ) -> TypeMembers<'tcx> {
         let lowered: Vec<(Option<AccessorInfo>, MethodInfo<'tcx>)> = methods
             .iter()
@@ -403,6 +406,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             &methods,
             field_names,
             is_opaque,
+            has_generated_dispose,
             self.errors,
         );
         TypeMembers {

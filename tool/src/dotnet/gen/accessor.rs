@@ -367,16 +367,17 @@ pub(super) fn route_members<'ctx>(
 /// another member (CS0102), or with the type that contains it (CS0542).
 ///
 /// The generated type is not only what Diplomat was asked for. The templates
-/// always add `AsFFI` and `FromFFI`; opaques always get `Cleanup`, `Dispose`,
-/// `BorrowShared`, and `BorrowExclusive`;
-/// and a struct's fields are members too — so a property named after any of
-/// those, or after the type itself, compiles to nothing.
+/// always add `AsFFI` and `FromFFI`; opaques always get `Cleanup`,
+/// `BorrowShared`, and `BorrowExclusive`, plus `Dispose` when they opt into
+/// `IDisposable`; and a struct's fields are members too — so a property named
+/// after any of those, or after the type itself, compiles to nothing.
 pub(super) fn reject_member_collisions(
     ty: &str,
     properties: &[PropertyInfo<'_>],
     methods: &[MethodInfo<'_>],
     field_names: &[&str],
     is_opaque: bool,
+    has_generated_dispose: bool,
     errors: &ErrorStore<'_, String>,
 ) {
     /// The label for the enclosing type, which C# rejects on its own terms.
@@ -392,9 +393,12 @@ pub(super) fn reject_member_collisions(
         for member in ["Cleanup", "BorrowShared", "BorrowExclusive"] {
             generated_members.insert(member, "a member Diplomat always generates for opaques");
         }
-    }
-    if is_opaque {
-        generated_members.insert("Dispose", "a member Diplomat always generates for opaques");
+        if has_generated_dispose {
+            generated_members.insert(
+                "Dispose",
+                "a member Diplomat generates for manually_disposable opaques",
+            );
+        }
     }
     for (member, description) in &generated_members {
         seen.entry(member).or_insert(description);

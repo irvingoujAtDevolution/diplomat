@@ -3523,13 +3523,39 @@ mod test {
     }
 
     #[test]
-    fn an_opaque_property_colliding_with_dispose_is_rejected() {
-        let (_files, errors) = run_dotnet(property_test_module(quote! {
+    fn a_property_named_dispose_is_accepted_without_manually_disposable_opt_in() {
+        let (files, errors) = run_dotnet(property_test_module(quote! {
             #[diplomat::attr(auto, getter = "dispose")]
             pub fn is_disposed(&self) -> bool {
                 unimplemented!()
             }
         }));
+
+        assert!(
+            errors.is_empty(),
+            "unexpected diagnostics: {}",
+            errors.join("\n")
+        );
+        let config = files.get("Config.cs").expect("expected Config.cs output");
+        assert!(
+            config.contains("public bool Dispose"),
+            "without dotnet manually_disposable opt-in, an opaque may expose a Dispose-named property:\n{config}"
+        );
+    }
+
+    #[test]
+    fn a_property_colliding_with_dispose_is_rejected_when_manually_disposable_opted_in() {
+        let (_files, errors) = run_dotnet(property_test_module_with_type_attrs(
+            quote! {
+                #[diplomat::attr(dotnet, manually_disposable)]
+            },
+            quote! {
+                #[diplomat::attr(auto, getter = "dispose")]
+                pub fn is_disposed(&self) -> bool {
+                    unimplemented!()
+                }
+            },
+        ));
 
         assert_eq!(
             errors.len(),
@@ -3538,7 +3564,7 @@ mod test {
         );
         assert!(
             errors[0].contains("two members named `Dispose`"),
-            "the diagnostic must reject the generated Dispose collision; got: {}",
+            "the collision must be reported; got: {}",
             errors[0]
         );
     }
