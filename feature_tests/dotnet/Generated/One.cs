@@ -32,7 +32,7 @@ public partial class One : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe One(Raw.One* handle, params object[] edges)
+    internal unsafe One(Raw.One* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.One>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class One : IDisposable
     internal unsafe One(
         Raw.One* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.One>.Borrowed(handle, ownership, edges);
     }

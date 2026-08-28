@@ -32,7 +32,7 @@ public partial class RcDependent2 : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RcDependent2(Raw.RcDependent2* handle, params object[] edges)
+    internal unsafe RcDependent2(Raw.RcDependent2* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RcDependent2>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class RcDependent2 : IDisposable
     internal unsafe RcDependent2(
         Raw.RcDependent2* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RcDependent2>.Borrowed(handle, ownership, edges);
     }

@@ -32,7 +32,7 @@ public partial class Unnamespaced
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe Unnamespaced(Raw.Unnamespaced* handle, params object[] edges)
+    internal unsafe Unnamespaced(Raw.Unnamespaced* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.Unnamespaced>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class Unnamespaced
     internal unsafe Unnamespaced(
         Raw.Unnamespaced* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.Unnamespaced>.Borrowed(handle, ownership, edges);
     }

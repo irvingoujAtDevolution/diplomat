@@ -32,7 +32,7 @@ public partial class DefaultDropProbe
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe DefaultDropProbe(Raw.DefaultDropProbe* handle, params object[] edges)
+    internal unsafe DefaultDropProbe(Raw.DefaultDropProbe* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.DefaultDropProbe>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class DefaultDropProbe
     internal unsafe DefaultDropProbe(
         Raw.DefaultDropProbe* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.DefaultDropProbe>.Borrowed(handle, ownership, edges);
     }

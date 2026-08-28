@@ -32,7 +32,7 @@ public partial class MyOpaqueEnum
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe MyOpaqueEnum(Raw.MyOpaqueEnum* handle, params object[] edges)
+    internal unsafe MyOpaqueEnum(Raw.MyOpaqueEnum* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.MyOpaqueEnum>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class MyOpaqueEnum
     internal unsafe MyOpaqueEnum(
         Raw.MyOpaqueEnum* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.MyOpaqueEnum>.Borrowed(handle, ownership, edges);
     }

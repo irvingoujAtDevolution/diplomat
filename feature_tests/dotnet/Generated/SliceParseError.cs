@@ -32,7 +32,7 @@ public partial class SliceParseError
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe SliceParseError(Raw.SliceParseError* handle, params object[] edges)
+    internal unsafe SliceParseError(Raw.SliceParseError* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.SliceParseError>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class SliceParseError
     internal unsafe SliceParseError(
         Raw.SliceParseError* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.SliceParseError>.Borrowed(handle, ownership, edges);
     }

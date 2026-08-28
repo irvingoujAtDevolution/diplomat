@@ -46,7 +46,7 @@ public class BorrowedSpanOversizeTests
 
     // Pointer is never dereferenced on the oversize path; only len + edges matter.
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static unsafe void ConstructOversizeBorrowedSpan(object[] edges)
+    private static unsafe void ConstructOversizeBorrowedSpan(IDisposable?[] edges)
     {
         nuint oversize = (nuint)int.MaxValue + 1;
         _ = new DiplomatBorrowedSpan<byte>(null, oversize, edges);
@@ -56,7 +56,7 @@ public class BorrowedSpanOversizeTests
     public void OversizeConstructor_ThrowsAndDisposesBorrowEdgesImmediately()
     {
         var edge = new CountingEdge();
-        object[] edges = new object[] { edge };
+        IDisposable?[] edges = new IDisposable?[] { edge };
 
         IndexOutOfRangeException ex = Assert.Throws<IndexOutOfRangeException>(() =>
             ConstructOversizeBorrowedSpan(edges)
@@ -77,7 +77,7 @@ public class BorrowedSpanOversizeTests
     public void OversizeConstructor_FailedObjectDoesNotLeakRetainAcrossGc()
     {
         var edge = new CountingEdge();
-        object[] edges = new object[] { edge };
+        IDisposable?[] edges = new IDisposable?[] { edge };
 
         try
         {

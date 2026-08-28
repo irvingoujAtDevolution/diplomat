@@ -32,7 +32,7 @@ public partial class RcSource : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RcSource(Raw.RcSource* handle, params object[] edges)
+    internal unsafe RcSource(Raw.RcSource* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RcSource>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class RcSource : IDisposable
     internal unsafe RcSource(
         Raw.RcSource* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RcSource>.Borrowed(handle, ownership, edges);
     }

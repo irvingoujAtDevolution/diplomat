@@ -32,7 +32,7 @@ public partial class RefList : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RefList(Raw.RefList* handle, params object[] edges)
+    internal unsafe RefList(Raw.RefList* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RefList>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class RefList : IDisposable
     internal unsafe RefList(
         Raw.RefList* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RefList>.Borrowed(handle, ownership, edges);
     }

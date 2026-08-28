@@ -32,7 +32,7 @@ public partial class Float64Vec : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe Float64Vec(Raw.Float64Vec* handle, params object[] edges)
+    internal unsafe Float64Vec(Raw.Float64Vec* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.Float64Vec>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class Float64Vec : IDisposable
     internal unsafe Float64Vec(
         Raw.Float64Vec* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.Float64Vec>.Borrowed(handle, ownership, edges);
     }

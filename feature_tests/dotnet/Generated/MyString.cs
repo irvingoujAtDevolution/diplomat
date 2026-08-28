@@ -72,7 +72,7 @@ public partial class MyString : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe MyString(Raw.MyString* handle, params object[] edges)
+    internal unsafe MyString(Raw.MyString* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.MyString>.Owned(handle, _destroy, edges);
     }
@@ -80,7 +80,7 @@ public partial class MyString : IDisposable
     internal unsafe MyString(
         Raw.MyString* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.MyString>.Borrowed(handle, ownership, edges);
     }
@@ -152,7 +152,7 @@ public partial class MyString : IDisposable
             {
                 var result = Raw.MyString.Borrow(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { selfLease });
+                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new IDisposable?[] { selfLease });
             }
         }
     }

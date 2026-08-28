@@ -32,7 +32,7 @@ public partial class GcRaceProbe
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe GcRaceProbe(Raw.GcRaceProbe* handle, params object[] edges)
+    internal unsafe GcRaceProbe(Raw.GcRaceProbe* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.GcRaceProbe>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class GcRaceProbe
     internal unsafe GcRaceProbe(
         Raw.GcRaceProbe* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.GcRaceProbe>.Borrowed(handle, ownership, edges);
     }

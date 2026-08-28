@@ -32,7 +32,7 @@ public partial class RenamedOpaqueZSTIndexer
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RenamedOpaqueZSTIndexer(Raw.RenamedOpaqueZSTIndexer* handle, params object[] edges)
+    internal unsafe RenamedOpaqueZSTIndexer(Raw.RenamedOpaqueZSTIndexer* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RenamedOpaqueZSTIndexer>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class RenamedOpaqueZSTIndexer
     internal unsafe RenamedOpaqueZSTIndexer(
         Raw.RenamedOpaqueZSTIndexer* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RenamedOpaqueZSTIndexer>.Borrowed(handle, ownership, edges);
     }

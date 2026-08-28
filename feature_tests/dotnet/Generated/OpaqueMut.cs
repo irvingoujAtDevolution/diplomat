@@ -32,7 +32,7 @@ public partial class OpaqueMut
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe OpaqueMut(Raw.OpaqueMut* handle, params object[] edges)
+    internal unsafe OpaqueMut(Raw.OpaqueMut* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.OpaqueMut>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class OpaqueMut
     internal unsafe OpaqueMut(
         Raw.OpaqueMut* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.OpaqueMut>.Borrowed(handle, ownership, edges);
     }

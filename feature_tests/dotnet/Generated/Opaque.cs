@@ -32,7 +32,7 @@ public partial class Opaque : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe Opaque(Raw.Opaque* handle, params object[] edges)
+    internal unsafe Opaque(Raw.Opaque* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.Opaque>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class Opaque : IDisposable
     internal unsafe Opaque(
         Raw.Opaque* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.Opaque>.Borrowed(handle, ownership, edges);
     }

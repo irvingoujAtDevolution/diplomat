@@ -32,7 +32,7 @@ public partial class BorrowingError : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe BorrowingError(Raw.BorrowingError* handle, params object[] edges)
+    internal unsafe BorrowingError(Raw.BorrowingError* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.BorrowingError>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class BorrowingError : IDisposable
     internal unsafe BorrowingError(
         Raw.BorrowingError* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.BorrowingError>.Borrowed(handle, ownership, edges);
     }

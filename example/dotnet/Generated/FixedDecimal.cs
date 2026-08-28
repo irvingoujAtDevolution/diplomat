@@ -32,7 +32,7 @@ public partial class FixedDecimal
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe FixedDecimal(Raw.FixedDecimal* handle, params object[] edges)
+    internal unsafe FixedDecimal(Raw.FixedDecimal* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.FixedDecimal>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class FixedDecimal
     internal unsafe FixedDecimal(
         Raw.FixedDecimal* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.FixedDecimal>.Borrowed(handle, ownership, edges);
     }

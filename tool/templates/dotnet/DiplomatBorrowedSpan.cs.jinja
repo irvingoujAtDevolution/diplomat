@@ -33,10 +33,10 @@ public sealed unsafe class DiplomatBorrowedSpan<T> : IDisposable where T : unman
 {
     private readonly T* _ptr;
     private readonly int _len;
-    private object[] _edges;
+    private IDisposable?[] _edges;
     private int _disposed;
 
-    internal DiplomatBorrowedSpan(T* ptr, nuint len, object[] edges)
+    internal DiplomatBorrowedSpan(T* ptr, nuint len, IDisposable?[] edges)
     {
         // Mirror RustVec: .NET Span/Memory lengths are int-sized. Call sites
         // build borrow-lease edges before construction; on the oversize path
@@ -45,9 +45,9 @@ public sealed unsafe class DiplomatBorrowedSpan<T> : IDisposable where T : unman
         // field, catch {} swallows it, and the parent retain leaks.
         if (len > (nuint)int.MaxValue)
         {
-            foreach (object edge in edges)
+            foreach (IDisposable? edge in edges)
             {
-                (edge as IDisposable)?.Dispose();
+                edge?.Dispose();
             }
             GC.SuppressFinalize(this);
             throw new IndexOutOfRangeException("Borrowed Rust slice is too large for a .NET Span/Memory");
@@ -135,7 +135,7 @@ public sealed unsafe class DiplomatBorrowedSpan<T> : IDisposable where T : unman
 
     private IBorrowLease[] AcquireDependencies()
     {
-        object[] edges = Volatile.Read(ref _edges);
+        IDisposable?[] edges = Volatile.Read(ref _edges);
         if (Volatile.Read(ref _disposed) != 0)
         {
             throw new ObjectDisposedException(nameof(DiplomatBorrowedSpan<T>));
@@ -144,7 +144,7 @@ public sealed unsafe class DiplomatBorrowedSpan<T> : IDisposable where T : unman
         List<IBorrowLease>? acquired = null;
         try
         {
-            foreach (object edge in edges)
+            foreach (IDisposable? edge in edges)
             {
                 if (edge is IVersionedClaim dependency)
                 {
@@ -179,10 +179,10 @@ public sealed unsafe class DiplomatBorrowedSpan<T> : IDisposable where T : unman
             return;
         }
 
-        object[] edges = Interlocked.Exchange(ref _edges, System.Array.Empty<object>());
-        foreach (object edge in edges)
+        IDisposable?[] edges = Interlocked.Exchange(ref _edges, System.Array.Empty<IDisposable?>());
+        foreach (IDisposable? edge in edges)
         {
-            (edge as IDisposable)?.Dispose();
+            edge?.Dispose();
         }
     }
 }

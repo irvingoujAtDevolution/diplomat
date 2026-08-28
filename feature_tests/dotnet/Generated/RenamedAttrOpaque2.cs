@@ -32,7 +32,7 @@ public partial class RenamedAttrOpaque2
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RenamedAttrOpaque2(Raw.RenamedAttrOpaque2* handle, params object[] edges)
+    internal unsafe RenamedAttrOpaque2(Raw.RenamedAttrOpaque2* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RenamedAttrOpaque2>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class RenamedAttrOpaque2
     internal unsafe RenamedAttrOpaque2(
         Raw.RenamedAttrOpaque2* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RenamedAttrOpaque2>.Borrowed(handle, ownership, edges);
     }

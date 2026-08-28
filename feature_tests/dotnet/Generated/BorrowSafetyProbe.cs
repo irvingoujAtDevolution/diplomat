@@ -32,7 +32,7 @@ public partial class BorrowSafetyProbe : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe BorrowSafetyProbe(Raw.BorrowSafetyProbe* handle, params object[] edges)
+    internal unsafe BorrowSafetyProbe(Raw.BorrowSafetyProbe* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.BorrowSafetyProbe>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class BorrowSafetyProbe : IDisposable
     internal unsafe BorrowSafetyProbe(
         Raw.BorrowSafetyProbe* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.BorrowSafetyProbe>.Borrowed(handle, ownership, edges);
     }
@@ -185,7 +185,7 @@ public partial class BorrowSafetyProbe : IDisposable
                 var result = Raw.BorrowSafetyProbe.BorrowStaticFromOptional(firstLease == null ? null : firstLease.Ptr, secondLease == null ? null : secondLease.Ptr);
                 GC.KeepAlive(first);
                 GC.KeepAlive(second);
-                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { firstLease!, secondLease! });
+                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new IDisposable?[] { firstLease, secondLease });
             }
         }
     }

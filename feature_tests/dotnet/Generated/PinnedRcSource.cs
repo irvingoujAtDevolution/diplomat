@@ -32,7 +32,7 @@ public partial class PinnedRcSource : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe PinnedRcSource(Raw.PinnedRcSource* handle, params object[] edges)
+    internal unsafe PinnedRcSource(Raw.PinnedRcSource* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.PinnedRcSource>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class PinnedRcSource : IDisposable
     internal unsafe PinnedRcSource(
         Raw.PinnedRcSource* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.PinnedRcSource>.Borrowed(handle, ownership, edges);
     }

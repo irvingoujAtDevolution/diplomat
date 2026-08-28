@@ -32,7 +32,7 @@ public partial class OpaqueThinIter : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe OpaqueThinIter(Raw.OpaqueThinIter* handle, params object[] edges)
+    internal unsafe OpaqueThinIter(Raw.OpaqueThinIter* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.OpaqueThinIter>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class OpaqueThinIter : IDisposable
     internal unsafe OpaqueThinIter(
         Raw.OpaqueThinIter* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.OpaqueThinIter>.Borrowed(handle, ownership, edges);
     }

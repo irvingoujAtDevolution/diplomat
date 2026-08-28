@@ -32,7 +32,7 @@ public partial class RenamedDeprecatedOpaque
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RenamedDeprecatedOpaque(Raw.RenamedDeprecatedOpaque* handle, params object[] edges)
+    internal unsafe RenamedDeprecatedOpaque(Raw.RenamedDeprecatedOpaque* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RenamedDeprecatedOpaque>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class RenamedDeprecatedOpaque
     internal unsafe RenamedDeprecatedOpaque(
         Raw.RenamedDeprecatedOpaque* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RenamedDeprecatedOpaque>.Borrowed(handle, ownership, edges);
     }

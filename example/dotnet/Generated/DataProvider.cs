@@ -32,7 +32,7 @@ public partial class DataProvider
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe DataProvider(Raw.DataProvider* handle, params object[] edges)
+    internal unsafe DataProvider(Raw.DataProvider* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.DataProvider>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class DataProvider
     internal unsafe DataProvider(
         Raw.DataProvider* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.DataProvider>.Borrowed(handle, ownership, edges);
     }

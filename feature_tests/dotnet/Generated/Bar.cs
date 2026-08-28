@@ -56,7 +56,7 @@ public partial class Bar : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe Bar(Raw.Bar* handle, params object[] edges)
+    internal unsafe Bar(Raw.Bar* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.Bar>.Owned(handle, _destroy, edges);
     }
@@ -64,7 +64,7 @@ public partial class Bar : IDisposable
     internal unsafe Bar(
         Raw.Bar* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.Bar>.Borrowed(handle, ownership, edges);
     }

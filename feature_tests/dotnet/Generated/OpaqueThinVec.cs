@@ -76,7 +76,7 @@ public partial class OpaqueThinVec : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe OpaqueThinVec(Raw.OpaqueThinVec* handle, params object[] edges)
+    internal unsafe OpaqueThinVec(Raw.OpaqueThinVec* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.OpaqueThinVec>.Owned(handle, _destroy, edges);
     }
@@ -84,7 +84,7 @@ public partial class OpaqueThinVec : IDisposable
     internal unsafe OpaqueThinVec(
         Raw.OpaqueThinVec* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.OpaqueThinVec>.Borrowed(handle, ownership, edges);
     }

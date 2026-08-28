@@ -32,7 +32,7 @@ public partial class Locale
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe Locale(Raw.Locale* handle, params object[] edges)
+    internal unsafe Locale(Raw.Locale* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.Locale>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class Locale
     internal unsafe Locale(
         Raw.Locale* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.Locale>.Borrowed(handle, ownership, edges);
     }

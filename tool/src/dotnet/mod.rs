@@ -1328,7 +1328,7 @@ mod test {
             .expect("expected Dependent.cs output");
         assert!(
             dependent.contains(
-                "internal unsafe Dependent(Raw.Dependent* handle, params object[] edges)"
+                "internal unsafe Dependent(Raw.Dependent* handle, params IDisposable?[] edges)"
             ),
             "the owned-borrowing wrapper should accept its retained \
              dependencies through the same combined `edges` constructor \
@@ -1392,7 +1392,7 @@ mod test {
         assert!(
             rust_handle.contains("private RustHandle(")
                 && rust_handle.contains("Ownership ownership,")
-                && rust_handle.contains("object[] edges"),
+                && rust_handle.contains("IDisposable?[] edges"),
             "edges must be threaded into RustHandle's own constructor:\n{rust_handle}"
         );
 
@@ -2651,7 +2651,7 @@ mod test {
         );
         assert!(
             my_string.contains(
-                "new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { selfLease })"
+                "new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new IDisposable?[] { selfLease })"
             ),
             "the returned view should retain `this` as an RC dependency:\n{my_string}"
         );
@@ -2694,7 +2694,7 @@ mod test {
             "borrowed views must reject lengths that don't fit a .NET Span:\n{span}"
         );
         assert!(
-            span.contains("(edge as IDisposable)?.Dispose()")
+            span.contains("edge?.Dispose()")
                 && span.contains("GC.SuppressFinalize(this)")
                 && span.contains(
                     "throw new IndexOutOfRangeException(\"Borrowed Rust slice is too large for a .NET Span/Memory\")"
@@ -2736,7 +2736,7 @@ mod test {
         );
         assert!(
             buffer.contains(
-                "new DiplomatBorrowedSpan<uint>(result.Ptr, result.Len, new object[] { selfLease })"
+                "new DiplomatBorrowedSpan<uint>(result.Ptr, result.Len, new IDisposable?[] { selfLease })"
             ),
             "the returned view should retain `this` as an RC dependency:\n{buffer}"
         );
@@ -2771,7 +2771,7 @@ mod test {
         let source = files.get("Source.cs").expect("expected Source.cs output");
         assert!(
             source.contains(
-                "new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { firstLease!, secondLease! })"
+                "new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new IDisposable?[] { firstLease, secondLease })"
             ),
             "the span constructor should receive nullable leases without invoking them:\n{source}"
         );
@@ -2955,7 +2955,7 @@ mod test {
             errors.join("\n")
         );
         let plain = files.get("Plain.cs").expect("expected Plain.cs output");
-        assert!(!plain.contains("IDisposable"));
+        assert!(!plain.contains(": IDisposable"));
         assert!(!plain.contains("public void Dispose()"));
         assert!(
             plain.contains("private void Cleanup()")
@@ -3009,7 +3009,7 @@ mod test {
             .get("FinalizerOnly.cs")
             .expect("expected FinalizerOnly.cs output");
         assert!(
-            !finalizer_only.contains("IDisposable")
+            !finalizer_only.contains(": IDisposable")
                 && !finalizer_only.contains("public void Dispose()")
                 && !finalizer_only.contains("GC.SuppressFinalize(this);"),
             "unmarked opaque must expose only finalizer-backed cleanup:\n{finalizer_only}"
@@ -3151,7 +3151,7 @@ mod test {
         );
         let gated = files.get("Gated.cs").expect("expected Gated.cs output");
         assert!(
-            !gated.contains("IDisposable")
+            !gated.contains(": IDisposable")
                 && !gated.contains("public void Dispose()")
                 && gated.contains("private void Cleanup()")
                 && gated.contains("~Gated()"),

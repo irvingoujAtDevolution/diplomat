@@ -32,7 +32,7 @@ public partial class FixedDecimalFormatter
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe FixedDecimalFormatter(Raw.FixedDecimalFormatter* handle, params object[] edges)
+    internal unsafe FixedDecimalFormatter(Raw.FixedDecimalFormatter* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.FixedDecimalFormatter>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class FixedDecimalFormatter
     internal unsafe FixedDecimalFormatter(
         Raw.FixedDecimalFormatter* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.FixedDecimalFormatter>.Borrowed(handle, ownership, edges);
     }

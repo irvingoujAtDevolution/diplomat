@@ -32,7 +32,7 @@ public partial class OpaqueMutexedString : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe OpaqueMutexedString(Raw.OpaqueMutexedString* handle, params object[] edges)
+    internal unsafe OpaqueMutexedString(Raw.OpaqueMutexedString* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.OpaqueMutexedString>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class OpaqueMutexedString : IDisposable
     internal unsafe OpaqueMutexedString(
         Raw.OpaqueMutexedString* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.OpaqueMutexedString>.Borrowed(handle, ownership, edges);
     }
@@ -94,7 +94,7 @@ public partial class OpaqueMutexedString : IDisposable
             {
                 var result = Raw.OpaqueMutexedString.DummyStr(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new object[] { selfLease });
+                return new DiplomatBorrowedSpan<byte>(result.Ptr, result.Len, new IDisposable?[] { selfLease });
             }
         }
     }

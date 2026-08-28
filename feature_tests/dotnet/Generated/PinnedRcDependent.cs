@@ -32,7 +32,7 @@ public partial class PinnedRcDependent : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe PinnedRcDependent(Raw.PinnedRcDependent* handle, params object[] edges)
+    internal unsafe PinnedRcDependent(Raw.PinnedRcDependent* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.PinnedRcDependent>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class PinnedRcDependent : IDisposable
     internal unsafe PinnedRcDependent(
         Raw.PinnedRcDependent* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.PinnedRcDependent>.Borrowed(handle, ownership, edges);
     }

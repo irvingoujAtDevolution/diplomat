@@ -32,7 +32,7 @@ public partial class OptionString : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe OptionString(Raw.OptionString* handle, params object[] edges)
+    internal unsafe OptionString(Raw.OptionString* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.OptionString>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class OptionString : IDisposable
     internal unsafe OptionString(
         Raw.OptionString* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.OptionString>.Borrowed(handle, ownership, edges);
     }

@@ -51,7 +51,7 @@ pub(crate) fn dependencies_array_expr(sources: &[String]) -> String {
     if sources.is_empty() {
         "System.Array.Empty<object>()".to_string()
     } else {
-        format!("new object[] {{ {} }}", sources.join(", "))
+        format!("new IDisposable?[] {{ {} }}", sources.join(", "))
     }
 }
 
@@ -2266,11 +2266,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                     borrow_statement: Some(borrow_statement),
                     borrow_lease: Some(OpaqueBorrowLease {
                         source: arg_name.to_string(),
-                        lease_expr: if optional {
-                            format!("{lease_var}!")
-                        } else {
-                            lease_var
-                        },
+                        lease_expr: lease_var,
                     }),
                     accessor_value: Some(AccessorValue::nullable_if(
                         optional,

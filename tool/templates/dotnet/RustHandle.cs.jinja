@@ -44,7 +44,7 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
 {
     private T* _ptr;
     private readonly RustDestructor<T>? _destructor;
-    private object[] _edges;
+    private IDisposable?[] _edges;
     private readonly Ownership _ownership;
     // Both ledgers must stay mutable fields: C# calls a method on a readonly
     // struct field through a defensive copy, so the atomics would update the copy.
@@ -55,7 +55,7 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
         T* ptr,
         RustDestructor<T>? destructor,
         Ownership ownership,
-        object[] edges
+        IDisposable?[] edges
     )
     {
         _ptr = ptr;
@@ -66,20 +66,20 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
 
     /// The C# side owns the pointer and will run its destructor on release.
     internal static RustHandle<T> Owned(T* ptr, RustDestructor<T> destructor) =>
-        new RustHandle<T>(ptr, destructor, Ownership.Owned, System.Array.Empty<object>());
+        new RustHandle<T>(ptr, destructor, Ownership.Owned, System.Array.Empty<IDisposable?>());
 
     /// Owned handle that also roots pins and/or borrow leases in <paramref name="edges"/>.
-    internal static RustHandle<T> Owned(T* ptr, RustDestructor<T> destructor, object[] edges) =>
+    internal static RustHandle<T> Owned(T* ptr, RustDestructor<T> destructor, IDisposable?[] edges) =>
         new RustHandle<T>(ptr, destructor, Ownership.Owned, edges);
 
     /// Rust still owns the pointer; release never runs a destructor. Edges root
     /// what the borrowed value depends on.
-    internal static RustHandle<T> Borrowed(T* ptr, Ownership ownership, object[] edges) =>
+    internal static RustHandle<T> Borrowed(T* ptr, Ownership ownership, IDisposable?[] edges) =>
         new RustHandle<T>(ptr, null, ownership, edges);
 
     internal T* Ptr => _ptr;
 
-    private static object[] CaptureEdges(object[] edges, bool versioned)
+    private static IDisposable?[] CaptureEdges(IDisposable?[] edges, bool versioned)
     {
         for (int i = 0; i < edges.Length; i++)
         {
@@ -136,7 +136,7 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
         List<IBorrowLease>? acquired = null;
         try
         {
-            foreach (object edge in _edges)
+            foreach (IDisposable? edge in _edges)
             {
                 if (edge is IVersionedClaim dependency)
                 {
@@ -216,10 +216,10 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
 
     private void ReleaseEdges()
     {
-        object[] edges = Interlocked.Exchange(ref _edges, System.Array.Empty<object>());
-        foreach (object edge in edges)
+        IDisposable?[] edges = Interlocked.Exchange(ref _edges, System.Array.Empty<IDisposable?>());
+        foreach (IDisposable? edge in edges)
         {
-            (edge as IDisposable)?.Dispose();
+            edge?.Dispose();
         }
     }
 

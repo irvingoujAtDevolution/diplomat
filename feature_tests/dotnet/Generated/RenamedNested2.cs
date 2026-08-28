@@ -32,7 +32,7 @@ public partial class RenamedNested2
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RenamedNested2(Raw.RenamedNested2* handle, params object[] edges)
+    internal unsafe RenamedNested2(Raw.RenamedNested2* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RenamedNested2>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class RenamedNested2
     internal unsafe RenamedNested2(
         Raw.RenamedNested2* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RenamedNested2>.Borrowed(handle, ownership, edges);
     }

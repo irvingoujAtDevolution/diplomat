@@ -32,7 +32,7 @@ public partial class Two
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe Two(Raw.Two* handle, params object[] edges)
+    internal unsafe Two(Raw.Two* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.Two>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class Two
     internal unsafe Two(
         Raw.Two* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.Two>.Borrowed(handle, ownership, edges);
     }

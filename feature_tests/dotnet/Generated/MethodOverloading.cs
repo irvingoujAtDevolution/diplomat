@@ -32,7 +32,7 @@ public partial class MethodOverloading : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe MethodOverloading(Raw.MethodOverloading* handle, params object[] edges)
+    internal unsafe MethodOverloading(Raw.MethodOverloading* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.MethodOverloading>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class MethodOverloading : IDisposable
     internal unsafe MethodOverloading(
         Raw.MethodOverloading* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.MethodOverloading>.Borrowed(handle, ownership, edges);
     }

@@ -32,7 +32,7 @@ public partial class RenamedMixinTest
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RenamedMixinTest(Raw.RenamedMixinTest* handle, params object[] edges)
+    internal unsafe RenamedMixinTest(Raw.RenamedMixinTest* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RenamedMixinTest>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class RenamedMixinTest
     internal unsafe RenamedMixinTest(
         Raw.RenamedMixinTest* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RenamedMixinTest>.Borrowed(handle, ownership, edges);
     }

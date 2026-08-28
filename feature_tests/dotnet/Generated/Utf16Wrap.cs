@@ -32,7 +32,7 @@ public partial class Utf16Wrap : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe Utf16Wrap(Raw.Utf16Wrap* handle, params object[] edges)
+    internal unsafe Utf16Wrap(Raw.Utf16Wrap* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.Utf16Wrap>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class Utf16Wrap : IDisposable
     internal unsafe Utf16Wrap(
         Raw.Utf16Wrap* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.Utf16Wrap>.Borrowed(handle, ownership, edges);
     }
@@ -94,7 +94,7 @@ public partial class Utf16Wrap : IDisposable
             {
                 var result = Raw.Utf16Wrap.BorrowCont(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new DiplomatBorrowedSpan<char>(result.Ptr, result.Len, new object[] { selfLease });
+                return new DiplomatBorrowedSpan<char>(result.Ptr, result.Len, new IDisposable?[] { selfLease });
             }
         }
     }

@@ -32,7 +32,7 @@ public partial class RenamedTestOpaque
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RenamedTestOpaque(Raw.RenamedTestOpaque* handle, params object[] edges)
+    internal unsafe RenamedTestOpaque(Raw.RenamedTestOpaque* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RenamedTestOpaque>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class RenamedTestOpaque
     internal unsafe RenamedTestOpaque(
         Raw.RenamedTestOpaque* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RenamedTestOpaque>.Borrowed(handle, ownership, edges);
     }

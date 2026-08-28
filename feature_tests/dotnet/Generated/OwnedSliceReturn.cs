@@ -32,7 +32,7 @@ public partial class OwnedSliceReturn
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe OwnedSliceReturn(Raw.OwnedSliceReturn* handle, params object[] edges)
+    internal unsafe OwnedSliceReturn(Raw.OwnedSliceReturn* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.OwnedSliceReturn>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class OwnedSliceReturn
     internal unsafe OwnedSliceReturn(
         Raw.OwnedSliceReturn* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.OwnedSliceReturn>.Borrowed(handle, ownership, edges);
     }

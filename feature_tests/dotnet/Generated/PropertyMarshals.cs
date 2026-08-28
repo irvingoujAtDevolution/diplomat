@@ -225,7 +225,7 @@ public partial class PropertyMarshals : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe PropertyMarshals(Raw.PropertyMarshals* handle, params object[] edges)
+    internal unsafe PropertyMarshals(Raw.PropertyMarshals* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.PropertyMarshals>.Owned(handle, _destroy, edges);
     }
@@ -233,7 +233,7 @@ public partial class PropertyMarshals : IDisposable
     internal unsafe PropertyMarshals(
         Raw.PropertyMarshals* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.PropertyMarshals>.Borrowed(handle, ownership, edges);
     }

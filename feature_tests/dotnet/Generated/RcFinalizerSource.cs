@@ -32,7 +32,7 @@ public partial class RcFinalizerSource
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RcFinalizerSource(Raw.RcFinalizerSource* handle, params object[] edges)
+    internal unsafe RcFinalizerSource(Raw.RcFinalizerSource* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RcFinalizerSource>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class RcFinalizerSource
     internal unsafe RcFinalizerSource(
         Raw.RcFinalizerSource* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RcFinalizerSource>.Borrowed(handle, ownership, edges);
     }

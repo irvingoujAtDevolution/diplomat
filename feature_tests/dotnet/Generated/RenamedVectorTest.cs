@@ -48,7 +48,7 @@ public partial class RenamedVectorTest : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe RenamedVectorTest(Raw.RenamedVectorTest* handle, params object[] edges)
+    internal unsafe RenamedVectorTest(Raw.RenamedVectorTest* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RenamedVectorTest>.Owned(handle, _destroy, edges);
     }
@@ -56,7 +56,7 @@ public partial class RenamedVectorTest : IDisposable
     internal unsafe RenamedVectorTest(
         Raw.RenamedVectorTest* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.RenamedVectorTest>.Borrowed(handle, ownership, edges);
     }

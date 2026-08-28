@@ -32,7 +32,7 @@ public partial class OpaqueSliceView : IDisposable
     /// Owned construction with lifetime resources released after the Rust
     /// destructor.
     /// </summary>
-    internal unsafe OpaqueSliceView(Raw.OpaqueSliceView* handle, params object[] edges)
+    internal unsafe OpaqueSliceView(Raw.OpaqueSliceView* handle, params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.OpaqueSliceView>.Owned(handle, _destroy, edges);
     }
@@ -40,7 +40,7 @@ public partial class OpaqueSliceView : IDisposable
     internal unsafe OpaqueSliceView(
         Raw.OpaqueSliceView* handle,
         Ownership ownership,
-        params object[] edges)
+        params IDisposable?[] edges)
     {
         _inner = RustHandle<Raw.OpaqueSliceView>.Borrowed(handle, ownership, edges);
     }
