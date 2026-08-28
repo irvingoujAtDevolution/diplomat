@@ -39,10 +39,10 @@ public partial class RenamedOpaqueZSTIndexer
 
     internal unsafe RenamedOpaqueZSTIndexer(
         Raw.RenamedOpaqueZSTIndexer* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.RenamedOpaqueZSTIndexer>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.RenamedOpaqueZSTIndexer>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -64,7 +64,7 @@ public partial class RenamedOpaqueZSTIndexer
     {
         unsafe
         {
-            using (BorrowLease<Raw.RenamedOpaqueZSTIndexer> selfLease = BorrowShared())
+            using (BorrowLease<Raw.RenamedOpaqueZSTIndexer> selfLease = Lease(BorrowKind.Shared))
             {
                 Raw.RenamedOpaqueZSTIndexer* result = Raw.RenamedOpaqueZSTIndexer.Index(selfLease.Ptr, idx);
                 GC.KeepAlive(this);
@@ -73,37 +73,14 @@ public partial class RenamedOpaqueZSTIndexer
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.RenamedOpaqueZSTIndexer* AsFFI()
+    internal unsafe BorrowLease<Raw.RenamedOpaqueZSTIndexer> Lease(BorrowKind kind)
     {
         RustHandle<Raw.RenamedOpaqueZSTIndexer>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("RenamedOpaqueZSTIndexer");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.RenamedOpaqueZSTIndexer> BorrowShared()
-    {
-        RustHandle<Raw.RenamedOpaqueZSTIndexer>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedOpaqueZSTIndexer");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.RenamedOpaqueZSTIndexer> BorrowExclusive()
-    {
-        RustHandle<Raw.RenamedOpaqueZSTIndexer>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedOpaqueZSTIndexer");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -112,7 +89,7 @@ public partial class RenamedOpaqueZSTIndexer
         {
             RustHandle<Raw.RenamedOpaqueZSTIndexer>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

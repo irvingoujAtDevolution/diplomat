@@ -66,7 +66,8 @@ to null on the second read. Setters keep `&mut self`; assigning is the point.
 
 Names must not collide either. A property that would share its name with a method, a
 struct field, the type that contains it, or one of the members Diplomat always generates
-(`AsFFI`, `FromFFI`, and `Dispose` on opaques) is rejected, because C# would not
+(`AsFFI` and `FromFFI` on structs; `Lease`, `Cleanup`, and `Dispose` on opaques) is rejected,
+because C# would not
 compile the result.
 
 A getter that returns an owned `Box<[u8]>` (`RustVec`) hands back a value you own, so

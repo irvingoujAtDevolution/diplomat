@@ -39,10 +39,10 @@ public partial class MethodOverloading : IDisposable
 
     internal unsafe MethodOverloading(
         Raw.MethodOverloading* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.MethodOverloading>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.MethodOverloading>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -81,37 +81,14 @@ public partial class MethodOverloading : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.MethodOverloading* AsFFI()
+    internal unsafe BorrowLease<Raw.MethodOverloading> Lease(BorrowKind kind)
     {
         RustHandle<Raw.MethodOverloading>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("MethodOverloading");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.MethodOverloading> BorrowShared()
-    {
-        RustHandle<Raw.MethodOverloading>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("MethodOverloading");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.MethodOverloading> BorrowExclusive()
-    {
-        RustHandle<Raw.MethodOverloading>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("MethodOverloading");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -120,7 +97,7 @@ public partial class MethodOverloading : IDisposable
         {
             RustHandle<Raw.MethodOverloading>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

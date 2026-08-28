@@ -39,43 +39,20 @@ public partial class RenamedTestOpaque
 
     internal unsafe RenamedTestOpaque(
         Raw.RenamedTestOpaque* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.RenamedTestOpaque>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.RenamedTestOpaque>.Borrowed(handle, ownership, edges);
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.RenamedTestOpaque* AsFFI()
+    internal unsafe BorrowLease<Raw.RenamedTestOpaque> Lease(BorrowKind kind)
     {
         RustHandle<Raw.RenamedTestOpaque>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("RenamedTestOpaque");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.RenamedTestOpaque> BorrowShared()
-    {
-        RustHandle<Raw.RenamedTestOpaque>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedTestOpaque");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.RenamedTestOpaque> BorrowExclusive()
-    {
-        RustHandle<Raw.RenamedTestOpaque>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedTestOpaque");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -84,7 +61,7 @@ public partial class RenamedTestOpaque
         {
             RustHandle<Raw.RenamedTestOpaque>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

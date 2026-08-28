@@ -39,10 +39,10 @@ public partial class GcRaceProbe
 
     internal unsafe GcRaceProbe(
         Raw.GcRaceProbe* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.GcRaceProbe>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.GcRaceProbe>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -61,7 +61,7 @@ public partial class GcRaceProbe
     {
         unsafe
         {
-            using (BorrowLease<Raw.GcRaceProbe> selfLease = BorrowShared())
+            using (BorrowLease<Raw.GcRaceProbe> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.GcRaceProbe.DropsDuringSpin(selfLease.Ptr, millis);
                 GC.KeepAlive(this);
@@ -70,37 +70,14 @@ public partial class GcRaceProbe
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.GcRaceProbe* AsFFI()
+    internal unsafe BorrowLease<Raw.GcRaceProbe> Lease(BorrowKind kind)
     {
         RustHandle<Raw.GcRaceProbe>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("GcRaceProbe");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.GcRaceProbe> BorrowShared()
-    {
-        RustHandle<Raw.GcRaceProbe>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("GcRaceProbe");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.GcRaceProbe> BorrowExclusive()
-    {
-        RustHandle<Raw.GcRaceProbe>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("GcRaceProbe");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -109,7 +86,7 @@ public partial class GcRaceProbe
         {
             RustHandle<Raw.GcRaceProbe>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

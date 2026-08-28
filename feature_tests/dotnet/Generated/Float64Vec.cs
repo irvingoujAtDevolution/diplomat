@@ -39,10 +39,10 @@ public partial class Float64Vec : IDisposable
 
     internal unsafe Float64Vec(
         Raw.Float64Vec* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.Float64Vec>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.Float64Vec>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -65,7 +65,7 @@ public partial class Float64Vec : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.Float64Vec> selfLease = BorrowShared())
+            using (BorrowLease<Raw.Float64Vec> selfLease = Lease(BorrowKind.Shared))
             {
                 DiplomatWrite writeable = new DiplomatWrite();
                 try
@@ -86,7 +86,7 @@ public partial class Float64Vec : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.Float64Vec> selfLease = BorrowShared())
+            using (BorrowLease<Raw.Float64Vec> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.Float64Vec.Get(selfLease.Ptr, i);
                 GC.KeepAlive(this);
@@ -95,37 +95,14 @@ public partial class Float64Vec : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.Float64Vec* AsFFI()
+    internal unsafe BorrowLease<Raw.Float64Vec> Lease(BorrowKind kind)
     {
         RustHandle<Raw.Float64Vec>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("Float64Vec");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.Float64Vec> BorrowShared()
-    {
-        RustHandle<Raw.Float64Vec>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("Float64Vec");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.Float64Vec> BorrowExclusive()
-    {
-        RustHandle<Raw.Float64Vec>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("Float64Vec");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -134,7 +111,7 @@ public partial class Float64Vec : IDisposable
         {
             RustHandle<Raw.Float64Vec>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

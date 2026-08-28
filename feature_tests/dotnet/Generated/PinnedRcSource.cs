@@ -39,10 +39,10 @@ public partial class PinnedRcSource : IDisposable
 
     internal unsafe PinnedRcSource(
         Raw.PinnedRcSource* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.PinnedRcSource>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.PinnedRcSource>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -86,7 +86,7 @@ public partial class PinnedRcSource : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.PinnedRcSource> selfLease = BorrowShared())
+            using (BorrowLease<Raw.PinnedRcSource> selfLease = Lease(BorrowKind.Shared))
             {
                 Raw.PinnedRcDependent* result = Raw.PinnedRcSource.MakeDependent(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -127,37 +127,14 @@ public partial class PinnedRcSource : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.PinnedRcSource* AsFFI()
+    internal unsafe BorrowLease<Raw.PinnedRcSource> Lease(BorrowKind kind)
     {
         RustHandle<Raw.PinnedRcSource>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("PinnedRcSource");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.PinnedRcSource> BorrowShared()
-    {
-        RustHandle<Raw.PinnedRcSource>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("PinnedRcSource");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.PinnedRcSource> BorrowExclusive()
-    {
-        RustHandle<Raw.PinnedRcSource>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("PinnedRcSource");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -166,7 +143,7 @@ public partial class PinnedRcSource : IDisposable
         {
             RustHandle<Raw.PinnedRcSource>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

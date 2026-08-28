@@ -39,10 +39,10 @@ public partial class DefaultDropProbe
 
     internal unsafe DefaultDropProbe(
         Raw.DefaultDropProbe* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.DefaultDropProbe>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.DefaultDropProbe>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -73,37 +73,14 @@ public partial class DefaultDropProbe
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.DefaultDropProbe* AsFFI()
+    internal unsafe BorrowLease<Raw.DefaultDropProbe> Lease(BorrowKind kind)
     {
         RustHandle<Raw.DefaultDropProbe>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("DefaultDropProbe");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.DefaultDropProbe> BorrowShared()
-    {
-        RustHandle<Raw.DefaultDropProbe>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("DefaultDropProbe");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.DefaultDropProbe> BorrowExclusive()
-    {
-        RustHandle<Raw.DefaultDropProbe>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("DefaultDropProbe");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -112,7 +89,7 @@ public partial class DefaultDropProbe
         {
             RustHandle<Raw.DefaultDropProbe>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

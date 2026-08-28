@@ -366,11 +366,11 @@ pub(super) fn route_members<'ctx>(
 /// Refuse anything C# would not compile: a property sharing its name with
 /// another member (CS0102), or with the type that contains it (CS0542).
 ///
-/// The generated type is not only what Diplomat was asked for. The templates
-/// always add `AsFFI` and `FromFFI`; opaques always get `Cleanup`,
-/// `BorrowShared`, and `BorrowExclusive`, plus `Dispose` when they opt into
-/// `IDisposable`; and a struct's fields are members too — so a property named
-/// after any of those, or after the type itself, compiles to nothing.
+/// The generated type is not only what Diplomat was asked for. Structs always
+/// get `AsFFI` and `FromFFI`; opaques always get `Cleanup` and `Lease`, plus
+/// `Dispose` when they opt into `IDisposable`; and a struct's fields are
+/// members too — so a property named after any of those, or after the type
+/// itself, compiles to nothing.
 pub(super) fn reject_member_collisions(
     ty: &str,
     properties: &[PropertyInfo<'_>],
@@ -386,11 +386,8 @@ pub(super) fn reject_member_collisions(
     let mut seen = BTreeMap::<&str, &str>::new();
     seen.insert(ty, ENCLOSING_TYPE);
     let mut generated_members = BTreeMap::<&str, &str>::new();
-    for member in ["AsFFI", "FromFFI"] {
-        generated_members.insert(member, "a member Diplomat always generates");
-    }
     if is_opaque {
-        for member in ["Cleanup", "BorrowShared", "BorrowExclusive"] {
+        for member in ["Cleanup", "Lease"] {
             generated_members.insert(member, "a member Diplomat always generates for opaques");
         }
         if has_generated_dispose {
@@ -398,6 +395,10 @@ pub(super) fn reject_member_collisions(
                 "Dispose",
                 "a member Diplomat generates for manually_disposable opaques",
             );
+        }
+    } else {
+        for member in ["AsFFI", "FromFFI"] {
+            generated_members.insert(member, "a member Diplomat always generates for structs");
         }
     }
     for (member, description) in &generated_members {

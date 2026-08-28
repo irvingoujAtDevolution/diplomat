@@ -39,10 +39,10 @@ public partial class MyOpaqueEnum
 
     internal unsafe MyOpaqueEnum(
         Raw.MyOpaqueEnum* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.MyOpaqueEnum>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.MyOpaqueEnum>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -61,7 +61,7 @@ public partial class MyOpaqueEnum
     {
         unsafe
         {
-            using (BorrowLease<Raw.MyOpaqueEnum> selfLease = BorrowShared())
+            using (BorrowLease<Raw.MyOpaqueEnum> selfLease = Lease(BorrowKind.Shared))
             {
                 DiplomatWrite writeable = new DiplomatWrite();
                 try
@@ -78,37 +78,14 @@ public partial class MyOpaqueEnum
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.MyOpaqueEnum* AsFFI()
+    internal unsafe BorrowLease<Raw.MyOpaqueEnum> Lease(BorrowKind kind)
     {
         RustHandle<Raw.MyOpaqueEnum>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("MyOpaqueEnum");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.MyOpaqueEnum> BorrowShared()
-    {
-        RustHandle<Raw.MyOpaqueEnum>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("MyOpaqueEnum");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.MyOpaqueEnum> BorrowExclusive()
-    {
-        RustHandle<Raw.MyOpaqueEnum>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("MyOpaqueEnum");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -117,7 +94,7 @@ public partial class MyOpaqueEnum
         {
             RustHandle<Raw.MyOpaqueEnum>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

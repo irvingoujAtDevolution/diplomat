@@ -39,10 +39,10 @@ public partial class BorrowingError : IDisposable
 
     internal unsafe BorrowingError(
         Raw.BorrowingError* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.BorrowingError>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.BorrowingError>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -57,46 +57,23 @@ public partial class BorrowingError : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.BorrowingError> selfLease = BorrowShared())
+            using (BorrowLease<Raw.BorrowingError> selfLease = Lease(BorrowKind.Shared))
             {
                 Raw.OpaqueThin* result = Raw.BorrowingError.OwnerFirst(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return result == null ? null : new OpaqueThin(result, BorrowKind.Shared, selfLease);
+                return result == null ? null : new OpaqueThin(result, Ownership.SharedView, selfLease);
             }
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.BorrowingError* AsFFI()
+    internal unsafe BorrowLease<Raw.BorrowingError> Lease(BorrowKind kind)
     {
         RustHandle<Raw.BorrowingError>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("BorrowingError");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.BorrowingError> BorrowShared()
-    {
-        RustHandle<Raw.BorrowingError>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("BorrowingError");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.BorrowingError> BorrowExclusive()
-    {
-        RustHandle<Raw.BorrowingError>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("BorrowingError");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -105,7 +82,7 @@ public partial class BorrowingError : IDisposable
         {
             RustHandle<Raw.BorrowingError>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

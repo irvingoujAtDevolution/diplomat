@@ -20,7 +20,7 @@ public partial class PropertyMarshals : IDisposable
         {
             unsafe
             {
-                using (BorrowLease<Raw.PropertyMarshals> selfLease = BorrowShared())
+                using (BorrowLease<Raw.PropertyMarshals> selfLease = Lease(BorrowKind.Shared))
                 {
                     var result = Raw.PropertyMarshals.Choice(selfLease.Ptr);
                     GC.KeepAlive(this);
@@ -32,7 +32,7 @@ public partial class PropertyMarshals : IDisposable
         {
             unsafe
             {
-                using (BorrowLease<Raw.PropertyMarshals> selfLease = BorrowExclusive())
+                using (BorrowLease<Raw.PropertyMarshals> selfLease = Lease(BorrowKind.Exclusive))
                 {
                     Raw.PropertyMarshals.SetChoice(selfLease.Ptr, value);
                     GC.KeepAlive(this);
@@ -50,7 +50,7 @@ public partial class PropertyMarshals : IDisposable
         {
             unsafe
             {
-                using (BorrowLease<Raw.PropertyMarshals> selfLease = BorrowShared())
+                using (BorrowLease<Raw.PropertyMarshals> selfLease = Lease(BorrowKind.Shared))
                 {
                     Raw.Opaque* result = Raw.PropertyMarshals.Held(selfLease.Ptr);
                     GC.KeepAlive(this);
@@ -63,8 +63,8 @@ public partial class PropertyMarshals : IDisposable
             unsafe
             {
                 if (value == null) throw new ArgumentNullException(nameof(value));
-                using (BorrowLease<Raw.PropertyMarshals> selfLease = BorrowExclusive())
-                using (BorrowLease<Raw.Opaque> valueLease = value.BorrowShared())
+                using (BorrowLease<Raw.PropertyMarshals> selfLease = Lease(BorrowKind.Exclusive))
+                using (BorrowLease<Raw.Opaque> valueLease = value.Lease(BorrowKind.Shared))
                 {
                     Raw.PropertyMarshals.SetHeld(selfLease.Ptr, valueLease.Ptr);
                     GC.KeepAlive(this);
@@ -80,7 +80,7 @@ public partial class PropertyMarshals : IDisposable
         {
             unsafe
             {
-                using (BorrowLease<Raw.PropertyMarshals> selfLease = BorrowShared())
+                using (BorrowLease<Raw.PropertyMarshals> selfLease = Lease(BorrowKind.Shared))
                 {
                     var result = Raw.PropertyMarshals.Number(selfLease.Ptr);
                     GC.KeepAlive(this);
@@ -92,7 +92,7 @@ public partial class PropertyMarshals : IDisposable
         {
             unsafe
             {
-                using (BorrowLease<Raw.PropertyMarshals> selfLease = BorrowExclusive())
+                using (BorrowLease<Raw.PropertyMarshals> selfLease = Lease(BorrowKind.Exclusive))
                 {
                     Raw.PropertyMarshals.SetNumber(selfLease.Ptr, value);
                     GC.KeepAlive(this);
@@ -107,7 +107,7 @@ public partial class PropertyMarshals : IDisposable
         {
             unsafe
             {
-                using (BorrowLease<Raw.PropertyMarshals> selfLease = BorrowShared())
+                using (BorrowLease<Raw.PropertyMarshals> selfLease = Lease(BorrowKind.Shared))
                 {
                     Raw.PrimitiveStruct result = Raw.PropertyMarshals.Point(selfLease.Ptr);
                     GC.KeepAlive(this);
@@ -119,7 +119,7 @@ public partial class PropertyMarshals : IDisposable
         {
             unsafe
             {
-                using (BorrowLease<Raw.PropertyMarshals> selfLease = BorrowExclusive())
+                using (BorrowLease<Raw.PropertyMarshals> selfLease = Lease(BorrowKind.Exclusive))
                 {
                     Raw.PropertyMarshals.SetPoint(selfLease.Ptr, value.AsFFI());
                     GC.KeepAlive(this);
@@ -134,7 +134,7 @@ public partial class PropertyMarshals : IDisposable
         {
             unsafe
             {
-                using (BorrowLease<Raw.PropertyMarshals> selfLease = BorrowShared())
+                using (BorrowLease<Raw.PropertyMarshals> selfLease = Lease(BorrowKind.Shared))
                 {
                     DiplomatWrite writeable = new DiplomatWrite();
                     try
@@ -155,7 +155,7 @@ public partial class PropertyMarshals : IDisposable
             unsafe
             {
                 if (value == null) throw new ArgumentNullException(nameof(value));
-                using (BorrowLease<Raw.PropertyMarshals> selfLease = BorrowExclusive())
+                using (BorrowLease<Raw.PropertyMarshals> selfLease = Lease(BorrowKind.Exclusive))
                 {
                     fixed (char* valuePtr = value)
                     {
@@ -173,7 +173,7 @@ public partial class PropertyMarshals : IDisposable
         {
             unsafe
             {
-                using (BorrowLease<Raw.PropertyMarshals> selfLease = BorrowShared())
+                using (BorrowLease<Raw.PropertyMarshals> selfLease = Lease(BorrowKind.Shared))
                 {
                     DiplomatWrite writeable = new DiplomatWrite();
                     try
@@ -195,7 +195,7 @@ public partial class PropertyMarshals : IDisposable
             {
                 if (value == null) throw new ArgumentNullException(nameof(value));
                 byte[] valueBytes = Diplomat.Utf8.Clone(value);
-                using (BorrowLease<Raw.PropertyMarshals> selfLease = BorrowExclusive())
+                using (BorrowLease<Raw.PropertyMarshals> selfLease = Lease(BorrowKind.Exclusive))
                 {
                     fixed (byte* valuePtr = valueBytes)
                     {
@@ -232,10 +232,10 @@ public partial class PropertyMarshals : IDisposable
 
     internal unsafe PropertyMarshals(
         Raw.PropertyMarshals* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.PropertyMarshals>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.PropertyMarshals>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -250,37 +250,14 @@ public partial class PropertyMarshals : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.PropertyMarshals* AsFFI()
+    internal unsafe BorrowLease<Raw.PropertyMarshals> Lease(BorrowKind kind)
     {
         RustHandle<Raw.PropertyMarshals>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("PropertyMarshals");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.PropertyMarshals> BorrowShared()
-    {
-        RustHandle<Raw.PropertyMarshals>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("PropertyMarshals");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.PropertyMarshals> BorrowExclusive()
-    {
-        RustHandle<Raw.PropertyMarshals>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("PropertyMarshals");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -289,7 +266,7 @@ public partial class PropertyMarshals : IDisposable
         {
             RustHandle<Raw.PropertyMarshals>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

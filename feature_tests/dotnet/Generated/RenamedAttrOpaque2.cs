@@ -39,43 +39,20 @@ public partial class RenamedAttrOpaque2
 
     internal unsafe RenamedAttrOpaque2(
         Raw.RenamedAttrOpaque2* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.RenamedAttrOpaque2>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.RenamedAttrOpaque2>.Borrowed(handle, ownership, edges);
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.RenamedAttrOpaque2* AsFFI()
+    internal unsafe BorrowLease<Raw.RenamedAttrOpaque2> Lease(BorrowKind kind)
     {
         RustHandle<Raw.RenamedAttrOpaque2>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("RenamedAttrOpaque2");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.RenamedAttrOpaque2> BorrowShared()
-    {
-        RustHandle<Raw.RenamedAttrOpaque2>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedAttrOpaque2");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.RenamedAttrOpaque2> BorrowExclusive()
-    {
-        RustHandle<Raw.RenamedAttrOpaque2>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedAttrOpaque2");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -84,7 +61,7 @@ public partial class RenamedAttrOpaque2
         {
             RustHandle<Raw.RenamedAttrOpaque2>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

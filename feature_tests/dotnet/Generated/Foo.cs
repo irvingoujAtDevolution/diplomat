@@ -28,7 +28,7 @@ public partial class Foo : IDisposable
         {
             unsafe
             {
-                using (BorrowLease<Raw.Foo> selfLease = BorrowShared())
+                using (BorrowLease<Raw.Foo> selfLease = Lease(BorrowKind.Shared))
                 {
                     Raw.Bar* result = Raw.Foo.GetBar(selfLease.Ptr);
                     GC.KeepAlive(this);
@@ -63,43 +63,20 @@ public partial class Foo : IDisposable
 
     internal unsafe Foo(
         Raw.Foo* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.Foo>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.Foo>.Borrowed(handle, ownership, edges);
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.Foo* AsFFI()
+    internal unsafe BorrowLease<Raw.Foo> Lease(BorrowKind kind)
     {
         RustHandle<Raw.Foo>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("Foo");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.Foo> BorrowShared()
-    {
-        RustHandle<Raw.Foo>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("Foo");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.Foo> BorrowExclusive()
-    {
-        RustHandle<Raw.Foo>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("Foo");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -108,7 +85,7 @@ public partial class Foo : IDisposable
         {
             RustHandle<Raw.Foo>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

@@ -39,17 +39,17 @@ public partial class RcFinalizerDependent : IDisposable
 
     internal unsafe RcFinalizerDependent(
         Raw.RcFinalizerDependent* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.RcFinalizerDependent>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.RcFinalizerDependent>.Borrowed(handle, ownership, edges);
     }
 
     public ulong Id()
     {
         unsafe
         {
-            using (BorrowLease<Raw.RcFinalizerDependent> selfLease = BorrowShared())
+            using (BorrowLease<Raw.RcFinalizerDependent> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.RcFinalizerDependent.Id(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -82,37 +82,14 @@ public partial class RcFinalizerDependent : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.RcFinalizerDependent* AsFFI()
+    internal unsafe BorrowLease<Raw.RcFinalizerDependent> Lease(BorrowKind kind)
     {
         RustHandle<Raw.RcFinalizerDependent>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("RcFinalizerDependent");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.RcFinalizerDependent> BorrowShared()
-    {
-        RustHandle<Raw.RcFinalizerDependent>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RcFinalizerDependent");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.RcFinalizerDependent> BorrowExclusive()
-    {
-        RustHandle<Raw.RcFinalizerDependent>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RcFinalizerDependent");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -121,7 +98,7 @@ public partial class RcFinalizerDependent : IDisposable
         {
             RustHandle<Raw.RcFinalizerDependent>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

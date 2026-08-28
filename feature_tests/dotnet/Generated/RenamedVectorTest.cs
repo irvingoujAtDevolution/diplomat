@@ -20,7 +20,7 @@ public partial class RenamedVectorTest : IDisposable
         {
             unsafe
             {
-                using (BorrowLease<Raw.RenamedVectorTest> selfLease = BorrowShared())
+                using (BorrowLease<Raw.RenamedVectorTest> selfLease = Lease(BorrowKind.Shared))
                 {
                     var result = Raw.RenamedVectorTest.Len(selfLease.Ptr);
                     GC.KeepAlive(this);
@@ -55,10 +55,10 @@ public partial class RenamedVectorTest : IDisposable
 
     internal unsafe RenamedVectorTest(
         Raw.RenamedVectorTest* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.RenamedVectorTest>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.RenamedVectorTest>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -77,7 +77,7 @@ public partial class RenamedVectorTest : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.RenamedVectorTest> selfLease = BorrowShared())
+            using (BorrowLease<Raw.RenamedVectorTest> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.RenamedVectorTest.Get(selfLease.Ptr, idx);
                 GC.KeepAlive(this);
@@ -90,7 +90,7 @@ public partial class RenamedVectorTest : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.RenamedVectorTest> selfLease = BorrowExclusive())
+            using (BorrowLease<Raw.RenamedVectorTest> selfLease = Lease(BorrowKind.Exclusive))
             {
                 Raw.RenamedVectorTest.Push(selfLease.Ptr, value);
                 GC.KeepAlive(this);
@@ -98,37 +98,14 @@ public partial class RenamedVectorTest : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.RenamedVectorTest* AsFFI()
+    internal unsafe BorrowLease<Raw.RenamedVectorTest> Lease(BorrowKind kind)
     {
         RustHandle<Raw.RenamedVectorTest>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("RenamedVectorTest");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.RenamedVectorTest> BorrowShared()
-    {
-        RustHandle<Raw.RenamedVectorTest>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedVectorTest");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.RenamedVectorTest> BorrowExclusive()
-    {
-        RustHandle<Raw.RenamedVectorTest>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedVectorTest");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -137,7 +114,7 @@ public partial class RenamedVectorTest : IDisposable
         {
             RustHandle<Raw.RenamedVectorTest>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

@@ -39,10 +39,10 @@ public partial class Opaque : IDisposable
 
     internal unsafe Opaque(
         Raw.Opaque* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.Opaque>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.Opaque>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -94,7 +94,7 @@ public partial class Opaque : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.Opaque> selfLease = BorrowShared())
+            using (BorrowLease<Raw.Opaque> selfLease = Lease(BorrowKind.Shared))
             {
                 DiplomatWrite writeable = new DiplomatWrite();
                 try
@@ -115,7 +115,7 @@ public partial class Opaque : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.Opaque> selfLease = BorrowShared())
+            using (BorrowLease<Raw.Opaque> selfLease = Lease(BorrowKind.Shared))
             {
                 Raw.Opaque.AssertStruct(selfLease.Ptr, s.AsFFI());
                 GC.KeepAlive(this);
@@ -148,37 +148,14 @@ public partial class Opaque : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.Opaque* AsFFI()
+    internal unsafe BorrowLease<Raw.Opaque> Lease(BorrowKind kind)
     {
         RustHandle<Raw.Opaque>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("Opaque");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.Opaque> BorrowShared()
-    {
-        RustHandle<Raw.Opaque>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("Opaque");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.Opaque> BorrowExclusive()
-    {
-        RustHandle<Raw.Opaque>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("Opaque");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -187,7 +164,7 @@ public partial class Opaque : IDisposable
         {
             RustHandle<Raw.Opaque>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

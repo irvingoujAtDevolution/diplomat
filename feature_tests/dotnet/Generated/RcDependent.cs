@@ -39,17 +39,17 @@ public partial class RcDependent : IDisposable
 
     internal unsafe RcDependent(
         Raw.RcDependent* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.RcDependent>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.RcDependent>.Borrowed(handle, ownership, edges);
     }
 
     public ulong Id()
     {
         unsafe
         {
-            using (BorrowLease<Raw.RcDependent> selfLease = BorrowShared())
+            using (BorrowLease<Raw.RcDependent> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.RcDependent.Id(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -62,7 +62,7 @@ public partial class RcDependent : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.RcDependent> selfLease = BorrowShared())
+            using (BorrowLease<Raw.RcDependent> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.RcDependent.SourceId(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -83,7 +83,7 @@ public partial class RcDependent : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.RcDependent> selfLease = BorrowShared())
+            using (BorrowLease<Raw.RcDependent> selfLease = Lease(BorrowKind.Shared))
             {
                 Raw.RcDependent2* result = Raw.RcDependent.MakeDependent2(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -116,37 +116,14 @@ public partial class RcDependent : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.RcDependent* AsFFI()
+    internal unsafe BorrowLease<Raw.RcDependent> Lease(BorrowKind kind)
     {
         RustHandle<Raw.RcDependent>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("RcDependent");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.RcDependent> BorrowShared()
-    {
-        RustHandle<Raw.RcDependent>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RcDependent");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.RcDependent> BorrowExclusive()
-    {
-        RustHandle<Raw.RcDependent>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RcDependent");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -155,7 +132,7 @@ public partial class RcDependent : IDisposable
         {
             RustHandle<Raw.RcDependent>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

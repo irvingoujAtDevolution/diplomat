@@ -39,10 +39,10 @@ public partial class RcSource : IDisposable
 
     internal unsafe RcSource(
         Raw.RcSource* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.RcSource>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.RcSource>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -61,7 +61,7 @@ public partial class RcSource : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.RcSource> selfLease = BorrowShared())
+            using (BorrowLease<Raw.RcSource> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.RcSource.Id(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -82,11 +82,11 @@ public partial class RcSource : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.RcSource> selfLease = BorrowShared())
+            using (BorrowLease<Raw.RcSource> selfLease = Lease(BorrowKind.Shared))
             {
                 Raw.RcSource* result = Raw.RcSource.View(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new RcSource(result, BorrowKind.Shared, selfLease);
+                return new RcSource(result, Ownership.SharedView, selfLease);
             }
         }
     }
@@ -103,11 +103,11 @@ public partial class RcSource : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.RcSource> selfLease = BorrowExclusive())
+            using (BorrowLease<Raw.RcSource> selfLease = Lease(BorrowKind.Exclusive))
             {
                 Raw.RcSource* result = Raw.RcSource.ViewMut(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new RcSource(result, BorrowKind.Exclusive, selfLease);
+                return new RcSource(result, Ownership.ExclusiveView, selfLease);
             }
         }
     }
@@ -124,11 +124,11 @@ public partial class RcSource : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.RcSource> selfLease = BorrowExclusive())
+            using (BorrowLease<Raw.RcSource> selfLease = Lease(BorrowKind.Exclusive))
             {
                 Raw.RcSource* result = Raw.RcSource.ViewFromMut(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return new RcSource(result, BorrowKind.Shared, selfLease);
+                return new RcSource(result, Ownership.SharedView, selfLease);
             }
         }
     }
@@ -145,11 +145,11 @@ public partial class RcSource : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.RcSource> selfLease = BorrowExclusive())
+            using (BorrowLease<Raw.RcSource> selfLease = Lease(BorrowKind.Exclusive))
             {
                 Raw.RcSource* result = Raw.RcSource.ViewMutIf(selfLease.Ptr, present);
                 GC.KeepAlive(this);
-                return result == null ? null : new RcSource(result, BorrowKind.Exclusive, selfLease);
+                return result == null ? null : new RcSource(result, Ownership.ExclusiveView, selfLease);
             }
         }
     }
@@ -158,7 +158,7 @@ public partial class RcSource : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.RcSource> selfLease = BorrowExclusive())
+            using (BorrowLease<Raw.RcSource> selfLease = Lease(BorrowKind.Exclusive))
             {
                 var result = Raw.RcSource.PingMutable(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -179,7 +179,7 @@ public partial class RcSource : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.RcSource> selfLease = BorrowShared())
+            using (BorrowLease<Raw.RcSource> selfLease = Lease(BorrowKind.Shared))
             {
                 Raw.RcDependent* result = Raw.RcSource.MakeDependent(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -212,37 +212,14 @@ public partial class RcSource : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.RcSource* AsFFI()
+    internal unsafe BorrowLease<Raw.RcSource> Lease(BorrowKind kind)
     {
         RustHandle<Raw.RcSource>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("RcSource");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.RcSource> BorrowShared()
-    {
-        RustHandle<Raw.RcSource>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RcSource");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.RcSource> BorrowExclusive()
-    {
-        RustHandle<Raw.RcSource>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RcSource");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -251,7 +228,7 @@ public partial class RcSource : IDisposable
         {
             RustHandle<Raw.RcSource>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

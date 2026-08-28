@@ -39,10 +39,10 @@ public partial class ResultOpaque : IDisposable
 
     internal unsafe ResultOpaque(
         Raw.ResultOpaque* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.ResultOpaque>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.ResultOpaque>.Borrowed(handle, ownership, edges);
     }
 
     /// <exception cref="ErrorEnumException"></exception>
@@ -176,7 +176,7 @@ public partial class ResultOpaque : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.ResultOpaque> selfLease = BorrowShared())
+            using (BorrowLease<Raw.ResultOpaque> selfLease = Lease(BorrowKind.Shared))
             {
                 Raw.ResultOpaque.AssertInteger(selfLease.Ptr, i);
                 GC.KeepAlive(this);
@@ -184,37 +184,14 @@ public partial class ResultOpaque : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.ResultOpaque* AsFFI()
+    internal unsafe BorrowLease<Raw.ResultOpaque> Lease(BorrowKind kind)
     {
         RustHandle<Raw.ResultOpaque>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("ResultOpaque");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.ResultOpaque> BorrowShared()
-    {
-        RustHandle<Raw.ResultOpaque>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("ResultOpaque");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.ResultOpaque> BorrowExclusive()
-    {
-        RustHandle<Raw.ResultOpaque>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("ResultOpaque");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -223,7 +200,7 @@ public partial class ResultOpaque : IDisposable
         {
             RustHandle<Raw.ResultOpaque>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

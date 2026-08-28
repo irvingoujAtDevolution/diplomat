@@ -462,10 +462,10 @@ impl DotnetReturnType {
             // `new {name}(...)` (not `{name}.Borrowed(...)`) so the type
             // always resolves even when the wrapper has a same-named method.
             Ownership::Borrowed(hir::Mutability::Immutable) => {
-                format!("new {name}({raw_expr}, BorrowKind.Shared{edges})")
+                format!("new {name}({raw_expr}, Ownership.SharedView{edges})")
             }
             Ownership::Borrowed(hir::Mutability::Mutable) => {
-                format!("new {name}({raw_expr}, BorrowKind.Exclusive{edges})")
+                format!("new {name}({raw_expr}, Ownership.ExclusiveView{edges})")
             }
         }
     }
@@ -2043,9 +2043,9 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
         Some(match &this.ty {
             hir::SelfType::Opaque(p) => {
                 let name = self.opaque_name_borrowed(p);
-                let acquire = match this.get_mutability() {
-                    hir::Mutability::Immutable => "BorrowShared",
-                    hir::Mutability::Mutable => "BorrowExclusive",
+                let kind = match this.get_mutability() {
+                    hir::Mutability::Immutable => "BorrowKind.Shared",
+                    hir::Mutability::Mutable => "BorrowKind.Exclusive",
                 };
                 let lease_var = Self::unique_local_name(used_local_names, "selfLease".to_string());
                 InputLowering {
@@ -2053,7 +2053,7 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                     idiomatic_param: String::new(),
                     raw_call_arg: format!("{lease_var}.Ptr"),
                     borrow_statement: Some(format!(
-                        "using (BorrowLease<Raw.{name}> {lease_var} = {acquire}())"
+                        "using (BorrowLease<Raw.{name}> {lease_var} = Lease({kind}))"
                     )),
                     borrow_lease: Some(OpaqueBorrowLease {
                         source: "this".into(),
@@ -2227,9 +2227,9 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
             hir::Type::Opaque(p) => {
                 let ty = self.opaque_name_borrowed(p);
                 let optional = p.is_optional();
-                let acquire = match p.owner.mutability {
-                    hir::Mutability::Immutable => "BorrowShared",
-                    hir::Mutability::Mutable => "BorrowExclusive",
+                let kind = match p.owner.mutability {
+                    hir::Mutability::Immutable => "BorrowKind.Shared",
+                    hir::Mutability::Mutable => "BorrowKind.Exclusive",
                 };
                 let idiomatic_ty = if optional {
                     format!("{ty}?")
@@ -2249,10 +2249,10 @@ impl<'ctx, 'tcx> ItemGenContext<'ctx, 'tcx> {
                 };
                 let borrow_statement = if optional {
                     format!(
-                        "using (BorrowLease<Raw.{ty}>? {lease_var} = {arg_name} == null ? null : {arg_name}.{acquire}())"
+                        "using (BorrowLease<Raw.{ty}>? {lease_var} = {arg_name} == null ? null : {arg_name}.Lease({kind}))"
                     )
                 } else {
-                    format!("using (BorrowLease<Raw.{ty}> {lease_var} = {arg_name}.{acquire}())")
+                    format!("using (BorrowLease<Raw.{ty}> {lease_var} = {arg_name}.Lease({kind}))")
                 };
                 InputLowering {
                     raw_param: format!("{ty}* {raw_name}"),

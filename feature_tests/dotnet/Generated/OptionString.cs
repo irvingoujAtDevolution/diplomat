@@ -39,10 +39,10 @@ public partial class OptionString : IDisposable
 
     internal unsafe OptionString(
         Raw.OptionString* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.OptionString>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.OptionString>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -66,7 +66,7 @@ public partial class OptionString : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.OptionString> selfLease = BorrowShared())
+            using (BorrowLease<Raw.OptionString> selfLease = Lease(BorrowKind.Shared))
             {
                 DiplomatWrite writeable = new DiplomatWrite();
                 try
@@ -87,37 +87,14 @@ public partial class OptionString : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.OptionString* AsFFI()
+    internal unsafe BorrowLease<Raw.OptionString> Lease(BorrowKind kind)
     {
         RustHandle<Raw.OptionString>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("OptionString");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.OptionString> BorrowShared()
-    {
-        RustHandle<Raw.OptionString>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("OptionString");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.OptionString> BorrowExclusive()
-    {
-        RustHandle<Raw.OptionString>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("OptionString");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -126,7 +103,7 @@ public partial class OptionString : IDisposable
         {
             RustHandle<Raw.OptionString>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

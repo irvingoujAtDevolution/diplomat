@@ -39,10 +39,10 @@ public partial class RenamedMixinTest
 
     internal unsafe RenamedMixinTest(
         Raw.RenamedMixinTest* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.RenamedMixinTest>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.RenamedMixinTest>.Borrowed(handle, ownership, edges);
     }
 
     public static string Hello()
@@ -62,37 +62,14 @@ public partial class RenamedMixinTest
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.RenamedMixinTest* AsFFI()
+    internal unsafe BorrowLease<Raw.RenamedMixinTest> Lease(BorrowKind kind)
     {
         RustHandle<Raw.RenamedMixinTest>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("RenamedMixinTest");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.RenamedMixinTest> BorrowShared()
-    {
-        RustHandle<Raw.RenamedMixinTest>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedMixinTest");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.RenamedMixinTest> BorrowExclusive()
-    {
-        RustHandle<Raw.RenamedMixinTest>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedMixinTest");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -101,7 +78,7 @@ public partial class RenamedMixinTest
         {
             RustHandle<Raw.RenamedMixinTest>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

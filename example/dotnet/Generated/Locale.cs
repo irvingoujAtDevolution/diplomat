@@ -39,10 +39,10 @@ public partial class Locale
 
     internal unsafe Locale(
         Raw.Locale* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.Locale>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.Locale>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -61,37 +61,14 @@ public partial class Locale
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.Locale* AsFFI()
+    internal unsafe BorrowLease<Raw.Locale> Lease(BorrowKind kind)
     {
         RustHandle<Raw.Locale>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("Locale");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.Locale> BorrowShared()
-    {
-        RustHandle<Raw.Locale>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("Locale");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.Locale> BorrowExclusive()
-    {
-        RustHandle<Raw.Locale>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("Locale");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -100,7 +77,7 @@ public partial class Locale
         {
             RustHandle<Raw.Locale>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

@@ -39,10 +39,10 @@ public partial class RcFinalizerSource
 
     internal unsafe RcFinalizerSource(
         Raw.RcFinalizerSource* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.RcFinalizerSource>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.RcFinalizerSource>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -61,7 +61,7 @@ public partial class RcFinalizerSource
     {
         unsafe
         {
-            using (BorrowLease<Raw.RcFinalizerSource> selfLease = BorrowShared())
+            using (BorrowLease<Raw.RcFinalizerSource> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.RcFinalizerSource.Id(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -82,7 +82,7 @@ public partial class RcFinalizerSource
     {
         unsafe
         {
-            using (BorrowLease<Raw.RcFinalizerSource> selfLease = BorrowShared())
+            using (BorrowLease<Raw.RcFinalizerSource> selfLease = Lease(BorrowKind.Shared))
             {
                 Raw.RcFinalizerDependent* result = Raw.RcFinalizerSource.MakeDependent(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -115,37 +115,14 @@ public partial class RcFinalizerSource
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.RcFinalizerSource* AsFFI()
+    internal unsafe BorrowLease<Raw.RcFinalizerSource> Lease(BorrowKind kind)
     {
         RustHandle<Raw.RcFinalizerSource>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("RcFinalizerSource");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.RcFinalizerSource> BorrowShared()
-    {
-        RustHandle<Raw.RcFinalizerSource>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RcFinalizerSource");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.RcFinalizerSource> BorrowExclusive()
-    {
-        RustHandle<Raw.RcFinalizerSource>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RcFinalizerSource");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -154,7 +131,7 @@ public partial class RcFinalizerSource
         {
             RustHandle<Raw.RcFinalizerSource>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

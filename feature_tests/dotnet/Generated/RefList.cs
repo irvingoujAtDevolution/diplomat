@@ -39,10 +39,10 @@ public partial class RefList : IDisposable
 
     internal unsafe RefList(
         Raw.RefList* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.RefList>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.RefList>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -58,7 +58,7 @@ public partial class RefList : IDisposable
         unsafe
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
-            using (BorrowLease<Raw.RefListParameter> dataLease = data.BorrowShared())
+            using (BorrowLease<Raw.RefListParameter> dataLease = data.Lease(BorrowKind.Shared))
             {
                 Raw.RefList* result = Raw.RefList.Node(dataLease.Ptr);
                 GC.KeepAlive(data);
@@ -67,37 +67,14 @@ public partial class RefList : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.RefList* AsFFI()
+    internal unsafe BorrowLease<Raw.RefList> Lease(BorrowKind kind)
     {
         RustHandle<Raw.RefList>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("RefList");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.RefList> BorrowShared()
-    {
-        RustHandle<Raw.RefList>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RefList");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.RefList> BorrowExclusive()
-    {
-        RustHandle<Raw.RefList>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RefList");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -106,7 +83,7 @@ public partial class RefList : IDisposable
         {
             RustHandle<Raw.RefList>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

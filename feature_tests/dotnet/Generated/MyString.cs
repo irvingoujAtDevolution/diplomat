@@ -20,7 +20,7 @@ public partial class MyString : IDisposable
         {
             unsafe
             {
-                using (BorrowLease<Raw.MyString> selfLease = BorrowShared())
+                using (BorrowLease<Raw.MyString> selfLease = Lease(BorrowKind.Shared))
                 {
                     DiplomatWrite writeable = new DiplomatWrite();
                     try
@@ -42,7 +42,7 @@ public partial class MyString : IDisposable
             {
                 if (value == null) throw new ArgumentNullException(nameof(value));
                 byte[] valueBytes = Diplomat.Utf8.Clone(value);
-                using (BorrowLease<Raw.MyString> selfLease = BorrowExclusive())
+                using (BorrowLease<Raw.MyString> selfLease = Lease(BorrowKind.Exclusive))
                 {
                     fixed (byte* valuePtr = valueBytes)
                     {
@@ -79,10 +79,10 @@ public partial class MyString : IDisposable
 
     internal unsafe MyString(
         Raw.MyString* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.MyString>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.MyString>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -148,7 +148,7 @@ public partial class MyString : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.MyString> selfLease = BorrowShared())
+            using (BorrowLease<Raw.MyString> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.MyString.Borrow(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -157,37 +157,14 @@ public partial class MyString : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.MyString* AsFFI()
+    internal unsafe BorrowLease<Raw.MyString> Lease(BorrowKind kind)
     {
         RustHandle<Raw.MyString>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("MyString");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.MyString> BorrowShared()
-    {
-        RustHandle<Raw.MyString>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("MyString");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.MyString> BorrowExclusive()
-    {
-        RustHandle<Raw.MyString>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("MyString");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -196,7 +173,7 @@ public partial class MyString : IDisposable
         {
             RustHandle<Raw.MyString>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

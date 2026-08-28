@@ -39,43 +39,20 @@ public partial class Two
 
     internal unsafe Two(
         Raw.Two* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.Two>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.Two>.Borrowed(handle, ownership, edges);
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.Two* AsFFI()
+    internal unsafe BorrowLease<Raw.Two> Lease(BorrowKind kind)
     {
         RustHandle<Raw.Two>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("Two");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.Two> BorrowShared()
-    {
-        RustHandle<Raw.Two>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("Two");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.Two> BorrowExclusive()
-    {
-        RustHandle<Raw.Two>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("Two");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -84,7 +61,7 @@ public partial class Two
         {
             RustHandle<Raw.Two>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

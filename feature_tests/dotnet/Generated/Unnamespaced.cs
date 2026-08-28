@@ -39,10 +39,10 @@ public partial class Unnamespaced
 
     internal unsafe Unnamespaced(
         Raw.Unnamespaced* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.Unnamespaced>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.Unnamespaced>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -62,8 +62,8 @@ public partial class Unnamespaced
         unsafe
         {
             if (n == null) throw new ArgumentNullException(nameof(n));
-            using (BorrowLease<Raw.Unnamespaced> selfLease = BorrowShared())
-            using (BorrowLease<Raw.AttrOpaque1Renamed> nLease = n.BorrowShared())
+            using (BorrowLease<Raw.Unnamespaced> selfLease = Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.AttrOpaque1Renamed> nLease = n.Lease(BorrowKind.Shared))
             {
                 Raw.Unnamespaced.UseNamespaced(selfLease.Ptr, nLease.Ptr);
                 GC.KeepAlive(this);
@@ -72,37 +72,14 @@ public partial class Unnamespaced
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.Unnamespaced* AsFFI()
+    internal unsafe BorrowLease<Raw.Unnamespaced> Lease(BorrowKind kind)
     {
         RustHandle<Raw.Unnamespaced>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("Unnamespaced");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.Unnamespaced> BorrowShared()
-    {
-        RustHandle<Raw.Unnamespaced>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("Unnamespaced");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.Unnamespaced> BorrowExclusive()
-    {
-        RustHandle<Raw.Unnamespaced>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("Unnamespaced");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -111,7 +88,7 @@ public partial class Unnamespaced
         {
             RustHandle<Raw.Unnamespaced>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

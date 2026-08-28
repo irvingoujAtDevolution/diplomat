@@ -10,6 +10,20 @@ namespace {{ namespace }}.Diplomat;
 internal unsafe delegate void RustDestructor<T>(T* ptr) where T : unmanaged;
 
 /// <summary>
+/// What a wrapper is to its native value: the C# stand-in for <c>Box&lt;T&gt;</c>,
+/// <c>&amp;T</c>, or <c>&amp;mut T</c>. Set once at construction.
+/// </summary>
+internal enum Ownership
+{
+    /// <c>Box&lt;T&gt;</c>: runs the destructor at the last claim and may take any lease.
+    Owned,
+    /// <c>&amp;T</c>: edges are versioned, and an exclusive lease is refused.
+    SharedView,
+    /// <c>&amp;mut T</c>: holds its source exclusively until disposed.
+    ExclusiveView,
+}
+
+/// <summary>
 /// Tracks the native lifetime and active borrow mode for one opaque value.
 /// The initial claim belongs to the wrapper. Each borrow lease adds one claim.
 /// </summary>
@@ -20,50 +34,48 @@ internal unsafe delegate void RustDestructor<T>(T* ptr) where T : unmanaged;
 /// static guarantee that a borrow ends before the wrapper it came from dies: a
 /// view can outlive its source wrapper, and finalizers run in any order. So the
 /// one decision that needs both answers — may this handle let go of its edges
-/// yet (<see cref="ReleaseScopedEdgesIfReady"/>) — has to read both ledgers in
-/// one place. When the last claim ends, this runs the native destructor before
-/// releasing the value's dependency edges.
+/// yet — is made here, from both ledgers: at the last claim
+/// (<see cref="DropClaim"/>), and for an exclusive view once its scope has ended
+/// and no call is in flight (<see cref="ReleaseScopedEdgesIfReady"/>). When the
+/// last claim ends, this runs the native destructor before releasing the
+/// value's dependency edges.
 /// </remarks>
 internal sealed unsafe class RustHandle<T> where T : unmanaged
 {
     private T* _ptr;
     private readonly RustDestructor<T>? _destructor;
     private object[] _edges;
-    private readonly BorrowKind _capability;
+    private readonly Ownership _ownership;
     // Both ledgers must stay mutable fields: C# calls a method on a readonly
     // struct field through a defensive copy, so the atomics would update the copy.
     private Claims _claims = Claims.Initial;
     private BorrowLedger _borrows;
-    private int _scopeEnded;
 
     private RustHandle(
         T* ptr,
         RustDestructor<T>? destructor,
-        BorrowKind capability,
+        Ownership ownership,
         object[] edges
     )
     {
         _ptr = ptr;
         _destructor = destructor;
-        _capability = capability;
-        _edges = CaptureEdges(edges, destructor is null && capability == BorrowKind.Shared);
+        _ownership = ownership;
+        _edges = CaptureEdges(edges, versioned: ownership == Ownership.SharedView);
     }
 
     /// The C# side owns the pointer and will run its destructor on release.
     internal static RustHandle<T> Owned(T* ptr, RustDestructor<T> destructor) =>
-        new RustHandle<T>(ptr, destructor, BorrowKind.Exclusive, System.Array.Empty<object>());
+        new RustHandle<T>(ptr, destructor, Ownership.Owned, System.Array.Empty<object>());
 
     /// Owned handle that also roots pins and/or borrow leases in <paramref name="edges"/>.
     internal static RustHandle<T> Owned(T* ptr, RustDestructor<T> destructor, object[] edges) =>
-        new RustHandle<T>(ptr, destructor, BorrowKind.Exclusive, edges);
+        new RustHandle<T>(ptr, destructor, Ownership.Owned, edges);
 
-    /// Rust still owns the pointer; release never runs a destructor.
-    internal static RustHandle<T> Borrowed(T* ptr, BorrowKind capability) =>
-        new RustHandle<T>(ptr, null, capability, System.Array.Empty<object>());
-
-    /// Borrowed handle that also roots keep-alive edges.
-    internal static RustHandle<T> Borrowed(T* ptr, BorrowKind capability, object[] edges) =>
-        new RustHandle<T>(ptr, null, capability, edges);
+    /// Rust still owns the pointer; release never runs a destructor. Edges root
+    /// what the borrowed value depends on.
+    internal static RustHandle<T> Borrowed(T* ptr, Ownership ownership, object[] edges) =>
+        new RustHandle<T>(ptr, null, ownership, edges);
 
     internal T* Ptr => _ptr;
 
@@ -80,45 +92,27 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
         return edges;
     }
 
-    /// True once this handle's native pointer has been cleared (refcount hit zero,
-    /// or a borrowed handle was never assigned).
-    internal bool IsNull => _ptr is null;
-
     internal long Version => _borrows.Version;
 
-    internal bool IsScopeEnded => Volatile.Read(ref _scopeEnded) != 0;
-
-    internal BorrowLease<T> BorrowShared() => Acquire(BorrowKind.Shared);
-
-    internal BorrowLease<T> BorrowExclusive()
-    {
-        if (_capability == BorrowKind.Shared)
-        {
-            throw new InvalidOperationException("This wrapper only carries a shared borrow.");
-        }
-
-        return Acquire(BorrowKind.Exclusive);
-    }
+    internal bool IsScopeEnded => _borrows.IsScopeEnded;
 
     // A lease is a claim plus a borrow, taken in that order so the value cannot
     // be destroyed between the two steps. Either step failing hands back what
     // the other took.
-    private BorrowLease<T> Acquire(BorrowKind kind)
+    internal BorrowLease<T> Lease(BorrowKind kind)
     {
+        if (kind == BorrowKind.Exclusive && _ownership == Ownership.SharedView)
+        {
+            throw new InvalidOperationException("This wrapper only carries a shared borrow.");
+        }
+
         _claims.Retain();
         bool borrowed = false;
         try
         {
-            if (kind == BorrowKind.Shared)
-            {
-                _borrows.AcquireShared();
-            }
-            else
-            {
-                _borrows.AcquireExclusive();
-            }
+            _borrows.Acquire(kind);
             borrowed = true;
-            if (IsScopeEnded)
+            if (_borrows.IsScopeEnded)
             {
                 throw new InvalidOperationException(
                     "This borrowed view was invalidated by mutation of its source."
@@ -130,7 +124,7 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
         {
             if (borrowed)
             {
-                ReleaseBorrowState(kind);
+                ReleaseBorrowKeepingClaim(kind);
             }
             DropClaim();
             throw;
@@ -144,7 +138,7 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
         {
             foreach (object edge in _edges)
             {
-                if (edge is IVersionedBorrow dependency)
+                if (edge is IVersionedClaim dependency)
                 {
                     (acquired ??= new List<IDisposable>()).Add(dependency.Acquire());
                 }
@@ -167,35 +161,32 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
 
     internal void ReleaseBorrow(BorrowKind kind)
     {
-        ReleaseBorrowState(kind);
+        ReleaseBorrowKeepingClaim(kind);
         DropClaim();
     }
 
-    internal long ReleaseBorrowForVersion(BorrowKind kind) => ReleaseBorrowState(kind);
-
-    private long ReleaseBorrowState(BorrowKind kind)
+    /// Hands the borrow back but keeps the lifetime claim. Returns the version
+    /// a view created from this borrow has to check against.
+    internal long ReleaseBorrowKeepingClaim(BorrowKind kind)
     {
-        long version = kind == BorrowKind.Shared
-            ? _borrows.ReleaseShared()
-            : _borrows.ReleaseExclusive();
+        long version = _borrows.Release(kind);
         ReleaseScopedEdgesIfReady();
         return version;
     }
 
-    /// Releases this wrapper's own owner reference.
-    internal void Release()
+    /// Ends the wrapper's own claim; an exclusive view also ends its scope.
+    internal void ReleaseOwnerClaim()
     {
-        if (_destructor is null && _capability == BorrowKind.Exclusive)
+        if (_ownership == Ownership.ExclusiveView && _borrows.EndScope())
         {
-            EndScope();
+            ReleaseScopedEdgesIfReady();
         }
 
         DropClaim();
     }
 
-    internal void ReleaseClaim() => DropClaim();
-
-    private void DropClaim()
+    /// Releases one lifetime claim; the last one runs the destructor, then the edges.
+    internal void DropClaim()
     {
         if (!_claims.Release())
         {
@@ -212,22 +203,12 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
         ReleaseEdges();
     }
 
-    private void EndScope()
-    {
-        if (Interlocked.Exchange(ref _scopeEnded, 1) != 0)
-        {
-            return;
-        }
-
-        ReleaseScopedEdgesIfReady();
-    }
-
     // An exclusive view's edges hold its source borrowed. They may go only once
     // the view is both disposed and idle; whichever of those happens second
     // does the release.
     private void ReleaseScopedEdgesIfReady()
     {
-        if (IsScopeEnded && _borrows.IsFree)
+        if (_borrows.IsScopeEnded && _borrows.IsFree)
         {
             ReleaseEdges();
         }
@@ -281,23 +262,44 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
     /// <summary>
     /// Who is borrowing right now: a positive count of shared borrows, or -1 for
     /// one exclusive borrow. The version goes up each time an exclusive borrow
-    /// ends, so a view taken earlier can tell the value may have changed.
+    /// ends, so a view taken earlier can tell the value may have changed. For an
+    /// exclusive view it also remembers that the view was disposed: the view's
+    /// edges may go only once the scope has ended and no call is in flight.
     /// </summary>
     private struct BorrowLedger
     {
+        private const int Free = 0;
+        private const int Exclusive = -1;
+
         private int _state;
         private long _version;
+        private int _scopeEnded;
 
         internal long Version => Volatile.Read(ref _version);
 
-        internal bool IsFree => Volatile.Read(ref _state) == 0;
+        internal bool IsFree => Volatile.Read(ref _state) == Free;
 
-        internal void AcquireShared()
+        internal bool IsScopeEnded => Volatile.Read(ref _scopeEnded) != 0;
+
+        /// True only for the call that ends the scope; it ends once.
+        internal bool EndScope() => Interlocked.Exchange(ref _scopeEnded, 1) == 0;
+
+        internal void Acquire(BorrowKind kind)
         {
+            if (kind == BorrowKind.Exclusive)
+            {
+                if (Interlocked.CompareExchange(ref _state, Exclusive, Free) != Free)
+                {
+                    throw new InvalidOperationException("Another borrow is already active.");
+                }
+
+                return;
+            }
+
             while (true)
             {
                 int current = Volatile.Read(ref _state);
-                if (current < 0)
+                if (current < Free)
                 {
                     throw new InvalidOperationException("An exclusive borrow is already active.");
                 }
@@ -309,28 +311,20 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
             }
         }
 
-        internal void AcquireExclusive()
+        /// Returns the version in effect once this borrow is released. Ending
+        /// an exclusive borrow bumps it first: that is the mutation boundary
+        /// older views must notice.
+        internal long Release(BorrowKind kind)
         {
-            if (Interlocked.CompareExchange(ref _state, -1, 0) != 0)
+            if (kind == BorrowKind.Shared)
             {
-                throw new InvalidOperationException("Another borrow is already active.");
+                long version = Volatile.Read(ref _version);
+                Interlocked.Decrement(ref _state);
+                return version;
             }
-        }
 
-        /// Returns the version the released borrow saw.
-        internal long ReleaseShared()
-        {
-            long version = Volatile.Read(ref _version);
-            Interlocked.Decrement(ref _state);
-            return version;
-        }
-
-        /// Returns the new version. Ending an exclusive borrow is the mutation
-        /// boundary older views must notice.
-        internal long ReleaseExclusive()
-        {
             long nextVersion = Interlocked.Increment(ref _version);
-            Volatile.Write(ref _state, 0);
+            Volatile.Write(ref _state, Free);
             return nextVersion;
         }
     }

@@ -39,10 +39,10 @@ public partial class DisposableDropProbe : IDisposable
 
     internal unsafe DisposableDropProbe(
         Raw.DisposableDropProbe* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.DisposableDropProbe>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.DisposableDropProbe>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -61,7 +61,7 @@ public partial class DisposableDropProbe : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.DisposableDropProbe> selfLease = BorrowShared())
+            using (BorrowLease<Raw.DisposableDropProbe> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.DisposableDropProbe.IsAlive(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -86,37 +86,14 @@ public partial class DisposableDropProbe : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.DisposableDropProbe* AsFFI()
+    internal unsafe BorrowLease<Raw.DisposableDropProbe> Lease(BorrowKind kind)
     {
         RustHandle<Raw.DisposableDropProbe>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("DisposableDropProbe");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.DisposableDropProbe> BorrowShared()
-    {
-        RustHandle<Raw.DisposableDropProbe>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("DisposableDropProbe");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.DisposableDropProbe> BorrowExclusive()
-    {
-        RustHandle<Raw.DisposableDropProbe>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("DisposableDropProbe");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -125,7 +102,7 @@ public partial class DisposableDropProbe : IDisposable
         {
             RustHandle<Raw.DisposableDropProbe>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

@@ -39,17 +39,17 @@ public partial class OptionOpaqueChar : IDisposable
 
     internal unsafe OptionOpaqueChar(
         Raw.OptionOpaqueChar* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.OptionOpaqueChar>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.OptionOpaqueChar>.Borrowed(handle, ownership, edges);
     }
 
     public void AssertChar(uint ch)
     {
         unsafe
         {
-            using (BorrowLease<Raw.OptionOpaqueChar> selfLease = BorrowShared())
+            using (BorrowLease<Raw.OptionOpaqueChar> selfLease = Lease(BorrowKind.Shared))
             {
                 Raw.OptionOpaqueChar.AssertChar(selfLease.Ptr, ch);
                 GC.KeepAlive(this);
@@ -57,37 +57,14 @@ public partial class OptionOpaqueChar : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.OptionOpaqueChar* AsFFI()
+    internal unsafe BorrowLease<Raw.OptionOpaqueChar> Lease(BorrowKind kind)
     {
         RustHandle<Raw.OptionOpaqueChar>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("OptionOpaqueChar");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.OptionOpaqueChar> BorrowShared()
-    {
-        RustHandle<Raw.OptionOpaqueChar>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("OptionOpaqueChar");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.OptionOpaqueChar> BorrowExclusive()
-    {
-        RustHandle<Raw.OptionOpaqueChar>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("OptionOpaqueChar");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -96,7 +73,7 @@ public partial class OptionOpaqueChar : IDisposable
         {
             RustHandle<Raw.OptionOpaqueChar>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

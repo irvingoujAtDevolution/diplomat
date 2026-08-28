@@ -39,43 +39,20 @@ public partial class RenamedNested
 
     internal unsafe RenamedNested(
         Raw.RenamedNested* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.RenamedNested>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.RenamedNested>.Borrowed(handle, ownership, edges);
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.RenamedNested* AsFFI()
+    internal unsafe BorrowLease<Raw.RenamedNested> Lease(BorrowKind kind)
     {
         RustHandle<Raw.RenamedNested>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("RenamedNested");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.RenamedNested> BorrowShared()
-    {
-        RustHandle<Raw.RenamedNested>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedNested");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.RenamedNested> BorrowExclusive()
-    {
-        RustHandle<Raw.RenamedNested>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedNested");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -84,7 +61,7 @@ public partial class RenamedNested
         {
             RustHandle<Raw.RenamedNested>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

@@ -39,10 +39,10 @@ public partial class DataProvider
 
     internal unsafe DataProvider(
         Raw.DataProvider* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.DataProvider>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.DataProvider>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -71,37 +71,14 @@ public partial class DataProvider
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.DataProvider* AsFFI()
+    internal unsafe BorrowLease<Raw.DataProvider> Lease(BorrowKind kind)
     {
         RustHandle<Raw.DataProvider>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("DataProvider");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.DataProvider> BorrowShared()
-    {
-        RustHandle<Raw.DataProvider>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("DataProvider");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.DataProvider> BorrowExclusive()
-    {
-        RustHandle<Raw.DataProvider>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("DataProvider");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -110,7 +87,7 @@ public partial class DataProvider
         {
             RustHandle<Raw.DataProvider>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

@@ -39,10 +39,10 @@ public partial class One : IDisposable
 
     internal unsafe One(
         Raw.One* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.One>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.One>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -59,8 +59,8 @@ public partial class One : IDisposable
         {
             if (hold == null) throw new ArgumentNullException(nameof(hold));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            using (BorrowLease<Raw.One> holdLease = hold.BorrowShared())
-            using (BorrowLease<Raw.One> noholdLease = nohold.BorrowShared())
+            using (BorrowLease<Raw.One> holdLease = hold.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> noholdLease = nohold.Lease(BorrowKind.Shared))
             {
                 Raw.One* result = Raw.One.Transitivity(holdLease.Ptr, noholdLease.Ptr);
                 GC.KeepAlive(hold);
@@ -84,8 +84,8 @@ public partial class One : IDisposable
         {
             if (hold == null) throw new ArgumentNullException(nameof(hold));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            using (BorrowLease<Raw.Two> holdLease = hold.BorrowShared())
-            using (BorrowLease<Raw.One> noholdLease = nohold.BorrowShared())
+            using (BorrowLease<Raw.Two> holdLease = hold.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> noholdLease = nohold.Lease(BorrowKind.Shared))
             {
                 Raw.One* result = Raw.One.Cycle(holdLease.Ptr, noholdLease.Ptr);
                 GC.KeepAlive(hold);
@@ -112,11 +112,11 @@ public partial class One : IDisposable
             if (c == null) throw new ArgumentNullException(nameof(c));
             if (d == null) throw new ArgumentNullException(nameof(d));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            using (BorrowLease<Raw.One> aLease = a.BorrowShared())
-            using (BorrowLease<Raw.One> bLease = b.BorrowShared())
-            using (BorrowLease<Raw.Two> cLease = c.BorrowShared())
-            using (BorrowLease<Raw.Two> dLease = d.BorrowShared())
-            using (BorrowLease<Raw.Two> noholdLease = nohold.BorrowShared())
+            using (BorrowLease<Raw.One> aLease = a.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> bLease = b.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.Two> cLease = c.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.Two> dLease = d.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.Two> noholdLease = nohold.Lease(BorrowKind.Shared))
             {
                 Raw.One* result = Raw.One.ManyDependents(aLease.Ptr, bLease.Ptr, cLease.Ptr, dLease.Ptr, noholdLease.Ptr);
                 GC.KeepAlive(a);
@@ -143,8 +143,8 @@ public partial class One : IDisposable
         {
             if (hold == null) throw new ArgumentNullException(nameof(hold));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            using (BorrowLease<Raw.Two> holdLease = hold.BorrowShared())
-            using (BorrowLease<Raw.One> noholdLease = nohold.BorrowShared())
+            using (BorrowLease<Raw.Two> holdLease = hold.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> noholdLease = nohold.Lease(BorrowKind.Shared))
             {
                 Raw.One* result = Raw.One.ReturnOutlivesParam(holdLease.Ptr, noholdLease.Ptr);
                 GC.KeepAlive(hold);
@@ -170,10 +170,10 @@ public partial class One : IDisposable
             if (left == null) throw new ArgumentNullException(nameof(left));
             if (right == null) throw new ArgumentNullException(nameof(right));
             if (bottom == null) throw new ArgumentNullException(nameof(bottom));
-            using (BorrowLease<Raw.One> topLease = top.BorrowShared())
-            using (BorrowLease<Raw.One> leftLease = left.BorrowShared())
-            using (BorrowLease<Raw.One> rightLease = right.BorrowShared())
-            using (BorrowLease<Raw.One> bottomLease = bottom.BorrowShared())
+            using (BorrowLease<Raw.One> topLease = top.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> leftLease = left.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> rightLease = right.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> bottomLease = bottom.Lease(BorrowKind.Shared))
             {
                 Raw.One* result = Raw.One.DiamondTop(topLease.Ptr, leftLease.Ptr, rightLease.Ptr, bottomLease.Ptr);
                 GC.KeepAlive(top);
@@ -201,10 +201,10 @@ public partial class One : IDisposable
             if (left == null) throw new ArgumentNullException(nameof(left));
             if (right == null) throw new ArgumentNullException(nameof(right));
             if (bottom == null) throw new ArgumentNullException(nameof(bottom));
-            using (BorrowLease<Raw.One> topLease = top.BorrowShared())
-            using (BorrowLease<Raw.One> leftLease = left.BorrowShared())
-            using (BorrowLease<Raw.One> rightLease = right.BorrowShared())
-            using (BorrowLease<Raw.One> bottomLease = bottom.BorrowShared())
+            using (BorrowLease<Raw.One> topLease = top.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> leftLease = left.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> rightLease = right.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> bottomLease = bottom.Lease(BorrowKind.Shared))
             {
                 Raw.One* result = Raw.One.DiamondLeft(topLease.Ptr, leftLease.Ptr, rightLease.Ptr, bottomLease.Ptr);
                 GC.KeepAlive(top);
@@ -232,10 +232,10 @@ public partial class One : IDisposable
             if (left == null) throw new ArgumentNullException(nameof(left));
             if (right == null) throw new ArgumentNullException(nameof(right));
             if (bottom == null) throw new ArgumentNullException(nameof(bottom));
-            using (BorrowLease<Raw.One> topLease = top.BorrowShared())
-            using (BorrowLease<Raw.One> leftLease = left.BorrowShared())
-            using (BorrowLease<Raw.One> rightLease = right.BorrowShared())
-            using (BorrowLease<Raw.One> bottomLease = bottom.BorrowShared())
+            using (BorrowLease<Raw.One> topLease = top.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> leftLease = left.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> rightLease = right.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> bottomLease = bottom.Lease(BorrowKind.Shared))
             {
                 Raw.One* result = Raw.One.DiamondRight(topLease.Ptr, leftLease.Ptr, rightLease.Ptr, bottomLease.Ptr);
                 GC.KeepAlive(top);
@@ -263,10 +263,10 @@ public partial class One : IDisposable
             if (left == null) throw new ArgumentNullException(nameof(left));
             if (right == null) throw new ArgumentNullException(nameof(right));
             if (bottom == null) throw new ArgumentNullException(nameof(bottom));
-            using (BorrowLease<Raw.One> topLease = top.BorrowShared())
-            using (BorrowLease<Raw.One> leftLease = left.BorrowShared())
-            using (BorrowLease<Raw.One> rightLease = right.BorrowShared())
-            using (BorrowLease<Raw.One> bottomLease = bottom.BorrowShared())
+            using (BorrowLease<Raw.One> topLease = top.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> leftLease = left.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> rightLease = right.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> bottomLease = bottom.Lease(BorrowKind.Shared))
             {
                 Raw.One* result = Raw.One.DiamondBottom(topLease.Ptr, leftLease.Ptr, rightLease.Ptr, bottomLease.Ptr);
                 GC.KeepAlive(top);
@@ -295,11 +295,11 @@ public partial class One : IDisposable
             if (c == null) throw new ArgumentNullException(nameof(c));
             if (d == null) throw new ArgumentNullException(nameof(d));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            using (BorrowLease<Raw.One> aLease = a.BorrowShared())
-            using (BorrowLease<Raw.One> bLease = b.BorrowShared())
-            using (BorrowLease<Raw.One> cLease = c.BorrowShared())
-            using (BorrowLease<Raw.One> dLease = d.BorrowShared())
-            using (BorrowLease<Raw.One> noholdLease = nohold.BorrowShared())
+            using (BorrowLease<Raw.One> aLease = a.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> bLease = b.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> cLease = c.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> dLease = d.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> noholdLease = nohold.Lease(BorrowKind.Shared))
             {
                 Raw.One* result = Raw.One.DiamondAndNestedTypes(aLease.Ptr, bLease.Ptr, cLease.Ptr, dLease.Ptr, noholdLease.Ptr);
                 GC.KeepAlive(a);
@@ -327,9 +327,9 @@ public partial class One : IDisposable
             if (explicitHold == null) throw new ArgumentNullException(nameof(explicitHold));
             if (implicitHold == null) throw new ArgumentNullException(nameof(implicitHold));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            using (BorrowLease<Raw.One> explicitHoldLease = explicitHold.BorrowShared())
-            using (BorrowLease<Raw.One> implicitHoldLease = implicitHold.BorrowShared())
-            using (BorrowLease<Raw.One> noholdLease = nohold.BorrowShared())
+            using (BorrowLease<Raw.One> explicitHoldLease = explicitHold.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> implicitHoldLease = implicitHold.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> noholdLease = nohold.Lease(BorrowKind.Shared))
             {
                 Raw.One* result = Raw.One.ImplicitBounds(explicitHoldLease.Ptr, implicitHoldLease.Ptr, noholdLease.Ptr);
                 GC.KeepAlive(explicitHold);
@@ -356,10 +356,10 @@ public partial class One : IDisposable
             if (implicit1 == null) throw new ArgumentNullException(nameof(implicit1));
             if (implicit2 == null) throw new ArgumentNullException(nameof(implicit2));
             if (nohold == null) throw new ArgumentNullException(nameof(nohold));
-            using (BorrowLease<Raw.One> explicitLease = @explicit.BorrowShared())
-            using (BorrowLease<Raw.One> implicit1lease = implicit1.BorrowShared())
-            using (BorrowLease<Raw.One> implicit2lease = implicit2.BorrowShared())
-            using (BorrowLease<Raw.One> noholdLease = nohold.BorrowShared())
+            using (BorrowLease<Raw.One> explicitLease = @explicit.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> implicit1lease = implicit1.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> implicit2lease = implicit2.Lease(BorrowKind.Shared))
+            using (BorrowLease<Raw.One> noholdLease = nohold.Lease(BorrowKind.Shared))
             {
                 Raw.One* result = Raw.One.ImplicitBoundsDeep(explicitLease.Ptr, implicit1lease.Ptr, implicit2lease.Ptr, noholdLease.Ptr);
                 GC.KeepAlive(@explicit);
@@ -371,37 +371,14 @@ public partial class One : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.One* AsFFI()
+    internal unsafe BorrowLease<Raw.One> Lease(BorrowKind kind)
     {
         RustHandle<Raw.One>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("One");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.One> BorrowShared()
-    {
-        RustHandle<Raw.One>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("One");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.One> BorrowExclusive()
-    {
-        RustHandle<Raw.One>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("One");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -410,7 +387,7 @@ public partial class One : IDisposable
         {
             RustHandle<Raw.One>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

@@ -39,10 +39,10 @@ public partial class OwnedSliceReturn
 
     internal unsafe OwnedSliceReturn(
         Raw.OwnedSliceReturn* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.OwnedSliceReturn>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.OwnedSliceReturn>.Borrowed(handle, ownership, edges);
     }
 
     public static RustVec MakeBytes(uint len)
@@ -54,37 +54,14 @@ public partial class OwnedSliceReturn
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.OwnedSliceReturn* AsFFI()
+    internal unsafe BorrowLease<Raw.OwnedSliceReturn> Lease(BorrowKind kind)
     {
         RustHandle<Raw.OwnedSliceReturn>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("OwnedSliceReturn");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.OwnedSliceReturn> BorrowShared()
-    {
-        RustHandle<Raw.OwnedSliceReturn>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("OwnedSliceReturn");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.OwnedSliceReturn> BorrowExclusive()
-    {
-        RustHandle<Raw.OwnedSliceReturn>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("OwnedSliceReturn");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -93,7 +70,7 @@ public partial class OwnedSliceReturn
         {
             RustHandle<Raw.OwnedSliceReturn>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

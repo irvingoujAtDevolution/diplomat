@@ -39,10 +39,10 @@ public partial class OpaqueThinIter : IDisposable
 
     internal unsafe OpaqueThinIter(
         Raw.OpaqueThinIter* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.OpaqueThinIter>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.OpaqueThinIter>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -57,46 +57,23 @@ public partial class OpaqueThinIter : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.OpaqueThinIter> selfLease = BorrowExclusive())
+            using (BorrowLease<Raw.OpaqueThinIter> selfLease = Lease(BorrowKind.Exclusive))
             {
                 Raw.OpaqueThin* result = Raw.OpaqueThinIter.Next(selfLease.Ptr);
                 GC.KeepAlive(this);
-                return result == null ? null : new OpaqueThin(result, BorrowKind.Shared, selfLease);
+                return result == null ? null : new OpaqueThin(result, Ownership.SharedView, selfLease);
             }
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.OpaqueThinIter* AsFFI()
+    internal unsafe BorrowLease<Raw.OpaqueThinIter> Lease(BorrowKind kind)
     {
         RustHandle<Raw.OpaqueThinIter>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("OpaqueThinIter");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.OpaqueThinIter> BorrowShared()
-    {
-        RustHandle<Raw.OpaqueThinIter>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("OpaqueThinIter");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.OpaqueThinIter> BorrowExclusive()
-    {
-        RustHandle<Raw.OpaqueThinIter>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("OpaqueThinIter");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -105,7 +82,7 @@ public partial class OpaqueThinIter : IDisposable
         {
             RustHandle<Raw.OpaqueThinIter>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

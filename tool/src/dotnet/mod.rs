@@ -75,7 +75,7 @@
 //!
 //! Every opaque wrapper has exactly one shape: a `RustHandle<Raw.T>? _inner`.
 //! Pins and transferred borrow leases live on that handle, not on a separate
-//! wrapper field. Every opaque exposes `BorrowShared()` and `BorrowExclusive()`.
+//! wrapper field. Every opaque exposes `Lease(BorrowKind)`.
 //!
 //! Each `BorrowLease<T>` owns both a lifetime claim and a shared/exclusive mode.
 //! Acquisition first adds the claim, then changes the borrow state. Failure
@@ -1047,7 +1047,7 @@ mod test {
         );
         assert!(
             foo.contains(
-                "return result == null ? null : new Foo(result, BorrowKind.Exclusive, selfLease);"
+                "return result == null ? null : new Foo(result, Ownership.ExclusiveView, selfLease);"
             ),
             "an optional mutable borrow must lower to a nullable bare wrapper:\n{foo}"
         );
@@ -1165,7 +1165,7 @@ mod test {
             foo.lines()
                 .find(|line| line.trim_start().starts_with("return new Foo"))
                 .map(str::trim),
-            Some("return new Foo(result, BorrowKind.Shared, selfLease);")
+            Some("return new Foo(result, Ownership.SharedView, selfLease);")
         );
         assert_eq!(
             foo.lines()
@@ -1173,7 +1173,7 @@ mod test {
                     .trim_start()
                     .starts_with("_inner = RustHandle<Raw.Foo>.Borrowed"))
                 .map(str::trim),
-            Some("_inner = RustHandle<Raw.Foo>.Borrowed(handle, capability, edges);")
+            Some("_inner = RustHandle<Raw.Foo>.Borrowed(handle, ownership, edges);")
         );
     }
 
@@ -1208,7 +1208,7 @@ mod test {
             foo.lines()
                 .find(|line| line.trim_start().starts_with("return new Foo"))
                 .map(str::trim),
-            Some("return new Foo(result, BorrowKind.Exclusive, selfLease);")
+            Some("return new Foo(result, Ownership.ExclusiveView, selfLease);")
         );
     }
 
@@ -1242,7 +1242,9 @@ mod test {
             foo.lines()
                 .find(|line| line.trim_start().starts_with("return result == null"))
                 .map(str::trim),
-            Some("return result == null ? null : new Foo(result, BorrowKind.Shared, selfLease);")
+            Some(
+                "return result == null ? null : new Foo(result, Ownership.SharedView, selfLease);"
+            )
         );
     }
 
@@ -1278,7 +1280,7 @@ mod test {
             foo.lines()
                 .find(|line| line.trim_start().starts_with("return new Foo"))
                 .map(str::trim),
-            Some("return new Foo(result, BorrowKind.Shared, selfLease);")
+            Some("return new Foo(result, Ownership.SharedView, selfLease);")
         );
     }
 
@@ -1346,7 +1348,7 @@ mod test {
     // even when that destructor call is deferred behind a still-outstanding
     // RC dependent rather than invoked by this wrapper's own owner-release
     // call. Before the fix, an opaque's `Cleanup()` unpinned its own
-    // `_edges` unconditionally right after calling `_inner.Release()`,
+    // `_edges` unconditionally right after calling `_inner.ReleaseOwnerClaim()`,
     // regardless of whether that specific call was the one that actually
     // ran the destructor — so a deferred destructor (because some other
     // dependent still held a reference) could read an already-unpinned,
@@ -1389,7 +1391,7 @@ mod test {
         // refcount-reaching-zero gate as the Rust destructor.
         assert!(
             rust_handle.contains("private RustHandle(")
-                && rust_handle.contains("BorrowKind capability,")
+                && rust_handle.contains("Ownership ownership,")
                 && rust_handle.contains("object[] edges"),
             "edges must be threaded into RustHandle's own constructor:\n{rust_handle}"
         );
@@ -1411,7 +1413,7 @@ mod test {
             refcount_zero_branch < destructor_at && destructor_at < unpin_at,
             "the destructor must run, in order, strictly between the \
              refcount-zero check and the edges-disposal sweep — both gated \
-             on the SAME zero-refcount branch, not on every Release() call:\n{rust_handle}"
+             on the SAME zero-refcount branch, not on every ReleaseOwnerClaim() call:\n{rust_handle}"
         );
 
         // No opaque wrapper should do its own separate pin-disposal — that
@@ -2254,7 +2256,7 @@ mod test {
 
         let owner = files.get("Owner.cs").expect("expected Owner.cs output");
         assert!(
-            owner.contains("new Owner(result.Ok, BorrowKind.Shared, selfLease)"),
+            owner.contains("new Owner(result.Ok, Ownership.SharedView, selfLease)"),
             "Ok path should use the non-owning Borrowed factory:\n{owner}"
         );
         assert!(
@@ -2949,10 +2951,6 @@ mod test {
         assert!(!plain.contains("IDisposable"));
         assert!(!plain.contains("public void Dispose()"));
         assert!(
-            !plain.contains("_inner is null || _inner.IsNull"),
-            "generated code must not read the wrapper field twice across concurrent Dispose:\n{plain}"
-        );
-        assert!(
             plain.contains("private void Cleanup()")
                 && plain.contains("~Plain()")
                 && plain.contains("try")
@@ -3597,14 +3595,14 @@ mod test {
                 unimplemented!()
             }
 
-            pub fn borrow_shared(&self) {
+            pub fn lease(&self) {
                 unimplemented!()
             }
         }));
 
         assert_eq!(
             errors,
-            ["Cleanup", "BorrowShared"]
+            ["Cleanup", "Lease"]
                 .map(|member| format!(
                     "Config: [.NET backend] `Config` would have two members named `{member}`: a method and \
                      a member Diplomat always generates for opaques. Rename the method with \
@@ -4044,9 +4042,9 @@ mod test {
     // one thing that can produce a name case-folding never would — including the
     // exact spelling of a member the template always generates.
     #[test]
-    fn a_renamed_property_colliding_with_as_ffi_is_rejected() {
+    fn a_renamed_property_colliding_with_lease_is_rejected() {
         let (_files, errors) = run_dotnet(property_test_module(quote! {
-            #[diplomat::attr(dotnet, rename = "AsFFI")]
+            #[diplomat::attr(dotnet, rename = "Lease")]
             #[diplomat::attr(auto, getter)]
             pub fn handle(&self) -> u8 {
                 unimplemented!()
@@ -4059,7 +4057,7 @@ mod test {
             "expected exactly one diagnostic: {errors:?}"
         );
         assert!(
-            errors[0].contains("two members named `AsFFI`"),
+            errors[0].contains("two members named `Lease`"),
             "the collision must be reported; got: {}",
             errors[0]
         );

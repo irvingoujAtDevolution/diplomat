@@ -39,10 +39,10 @@ public partial class OpaqueSliceView : IDisposable
 
     internal unsafe OpaqueSliceView(
         Raw.OpaqueSliceView* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.OpaqueSliceView>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.OpaqueSliceView>.Borrowed(handle, ownership, edges);
     }
 
     /// <exception cref="SliceParseErrorException"></exception>
@@ -146,7 +146,7 @@ public partial class OpaqueSliceView : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.OpaqueSliceView> selfLease = BorrowShared())
+            using (BorrowLease<Raw.OpaqueSliceView> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.OpaqueSliceView.Length(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -159,7 +159,7 @@ public partial class OpaqueSliceView : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.OpaqueSliceView> selfLease = BorrowShared())
+            using (BorrowLease<Raw.OpaqueSliceView> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.OpaqueSliceView.Get(selfLease.Ptr, index);
                 GC.KeepAlive(this);
@@ -172,7 +172,7 @@ public partial class OpaqueSliceView : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.OpaqueSliceView> selfLease = BorrowShared())
+            using (BorrowLease<Raw.OpaqueSliceView> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.OpaqueSliceView.Sum(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -181,37 +181,14 @@ public partial class OpaqueSliceView : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.OpaqueSliceView* AsFFI()
+    internal unsafe BorrowLease<Raw.OpaqueSliceView> Lease(BorrowKind kind)
     {
         RustHandle<Raw.OpaqueSliceView>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("OpaqueSliceView");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.OpaqueSliceView> BorrowShared()
-    {
-        RustHandle<Raw.OpaqueSliceView>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("OpaqueSliceView");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.OpaqueSliceView> BorrowExclusive()
-    {
-        RustHandle<Raw.OpaqueSliceView>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("OpaqueSliceView");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -220,7 +197,7 @@ public partial class OpaqueSliceView : IDisposable
         {
             RustHandle<Raw.OpaqueSliceView>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

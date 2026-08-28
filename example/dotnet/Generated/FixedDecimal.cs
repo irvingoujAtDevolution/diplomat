@@ -39,10 +39,10 @@ public partial class FixedDecimal
 
     internal unsafe FixedDecimal(
         Raw.FixedDecimal* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.FixedDecimal>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.FixedDecimal>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -61,7 +61,7 @@ public partial class FixedDecimal
     {
         unsafe
         {
-            using (BorrowLease<Raw.FixedDecimal> selfLease = BorrowExclusive())
+            using (BorrowLease<Raw.FixedDecimal> selfLease = Lease(BorrowKind.Exclusive))
             {
                 Raw.FixedDecimal.MultiplyPow10(selfLease.Ptr, power);
                 GC.KeepAlive(this);
@@ -74,7 +74,7 @@ public partial class FixedDecimal
     {
         unsafe
         {
-            using (BorrowLease<Raw.FixedDecimal> selfLease = BorrowShared())
+            using (BorrowLease<Raw.FixedDecimal> selfLease = Lease(BorrowKind.Shared))
             {
                 DiplomatWrite writeable = new DiplomatWrite();
                 try
@@ -95,37 +95,14 @@ public partial class FixedDecimal
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.FixedDecimal* AsFFI()
+    internal unsafe BorrowLease<Raw.FixedDecimal> Lease(BorrowKind kind)
     {
         RustHandle<Raw.FixedDecimal>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("FixedDecimal");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.FixedDecimal> BorrowShared()
-    {
-        RustHandle<Raw.FixedDecimal>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("FixedDecimal");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.FixedDecimal> BorrowExclusive()
-    {
-        RustHandle<Raw.FixedDecimal>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("FixedDecimal");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -134,7 +111,7 @@ public partial class FixedDecimal
         {
             RustHandle<Raw.FixedDecimal>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

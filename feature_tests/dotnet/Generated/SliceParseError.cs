@@ -39,43 +39,20 @@ public partial class SliceParseError
 
     internal unsafe SliceParseError(
         Raw.SliceParseError* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.SliceParseError>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.SliceParseError>.Borrowed(handle, ownership, edges);
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.SliceParseError* AsFFI()
+    internal unsafe BorrowLease<Raw.SliceParseError> Lease(BorrowKind kind)
     {
         RustHandle<Raw.SliceParseError>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("SliceParseError");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.SliceParseError> BorrowShared()
-    {
-        RustHandle<Raw.SliceParseError>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("SliceParseError");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.SliceParseError> BorrowExclusive()
-    {
-        RustHandle<Raw.SliceParseError>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("SliceParseError");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -84,7 +61,7 @@ public partial class SliceParseError
         {
             RustHandle<Raw.SliceParseError>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

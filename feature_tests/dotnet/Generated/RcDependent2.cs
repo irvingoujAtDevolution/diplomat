@@ -39,17 +39,17 @@ public partial class RcDependent2 : IDisposable
 
     internal unsafe RcDependent2(
         Raw.RcDependent2* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.RcDependent2>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.RcDependent2>.Borrowed(handle, ownership, edges);
     }
 
     public ulong Id()
     {
         unsafe
         {
-            using (BorrowLease<Raw.RcDependent2> selfLease = BorrowShared())
+            using (BorrowLease<Raw.RcDependent2> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.RcDependent2.Id(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -82,37 +82,14 @@ public partial class RcDependent2 : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.RcDependent2* AsFFI()
+    internal unsafe BorrowLease<Raw.RcDependent2> Lease(BorrowKind kind)
     {
         RustHandle<Raw.RcDependent2>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("RcDependent2");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.RcDependent2> BorrowShared()
-    {
-        RustHandle<Raw.RcDependent2>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RcDependent2");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.RcDependent2> BorrowExclusive()
-    {
-        RustHandle<Raw.RcDependent2>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RcDependent2");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -121,7 +98,7 @@ public partial class RcDependent2 : IDisposable
         {
             RustHandle<Raw.RcDependent2>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

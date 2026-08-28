@@ -39,10 +39,10 @@ public partial class Utf16Wrap : IDisposable
 
     internal unsafe Utf16Wrap(
         Raw.Utf16Wrap* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.Utf16Wrap>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.Utf16Wrap>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -65,7 +65,7 @@ public partial class Utf16Wrap : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.Utf16Wrap> selfLease = BorrowShared())
+            using (BorrowLease<Raw.Utf16Wrap> selfLease = Lease(BorrowKind.Shared))
             {
                 DiplomatWrite writeable = new DiplomatWrite();
                 try
@@ -90,7 +90,7 @@ public partial class Utf16Wrap : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.Utf16Wrap> selfLease = BorrowShared())
+            using (BorrowLease<Raw.Utf16Wrap> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.Utf16Wrap.BorrowCont(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -99,37 +99,14 @@ public partial class Utf16Wrap : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.Utf16Wrap* AsFFI()
+    internal unsafe BorrowLease<Raw.Utf16Wrap> Lease(BorrowKind kind)
     {
         RustHandle<Raw.Utf16Wrap>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("Utf16Wrap");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.Utf16Wrap> BorrowShared()
-    {
-        RustHandle<Raw.Utf16Wrap>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("Utf16Wrap");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.Utf16Wrap> BorrowExclusive()
-    {
-        RustHandle<Raw.Utf16Wrap>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("Utf16Wrap");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -138,7 +115,7 @@ public partial class Utf16Wrap : IDisposable
         {
             RustHandle<Raw.Utf16Wrap>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

@@ -17,7 +17,7 @@ internal interface IBorrowLease
     IDisposable TransferVersioned();
 }
 
-internal interface IVersionedBorrow
+internal interface IVersionedClaim
 {
     IDisposable Acquire();
 }
@@ -40,27 +40,16 @@ internal sealed unsafe class BorrowLease<T> : IBorrowLease, IDisposable where T 
 
     internal IDisposable Transfer()
     {
-        RustHandle<T>? owner = Interlocked.Exchange(ref _owner, null);
-        if (owner is null)
-        {
-            throw new ObjectDisposedException(nameof(BorrowLease<T>));
-        }
-
-        return new BorrowToken(owner, _kind, TakeDependencies());
+        return new BorrowToken(TakeOwner(), _kind, TakeDependencies());
     }
 
     IDisposable IBorrowLease.Transfer() => Transfer();
 
     internal IDisposable TransferVersioned()
     {
-        RustHandle<T>? owner = Interlocked.Exchange(ref _owner, null);
-        if (owner is null)
-        {
-            throw new ObjectDisposedException(nameof(BorrowLease<T>));
-        }
-
-        long version = owner.ReleaseBorrowForVersion(_kind);
-        VersionedBorrowToken token = new VersionedBorrowToken(owner, version);
+        RustHandle<T> owner = TakeOwner();
+        long version = owner.ReleaseBorrowKeepingClaim(_kind);
+        VersionedClaim token = new VersionedClaim(owner, version);
         try
         {
             ReleaseDependencies(TakeDependencies());
@@ -93,11 +82,24 @@ internal sealed unsafe class BorrowLease<T> : IBorrowLease, IDisposable where T 
         }
     }
 
-    private IDisposable[] TakeDependencies()
+    private RustHandle<T> TakeOwner()
     {
-        IDisposable[] dependencies = _dependencies;
-        _dependencies = System.Array.Empty<IDisposable>();
-        return dependencies;
+        RustHandle<T>? owner = Interlocked.Exchange(ref _owner, null);
+        if (owner is null)
+        {
+            throw new ObjectDisposedException(nameof(BorrowLease<T>));
+        }
+
+        return owner;
+    }
+
+    private IDisposable[] TakeDependencies() => Take(ref _dependencies);
+
+    private static IDisposable[] Take(ref IDisposable[] dependencies)
+    {
+        IDisposable[] taken = dependencies;
+        dependencies = System.Array.Empty<IDisposable>();
+        return taken;
     }
 
     private static void ReleaseDependencies(IDisposable[] dependencies)
@@ -131,9 +133,7 @@ internal sealed unsafe class BorrowLease<T> : IBorrowLease, IDisposable where T 
 
             try
             {
-                IDisposable[] dependencies = _dependencies;
-                _dependencies = System.Array.Empty<IDisposable>();
-                ReleaseDependencies(dependencies);
+                ReleaseDependencies(Take(ref _dependencies));
             }
             finally
             {
@@ -142,23 +142,25 @@ internal sealed unsafe class BorrowLease<T> : IBorrowLease, IDisposable where T 
         }
     }
 
-    private sealed class VersionedBorrowToken : IVersionedBorrow, IDisposable
+    /// A claim on the source plus the version the view saw. It holds no borrow;
+    /// each call re-borrows through <see cref="IVersionedClaim.Acquire"/>.
+    private sealed class VersionedClaim : IVersionedClaim, IDisposable
     {
         private RustHandle<T>? _owner;
         private readonly long _version;
 
-        internal VersionedBorrowToken(RustHandle<T> owner, long version)
+        internal VersionedClaim(RustHandle<T> owner, long version)
         {
             _owner = owner;
             _version = version;
         }
 
-        IDisposable IVersionedBorrow.Acquire()
+        IDisposable IVersionedClaim.Acquire()
         {
             RustHandle<T>? owner = Volatile.Read(ref _owner);
             if (owner is null)
             {
-                throw new ObjectDisposedException(nameof(VersionedBorrowToken));
+                throw new ObjectDisposedException(nameof(VersionedClaim));
             }
 
             if (owner.IsScopeEnded || owner.Version != _version)
@@ -166,7 +168,7 @@ internal sealed unsafe class BorrowLease<T> : IBorrowLease, IDisposable where T 
                 throw Invalidated();
             }
 
-            BorrowLease<T> lease = owner.BorrowShared();
+            BorrowLease<T> lease = owner.Lease(BorrowKind.Shared);
             if (!owner.IsScopeEnded && owner.Version == _version)
             {
                 return lease;
@@ -179,7 +181,7 @@ internal sealed unsafe class BorrowLease<T> : IBorrowLease, IDisposable where T 
         public void Dispose()
         {
             RustHandle<T>? owner = Interlocked.Exchange(ref _owner, null);
-            owner?.ReleaseClaim();
+            owner?.DropClaim();
         }
 
         private static InvalidOperationException Invalidated() =>

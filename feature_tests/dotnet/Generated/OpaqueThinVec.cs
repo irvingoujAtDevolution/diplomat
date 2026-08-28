@@ -28,11 +28,11 @@ public partial class OpaqueThinVec : IDisposable
         {
             unsafe
             {
-                using (BorrowLease<Raw.OpaqueThinVec> selfLease = BorrowShared())
+                using (BorrowLease<Raw.OpaqueThinVec> selfLease = Lease(BorrowKind.Shared))
                 {
                     Raw.OpaqueThin* result = Raw.OpaqueThinVec.First(selfLease.Ptr);
                     GC.KeepAlive(this);
-                    return result == null ? null : new OpaqueThin(result, BorrowKind.Shared, selfLease);
+                    return result == null ? null : new OpaqueThin(result, Ownership.SharedView, selfLease);
                 }
             }
         }
@@ -46,7 +46,7 @@ public partial class OpaqueThinVec : IDisposable
             {
                 if (value == null) throw new ArgumentNullException(nameof(value));
                 byte[] valueBytes = Diplomat.Utf8.Clone(value);
-                using (BorrowLease<Raw.OpaqueThinVec> selfLease = BorrowExclusive())
+                using (BorrowLease<Raw.OpaqueThinVec> selfLease = Lease(BorrowKind.Exclusive))
                 {
                     fixed (byte* valuePtr = valueBytes)
                     {
@@ -83,10 +83,10 @@ public partial class OpaqueThinVec : IDisposable
 
     internal unsafe OpaqueThinVec(
         Raw.OpaqueThinVec* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.OpaqueThinVec>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.OpaqueThinVec>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -117,7 +117,7 @@ public partial class OpaqueThinVec : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.OpaqueThinVec> selfLease = BorrowShared())
+            using (BorrowLease<Raw.OpaqueThinVec> selfLease = Lease(BorrowKind.Shared))
             {
                 Raw.OpaqueThinIter* result = Raw.OpaqueThinVec.Iter(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -130,7 +130,7 @@ public partial class OpaqueThinVec : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.OpaqueThinVec> selfLease = BorrowShared())
+            using (BorrowLease<Raw.OpaqueThinVec> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.OpaqueThinVec.Len(selfLease.Ptr);
                 GC.KeepAlive(this);
@@ -151,11 +151,11 @@ public partial class OpaqueThinVec : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.OpaqueThinVec> selfLease = BorrowShared())
+            using (BorrowLease<Raw.OpaqueThinVec> selfLease = Lease(BorrowKind.Shared))
             {
                 Raw.OpaqueThin* result = Raw.OpaqueThinVec.Get(selfLease.Ptr, idx);
                 GC.KeepAlive(this);
-                return result == null ? null : new OpaqueThin(result, BorrowKind.Shared, selfLease);
+                return result == null ? null : new OpaqueThin(result, Ownership.SharedView, selfLease);
             }
         }
     }
@@ -173,7 +173,7 @@ public partial class OpaqueThinVec : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.OpaqueThinVec> selfLease = BorrowShared())
+            using (BorrowLease<Raw.OpaqueThinVec> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.OpaqueThinVec.TryFirst(selfLease.Ptr, fail);
                 GC.KeepAlive(this);
@@ -181,7 +181,7 @@ public partial class OpaqueThinVec : IDisposable
                 {
                     throw new InvalidOperationException("FFI function failed with unit error");
                 }
-                return new OpaqueThin(result.Ok, BorrowKind.Shared, selfLease);
+                return new OpaqueThin(result.Ok, Ownership.SharedView, selfLease);
             }
         }
     }
@@ -199,7 +199,7 @@ public partial class OpaqueThinVec : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.OpaqueThinVec> selfLease = BorrowShared())
+            using (BorrowLease<Raw.OpaqueThinVec> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.OpaqueThinVec.TryGet(selfLease.Ptr, idx, fail);
                 GC.KeepAlive(this);
@@ -207,7 +207,7 @@ public partial class OpaqueThinVec : IDisposable
                 {
                     throw new InvalidOperationException("FFI function failed with unit error");
                 }
-                return result.Ok == null ? null : new OpaqueThin(result.Ok, BorrowKind.Shared, selfLease);
+                return result.Ok == null ? null : new OpaqueThin(result.Ok, Ownership.SharedView, selfLease);
             }
         }
     }
@@ -225,7 +225,7 @@ public partial class OpaqueThinVec : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.OpaqueThinVec> selfLease = BorrowShared())
+            using (BorrowLease<Raw.OpaqueThinVec> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.OpaqueThinVec.TryIter(selfLease.Ptr, fail);
                 GC.KeepAlive(this);
@@ -250,7 +250,7 @@ public partial class OpaqueThinVec : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.OpaqueThinVec> selfLease = BorrowShared())
+            using (BorrowLease<Raw.OpaqueThinVec> selfLease = Lease(BorrowKind.Shared))
             {
                 Raw.OpaqueThinIter* result = Raw.OpaqueThinVec.OptionalIter(selfLease.Ptr, some);
                 GC.KeepAlive(this);
@@ -264,7 +264,7 @@ public partial class OpaqueThinVec : IDisposable
     {
         unsafe
         {
-            using (BorrowLease<Raw.OpaqueThinVec> selfLease = BorrowShared())
+            using (BorrowLease<Raw.OpaqueThinVec> selfLease = Lease(BorrowKind.Shared))
             {
                 var result = Raw.OpaqueThinVec.TryBorrow(selfLease.Ptr, fail);
                 GC.KeepAlive(this);
@@ -277,37 +277,14 @@ public partial class OpaqueThinVec : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.OpaqueThinVec* AsFFI()
+    internal unsafe BorrowLease<Raw.OpaqueThinVec> Lease(BorrowKind kind)
     {
         RustHandle<Raw.OpaqueThinVec>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("OpaqueThinVec");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.OpaqueThinVec> BorrowShared()
-    {
-        RustHandle<Raw.OpaqueThinVec>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("OpaqueThinVec");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.OpaqueThinVec> BorrowExclusive()
-    {
-        RustHandle<Raw.OpaqueThinVec>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("OpaqueThinVec");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -316,7 +293,7 @@ public partial class OpaqueThinVec : IDisposable
         {
             RustHandle<Raw.OpaqueThinVec>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

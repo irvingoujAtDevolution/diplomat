@@ -39,10 +39,10 @@ public partial class PinnedRcDependent : IDisposable
 
     internal unsafe PinnedRcDependent(
         Raw.PinnedRcDependent* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.PinnedRcDependent>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.PinnedRcDependent>.Borrowed(handle, ownership, edges);
     }
 
     public static void ResetDropStats()
@@ -69,37 +69,14 @@ public partial class PinnedRcDependent : IDisposable
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.PinnedRcDependent* AsFFI()
+    internal unsafe BorrowLease<Raw.PinnedRcDependent> Lease(BorrowKind kind)
     {
         RustHandle<Raw.PinnedRcDependent>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("PinnedRcDependent");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.PinnedRcDependent> BorrowShared()
-    {
-        RustHandle<Raw.PinnedRcDependent>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("PinnedRcDependent");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.PinnedRcDependent> BorrowExclusive()
-    {
-        RustHandle<Raw.PinnedRcDependent>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("PinnedRcDependent");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -108,7 +85,7 @@ public partial class PinnedRcDependent : IDisposable
         {
             RustHandle<Raw.PinnedRcDependent>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

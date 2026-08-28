@@ -28,11 +28,11 @@ public partial class Bar : IDisposable
         {
             unsafe
             {
-                using (BorrowLease<Raw.Bar> selfLease = BorrowShared())
+                using (BorrowLease<Raw.Bar> selfLease = Lease(BorrowKind.Shared))
                 {
                     Raw.Foo* result = Raw.Bar.Foo(selfLease.Ptr);
                     GC.KeepAlive(this);
-                    return new Foo(result, BorrowKind.Shared, selfLease);
+                    return new Foo(result, Ownership.SharedView, selfLease);
                 }
             }
         }
@@ -63,43 +63,20 @@ public partial class Bar : IDisposable
 
     internal unsafe Bar(
         Raw.Bar* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.Bar>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.Bar>.Borrowed(handle, ownership, edges);
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.Bar* AsFFI()
+    internal unsafe BorrowLease<Raw.Bar> Lease(BorrowKind kind)
     {
         RustHandle<Raw.Bar>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("Bar");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.Bar> BorrowShared()
-    {
-        RustHandle<Raw.Bar>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("Bar");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.Bar> BorrowExclusive()
-    {
-        RustHandle<Raw.Bar>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("Bar");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -108,7 +85,7 @@ public partial class Bar : IDisposable
         {
             RustHandle<Raw.Bar>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
     /// <summary>

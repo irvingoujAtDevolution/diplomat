@@ -39,43 +39,20 @@ public partial class RenamedDeprecatedOpaque
 
     internal unsafe RenamedDeprecatedOpaque(
         Raw.RenamedDeprecatedOpaque* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.RenamedDeprecatedOpaque>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.RenamedDeprecatedOpaque>.Borrowed(handle, ownership, edges);
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.RenamedDeprecatedOpaque* AsFFI()
+    internal unsafe BorrowLease<Raw.RenamedDeprecatedOpaque> Lease(BorrowKind kind)
     {
         RustHandle<Raw.RenamedDeprecatedOpaque>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("RenamedDeprecatedOpaque");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.RenamedDeprecatedOpaque> BorrowShared()
-    {
-        RustHandle<Raw.RenamedDeprecatedOpaque>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedDeprecatedOpaque");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.RenamedDeprecatedOpaque> BorrowExclusive()
-    {
-        RustHandle<Raw.RenamedDeprecatedOpaque>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RenamedDeprecatedOpaque");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -84,7 +61,7 @@ public partial class RenamedDeprecatedOpaque
         {
             RustHandle<Raw.RenamedDeprecatedOpaque>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

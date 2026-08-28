@@ -41,10 +41,10 @@ public partial class {{ name }}{% if manually_disposable %} : IDisposable{% endi
 
     internal unsafe {{ name }}(
         Raw.{{ name }}* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.{{ name }}>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.{{ name }}>.Borrowed(handle, ownership, edges);
     }
 
     {#- One idiomatic method per HIR method. `DiplomatWrite`-returning
@@ -64,37 +64,14 @@ public partial class {{ name }}{% if manually_disposable %} : IDisposable{% endi
     }
     {%- endfor %}
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.{{ name }}* AsFFI()
+    internal unsafe BorrowLease<Raw.{{ name }}> Lease(BorrowKind kind)
     {
         RustHandle<Raw.{{ name }}>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("{{ name }}");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.{{ name }}> BorrowShared()
-    {
-        RustHandle<Raw.{{ name }}>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("{{ name }}");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.{{ name }}> BorrowExclusive()
-    {
-        RustHandle<Raw.{{ name }}>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("{{ name }}");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -103,7 +80,7 @@ public partial class {{ name }}{% if manually_disposable %} : IDisposable{% endi
         {
             RustHandle<Raw.{{ name }}>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

@@ -39,43 +39,20 @@ public partial class RefListParameter
 
     internal unsafe RefListParameter(
         Raw.RefListParameter* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.RefListParameter>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.RefListParameter>.Borrowed(handle, ownership, edges);
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.RefListParameter* AsFFI()
+    internal unsafe BorrowLease<Raw.RefListParameter> Lease(BorrowKind kind)
     {
         RustHandle<Raw.RefListParameter>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("RefListParameter");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.RefListParameter> BorrowShared()
-    {
-        RustHandle<Raw.RefListParameter>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RefListParameter");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.RefListParameter> BorrowExclusive()
-    {
-        RustHandle<Raw.RefListParameter>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("RefListParameter");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -84,7 +61,7 @@ public partial class RefListParameter
         {
             RustHandle<Raw.RefListParameter>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

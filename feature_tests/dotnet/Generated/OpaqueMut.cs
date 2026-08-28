@@ -39,10 +39,10 @@ public partial class OpaqueMut
 
     internal unsafe OpaqueMut(
         Raw.OpaqueMut* handle,
-        BorrowKind capability,
+        Ownership ownership,
         params object[] edges)
     {
-        _inner = RustHandle<Raw.OpaqueMut>.Borrowed(handle, capability, edges);
+        _inner = RustHandle<Raw.OpaqueMut>.Borrowed(handle, ownership, edges);
     }
 
     /// <returns>
@@ -57,37 +57,14 @@ public partial class OpaqueMut
         }
     }
 
-    /// <summary>
-    /// Returns the underlying raw handle.
-    /// </summary>
-    internal unsafe Raw.OpaqueMut* AsFFI()
+    internal unsafe BorrowLease<Raw.OpaqueMut> Lease(BorrowKind kind)
     {
         RustHandle<Raw.OpaqueMut>? inner = _inner;
-        if (inner is null || inner.IsNull)
+        if (inner is null)
         {
             throw new ObjectDisposedException("OpaqueMut");
         }
-        return inner.Ptr;
-    }
-
-    internal unsafe BorrowLease<Raw.OpaqueMut> BorrowShared()
-    {
-        RustHandle<Raw.OpaqueMut>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("OpaqueMut");
-        }
-        return inner.BorrowShared();
-    }
-
-    internal unsafe BorrowLease<Raw.OpaqueMut> BorrowExclusive()
-    {
-        RustHandle<Raw.OpaqueMut>? inner = _inner;
-        if (inner is null || inner.IsNull)
-        {
-            throw new ObjectDisposedException("OpaqueMut");
-        }
-        return inner.BorrowExclusive();
+        return inner.Lease(kind);
     }
 
     private void Cleanup()
@@ -96,7 +73,7 @@ public partial class OpaqueMut
         {
             RustHandle<Raw.OpaqueMut>? inner =
                 System.Threading.Interlocked.Exchange(ref _inner, null);
-            inner?.Release();
+            inner?.ReleaseOwnerClaim();
         }
     }
 

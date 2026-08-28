@@ -146,7 +146,7 @@ public sealed unsafe class DiplomatBorrowedSpan<T> : IDisposable where T : unman
         {
             foreach (object edge in edges)
             {
-                if (edge is IVersionedBorrow dependency)
+                if (edge is IVersionedClaim dependency)
                 {
                     (acquired ??= new List<IDisposable>()).Add(dependency.Acquire());
                 }
