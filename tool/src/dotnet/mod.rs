@@ -2933,6 +2933,32 @@ mod test {
     }
 
     #[test]
+    fn rust_handle_keeps_is_null_for_hand_written_partials() {
+        let (files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::opaque]
+                pub struct Plain;
+
+                impl Plain {
+                    pub fn create() -> Box<Plain> {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert!(errors.is_empty(), "unexpected diagnostics: {errors:?}");
+        let rust_handle = files
+            .get("RustHandle.cs")
+            .expect("expected RustHandle.cs output");
+        assert!(
+            rust_handle.contains("internal bool IsNull => _ptr is null;"),
+            "IsNull is consumer API: hand-written partial classes guard raw calls with it:\n{rust_handle}"
+        );
+    }
+
+    #[test]
     fn opaque_defaults_to_finalizer_only() {
         let (files, errors) = run_dotnet(quote! {
             #[diplomat::bridge]

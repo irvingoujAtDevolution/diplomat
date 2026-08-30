@@ -79,6 +79,10 @@ internal sealed unsafe class RustHandle<T> where T : unmanaged
 
     internal T* Ptr => _ptr;
 
+    /// Kept for hand-written partial classes (picky's *.Addons.cs guard raw
+    /// calls with it); generated code no longer reads it.
+    internal bool IsNull => _ptr is null;
+
     private static IDisposable?[] CaptureEdges(IDisposable?[] edges, bool versioned)
     {
         for (int i = 0; i < edges.Length; i++)
