@@ -115,10 +115,8 @@ public class RcBorrowDependencyTests
     public void MutableView_HoldsExclusiveBorrowUntilDisposed()
     {
         using RcSource source = RcSource.Create(7);
-        using (var viewScope = source.ViewMut())
+        using (RcSource view = source.ViewMut())
         {
-            RcSource view = viewScope.Value;
-
             Assert.Equal(7ul, view.Id());
             Assert.True(view.PingMutable());
             Assert.True(view.PingMutable());
@@ -133,11 +131,10 @@ public class RcBorrowDependencyTests
     public void MutableScopeEnd_ReleasesSource_WhenSharedSubviewEscapes()
     {
         using RcSource source = RcSource.Create(7);
-        var mutableScope = source.ViewMut();
-        using RcSource sharedSubview = mutableScope.Value.View();
+        RcSource mutableView = source.ViewMut();
+        using RcSource sharedSubview = mutableView.View();
 
-        mutableScope.Dispose();
-        Assert.False(mutableScope.HasValue);
+        mutableView.Dispose();
 
         Assert.True(source.PingMutable());
         Assert.Throws<InvalidOperationException>(() => sharedSubview.Id());
@@ -248,9 +245,9 @@ public class RcBorrowDependencyTests
     // ── Finalizer fallback parent/child ordering ──────────────────────────
 
     [Fact]
-    public void FinalizerFallbackProbes_AreIDisposable()
+    public void FinalizerFallback_UsesUnmarkedSourceAndMarkedDependent()
     {
-        Assert.Contains(typeof(IDisposable), typeof(RcFinalizerSource).GetInterfaces());
+        Assert.DoesNotContain(typeof(IDisposable), typeof(RcFinalizerSource).GetInterfaces());
         Assert.Contains(typeof(IDisposable), typeof(RcFinalizerDependent).GetInterfaces());
     }
 
