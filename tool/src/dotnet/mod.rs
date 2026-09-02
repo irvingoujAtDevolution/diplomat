@@ -1069,6 +1069,132 @@ mod test {
     }
 
     #[test]
+    fn required_disposal_rule2_parameter_source_names_the_parameter() {
+        let (_files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::opaque]
+                pub struct Source;
+
+                #[diplomat::opaque]
+                pub struct Dependent<'a>(&'a Source);
+
+                #[diplomat::opaque]
+                pub struct Factory;
+
+                impl Factory {
+                    pub fn dependent<'a>(source: &'a Source) -> Box<Dependent<'a>> {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert_required_disposal_error(&errors, "Dependent", "owned borrow", "Factory::dependent");
+        let message = errors.join("\n");
+        assert!(message.contains(
+            "`Factory::dependent` returns owned `Dependent`, which holds a shared borrow of `Source` from parameter `source`."
+        ));
+    }
+
+    #[test]
+    fn required_disposal_rule3_root_required_but_unmarked_says_must_be() {
+        let (_files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::opaque_mut]
+                pub struct Owner;
+
+                #[diplomat::opaque_mut]
+                pub struct Root;
+
+                #[diplomat::opaque]
+                pub struct View;
+
+                impl Owner {
+                    pub fn root_mut<'a>(&'a mut self) -> &'a mut Root {
+                        unimplemented!()
+                    }
+                }
+
+                impl Root {
+                    pub fn view<'a>(&'a self) -> &'a View {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert_eq!(errors.len(), 2, "unexpected diagnostics: {errors:?}");
+        assert_required_disposal_error(&errors, "Root", "mutable borrow", "Owner::root_mut");
+        assert_required_disposal_error(&errors, "View", "transitive retention", "Root::view");
+        let message = errors.join("\n");
+        assert!(message.contains(
+            "`Root::view` returns it borrowing from `Root`, which must be manually_disposable"
+        ));
+    }
+
+    #[test]
+    fn required_disposal_docs_emit_dispose_remark_per_borrow_shape() {
+        let (files, errors) = run_dotnet(quote! {
+            #[diplomat::bridge]
+            mod ffi {
+                #[diplomat::attr(dotnet, manually_disposable)]
+                #[diplomat::opaque_mut]
+                pub struct Source;
+
+                #[diplomat::attr(dotnet, manually_disposable)]
+                #[diplomat::opaque_mut]
+                pub struct MutableView;
+
+                #[diplomat::attr(dotnet, manually_disposable)]
+                #[diplomat::opaque]
+                pub struct View;
+
+                #[diplomat::attr(dotnet, manually_disposable)]
+                #[diplomat::opaque]
+                pub struct Dependent<'a>(&'a Source);
+
+                impl Source {
+                    pub fn view_mut<'a>(&'a mut self) -> &'a mut MutableView {
+                        unimplemented!()
+                    }
+
+                    pub fn view<'a>(&'a self) -> &'a View {
+                        unimplemented!()
+                    }
+
+                    pub fn dependent<'a>(&'a self) -> Box<Dependent<'a>> {
+                        unimplemented!()
+                    }
+                }
+            }
+        });
+
+        assert!(errors.is_empty(), "unexpected diagnostics: {errors:?}");
+        let source = files.get("Source.cs").expect("expected Source.cs output");
+        assert!(
+            source.contains("The returned value holds an exclusive borrow on its source.")
+                && source.contains(
+                    "Dispose the returned value to end the exclusive borrow and release its reference to the source."
+                ),
+            "exclusive views must say Dispose ends the borrow:\n{source}"
+        );
+        assert!(
+            source.contains("Dispose the returned value to release its reference to the source."),
+            "versioned views of a disposable source must say Dispose releases the reference:\n{source}"
+        );
+        assert!(
+            source.contains(
+                "The returned value keeps its borrowed backing storage alive until cleanup."
+            ) && source.contains(
+                "Dispose the returned value to release its borrow and reference to the source."
+            ),
+            "owned-borrowing returns must say Dispose releases borrow and reference:\n{source}"
+        );
+    }
+
+    #[test]
     fn optional_mutable_borrowed_opaque_return_generates_nullable_view() {
         let (files, errors) = run_dotnet(quote! {
             #[diplomat::bridge]

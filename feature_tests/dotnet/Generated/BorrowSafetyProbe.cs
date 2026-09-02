@@ -171,6 +171,48 @@ public partial class BorrowSafetyProbe : IDisposable
         }
     }
 
+    /// <returns>
+    /// A view into the Rust-backed <c>BorrowSafetyProbe</c>.
+    /// </returns>
+    /// <remarks>
+    /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
+    /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.
+    /// Dispose the returned value to release its reference to the source.
+    /// </remarks>
+    public BorrowSafetyProbe View()
+    {
+        unsafe
+        {
+            using (BorrowLease<Raw.BorrowSafetyProbe> selfLease = Lease(BorrowKind.Shared))
+            {
+                Raw.BorrowSafetyProbe* result = Raw.BorrowSafetyProbe.View(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return new BorrowSafetyProbe(result, Ownership.SharedView, selfLease);
+            }
+        }
+    }
+
+    /// <returns>
+    /// An exclusive view into the Rust-backed <c>BorrowSafetyProbe</c>.
+    /// </returns>
+    /// <remarks>
+    /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
+    /// The returned value holds an exclusive borrow on its source.
+    /// Dispose the returned value to end the exclusive borrow and release its reference to the source.
+    /// </remarks>
+    public BorrowSafetyProbe ViewMut()
+    {
+        unsafe
+        {
+            using (BorrowLease<Raw.BorrowSafetyProbe> selfLease = Lease(BorrowKind.Exclusive))
+            {
+                Raw.BorrowSafetyProbe* result = Raw.BorrowSafetyProbe.ViewMut(selfLease.Ptr);
+                GC.KeepAlive(this);
+                return new BorrowSafetyProbe(result, Ownership.ExclusiveView, selfLease);
+            }
+        }
+    }
+
     /// <remarks>
     /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
     /// A mutable call on a source invalidates this view. Its next call throws <see cref="InvalidOperationException"/>.

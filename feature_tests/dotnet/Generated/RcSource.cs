@@ -112,6 +112,27 @@ public partial class RcSource : IDisposable
         }
     }
 
+    /// <returns>
+    /// An exclusive view into the Rust-backed <c>RcSource</c>.
+    /// </returns>
+    /// <remarks>
+    /// Lifetime: the returned native-backed value may borrow from the receiver or one or more inputs.
+    /// The returned value holds an exclusive borrow on its source.
+    /// Dispose the returned value to end the exclusive borrow and release its reference to the source.
+    /// </remarks>
+    public RcSource? MaybeViewMut(bool present)
+    {
+        unsafe
+        {
+            using (BorrowLease<Raw.RcSource> selfLease = Lease(BorrowKind.Exclusive))
+            {
+                Raw.RcSource* result = Raw.RcSource.MaybeViewMut(selfLease.Ptr, present);
+                GC.KeepAlive(this);
+                return result == null ? null : new RcSource(result, Ownership.ExclusiveView, selfLease);
+            }
+        }
+    }
+
     public bool PingMutable()
     {
         unsafe

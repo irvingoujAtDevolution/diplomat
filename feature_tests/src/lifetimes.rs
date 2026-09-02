@@ -592,6 +592,10 @@ pub mod ffi {
             self
         }
 
+        pub fn maybe_view_mut<'b>(&'b mut self, present: bool) -> Option<&'b mut Self> {
+            present.then_some(self)
+        }
+
         pub fn ping_mutable(&mut self) -> bool {
             true
         }
@@ -739,6 +743,14 @@ pub mod ffi {
 
         pub fn ping_mutable(&mut self) -> bool {
             true
+        }
+
+        pub fn view<'b>(&'b self) -> &'b Self {
+            self
+        }
+
+        pub fn view_mut<'b>(&'b mut self) -> &'b mut Self {
+            self
         }
 
         pub fn borrow_static_from_optional<'a>(
