@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9950896b.js";
+            window.path_to_searchindex_js = "searchindex-a8275b12.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-e5cc950d.js"></script>
+        <script src="toc-548185b0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -571,7 +571,7 @@ mod ffi {
 <span class="boring">}</span></code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="traits"><a class="header" href="#traits">Traits</a></h1>
-<p>(Supported by <code>c</code>, and <code>kotlin</code>, queried with <code>#[diplomat::cfg(supports=traits)]</code>)</p>
+<p>(Supported by <code>c</code>, <code>cpp</code>, <code>kotlin</code>, and <code>nanobind</code>, queried with <code>#[diplomat::cfg(supports=traits)]</code>)</p>
 <p>Backends that support traits can be passed in as input-only parameters:</p>
 <pre><code class="language-rs">#[diplomat::bridge]
 mod ffi {
@@ -1405,6 +1405,43 @@ impl SomeStruct {
 <p>Tuples do not support non-static methods, since past the boundary a tuple is not the struct it was generated from.</p>
 <p>See https://github.com/rust-diplomat/diplomat/issues/1145 for the tracking issue for Tuples.</p>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="fallible-callback-returns"><a class="header" href="#fallible-callback-returns">Fallible Callback Returns</a></h1>
+<p>Supported by queried with <code>#[diplomat::cfg(supports=callback_returns_must_be_fallible)]</code></p>
+<p>For interpreted languages that with weak typing for variables, callbacks and traits pose a problem:</p>
+<pre><code class="language-rs">pub trait MyTrait {
+  fn some_fn(a : i32) -&gt; i32;
+}
+</code></pre>
+<p>In Python, if we implement the trait:</p>
+<pre><code class="language-py">class ImplementsTrait(MyTrait):
+  def some_fn(a):
+    return "ABC"
+</code></pre>
+<p>Python does not impose type restrictions upon return. The method is returned directly into Rust<sup class="footnote-reference" id="fr-cpp-1"><a href="#footnote-cpp">1</a></sup>, which expects a strict <code>i32</code> value. Rust will throw an exception and halt the program. For languages that do not enforce strict typing on method returns, Diplomat requires all callbacks and traits to return <code>Result&lt;T, E&gt;</code>. <code>E</code> must be marked specially with the <code>#[diplomat::attr(*, ffi_error)]</code> attribute.</p>
+<h2 id="ffi-error"><a class="header" href="#ffi-error">FFI Error</a></h2>
+<p>Diplomat needs a way to specially denote to you, the bindings writer, that a conversion from a provided type to a given Rust type has failed.</p>
+<h3 id="currently-supported"><a class="header" href="#currently-supported">Currently Supported</a></h3>
+<h4 id="enums"><a class="header" href="#enums">Enums</a></h4>
+<pre><code class="language-rs">pub enum ErrorEnum {
+    A,
+    #[diplomat::attr(*, ffi_error)]
+    FFIError
+}
+
+pub trait SomeTrait {
+    fn result_enum_okay() -&gt; Result&lt;T, ErrorEnum&gt;;
+}
+</code></pre>
+<p>Diplomat will set <code>ErrorEnum</code> to <code>FFIError</code> if a cast to the Rust type cannot be made when <code>result_enum_okay</code> is called. Note that since you define your own return types, it is acceptable to re-use existing enum variants and mark them with <code>ffi_error</code>; however, it is recommended that you pick an enum variant which best communicates the <code>ffi_error</code> failure case.</p>
+<h3 id="plans-to-support"><a class="header" href="#plans-to-support">Plans to support</a></h3>
+<p>Struct fields.</p>
+<hr>
+<ol class="footnote-definition">
+<li id="footnote-cpp">
+<p>In the Nanobind backend, the type must be converted through C++. C++ still has to throw an exception if the type fails to convert, but the principle roughly remains the same. <a href="#fr-cpp-1">↩</a></p>
+</li>
+</ol>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="custom-extra-code"><a class="header" href="#custom-extra-code">Custom Extra Code</a></h1>
 <p>Supported by <code>cpp</code>, and <code>nanobind</code>, queried with <code>#[diplomat::cfg(supports=custom_bindings)]</code></p>
 <p>For developers who have a greater understanding of how Diplomat backends function, you are able to mark <code>enum</code> and <code>struct</code> definitions to insert custom extra binding code:</p>
@@ -2047,7 +2084,7 @@ to see what is necessary. Documentation for more backends will be added in the f
 <p>Opaques are represented as pointers to zero-sized structs.</p>
 <h4 id="structs"><a class="header" href="#structs">Structs</a></h4>
 <p>Structs are represented as simple C structs; each member is converted into the relevant C type as detailed here.</p>
-<h4 id="enums"><a class="header" href="#enums">Enums</a></h4>
+<h4 id="enums-1"><a class="header" href="#enums-1">Enums</a></h4>
 <p>Diplomat does not support tagged enums, so all Rust enums are simply C enums.</p>
 <h3 id="options"><a class="header" href="#options">Options</a></h3>
 <div class="table-wrapper">
@@ -2300,8 +2337,8 @@ typedef struct TraitName_VTable {
 <p>Opaques are treated as classes that wrap their C ABI pointer, but upon return either wrapped in a <code>std::unique_ptr&lt;Type&gt;</code> or a simple <code>Type*</code> pointer.</p>
 <h4 id="structs-1"><a class="header" href="#structs-1">Structs</a></h4>
 <p>Structs are represented as C++ structs with methods. Each C++ struct is converted from the C ABI into its relevant C++ type.</p>
-<h4 id="enums-1"><a class="header" href="#enums-1">Enums</a></h4>
-<p>Enum classes hold an inner <code>enum Type::Value</code> which mirrors the Rust enum. This will be converted to a <a href="#enums">C-friendly Enum</a> on being passed to the ABI.</p>
+<h4 id="enums-2"><a class="header" href="#enums-2">Enums</a></h4>
+<p>Enum classes hold an inner <code>enum Type::Value</code> which mirrors the Rust enum. This will be converted to a <a href="#enums-1">C-friendly Enum</a> on being passed to the ABI.</p>
 <h3 id="options-1"><a class="header" href="#options-1">Options</a></h3>
 <p>All options (with the exception of options of opaque types) are represented as <code>std::optional&lt;InnerType&gt;</code>.</p>
 <h4 id="opaque-options-1"><a class="header" href="#opaque-options-1">Opaque Options</a></h4>
@@ -2367,6 +2404,8 @@ template&lt;typename T&gt; struct WriteTrait {
 <p>If you use <code>WriteTrait</code>, you will be interfacing with the <a href="#diplomatwrite">C ABI of DiplomatWrite</a>.</p>
 <h3 id="callbacks-2"><a class="header" href="#callbacks-2">Callbacks</a></h3>
 <p>Callbacks are represented as <code>std::function&lt;Ret(Args...)&gt;</code>, where <code>Ret</code> and <code>Args...</code> are diplomat-friendly C++ types. These work just like any other C++ callback function and are converted in to the C ABI with some templating.</p>
+<h3 id="traits-2"><a class="header" href="#traits-2">Traits</a></h3>
+<p>Traits are implemented as abstract classes with <code>virtual</code> functions that must be overridden. When a method accepts a trait in C++, it will be a <code>std::unique_ptr</code> of the abstract class, and will be converted into the <a href="#traits-1">C VTable of the trait</a>.</p>
 <h3 id="struct-references"><a class="header" href="#struct-references">Struct References</a></h3>
 <h4 id="mut-struct-1"><a class="header" href="#mut-struct-1">&amp;mut Struct</a></h4>
 <p>Any structure tagged with <code>#[diplomat::attr(auto, mut_struct_ref)]</code> will be codegenned with different fields than you might expect. Currently, this only holds for structures that hold references:</p>
@@ -2476,16 +2515,16 @@ SomeStruct_takes_mut(ffiFriendly);
 <p><input disabled="" type="checkbox" checked=""> <a href="#callbacks">Callbacks</a></p>
 </li>
 <li>
-<p><input disabled="" type="checkbox"> <a href="#traits">Traits</a></p>
+<p><input disabled="" type="checkbox" checked=""> <a href="#traits">Traits</a></p>
 </li>
 <li>
 <p><input disabled="" type="checkbox"> Custom Errors</p>
 </li>
 <li>
-<p><input disabled="" type="checkbox"> Traits are Send</p>
+<p><input disabled="" type="checkbox" checked=""> Traits are Send</p>
 </li>
 <li>
-<p><input disabled="" type="checkbox"> Traits are Sync</p>
+<p><input disabled="" type="checkbox" checked=""> Traits are Sync</p>
 </li>
 <li>
 <p><input disabled="" type="checkbox"> Generate Mocking Interface</p>
@@ -2715,30 +2754,65 @@ Dart, <code>string</code> in JS. Parameters outside accessors keep the zero-copy
 methods and types. Static accessors are not supported.</p>
 <h2 id="ownership-and-memory-safety"><a class="header" href="#ownership-and-memory-safety">Ownership and memory safety</a></h2>
 <p>Every opaque type is backed by a <code>RustHandle&lt;T&gt;</code> rather than a bare pointer. A handle
-remembers who owns the underlying memory: an <strong>owned</strong> handle carries the Rust destructor
-and runs it on release; a <strong>borrowed</strong> handle carries none, so releasing it is a no-op
-because Rust still owns (and will free) that memory. This means methods returning <code>&amp;T</code> or
-<code>Option&lt;&amp;T&gt;</code> are safe to wrap without risking a double-free.</p>
-<p>Every <code>RustHandle&lt;T&gt;</code> is a small reference-counted class: pointer, destructor, edges, and
-refcount live in exactly one place. Construction starts the count at 1 (the owning wrapper).
-<code>DiplomatRetainDependency()</code> bumps the count and returns a token the dependent disposes from
-its own cleanup. That is what lets a source wrapper be disposed (or finalized) <em>before</em> every
-dependent has let go of it without either use-after-free or an early native destructor call:
-physical native destruction waits until the owner reference <strong>and</strong> every dependent token are
-gone, in whatever order managed lifetimes end. Cleanup always runs the native destructor
-first, then disposes every edge (pins and retain tokens).</p>
-<p>The reference count is updated with <code>Interlocked</code> so a user-thread retain can
-race a finalizer-thread token release on the same handle without lost updates.
-Teardown still runs only on the thread that drives the count to zero.</p>
+owns one native pointer and, for an owned value, its destructor. A borrowed handle carries no
+destructor, so cleaning it cannot free Rust-owned memory. This makes <code>&amp;T</code>, <code>&amp;mut T</code>, and
+<code>Option&lt;&amp;T&gt;</code> wrappers non-owning.</p>
+<p>A dependent stores an ordinary managed reference to each source handle. That reference keeps
+the handle reachable for garbage collection without adding native ownership. The generator
+rejects a method whose returned value retains a borrow from an opaque marked
+<code>#[diplomat::attr(dotnet, manually_disposable)]</code>. This covers borrowed views, borrowed slices,
+owned lifetime-carrying children, and <code>Result</code>/<code>Option</code> success and error paths. The diagnostic
+names the method and source and suggests an independent result or removing the attribute.</p>
+<p>Temporary <code>&amp;self</code>, <code>&amp;mut self</code>, and opaque parameter borrows remain valid when the return does
+not retain them. A manually disposable result may borrow from a non-disposable source. Cleaning
+up a legal dependent releases its borrow bookkeeping and source-handle references; it never
+disposes a source.</p>
+<p>Borrow rules are separate from native ownership. Every value that borrows from a shared
+source is a read view, whether Rust returned <code>&amp;'a T</code>, <code>&amp;'a [u8]</code>, or an owned <code>Box&lt;T&lt;'a&gt;&gt;</code>. It
+lets go of the source’s borrow when the creating call returns and remembers the source’s
+mutation version instead. A later <code>&amp;mut self</code> call on the source succeeds and invalidates the
+view; the view’s next native call throws <code>InvalidOperationException</code>. This stands in for Rust’s
+rule that a borrow ends at its last use, which a garbage-collected runtime cannot observe.</p>
+<p>A value born from an exclusive borrow (<code>&amp;'a mut T</code>, or an owned <code>Box&lt;T&lt;'a&gt;&gt;</code> returned from
+<code>&amp;'a mut self</code> or an <code>&amp;'a mut</code> parameter) is its source’s only writer, so it keeps that borrow
+until it is released. Every call on the source throws until then. The generator requires such a
+returned type to be <code>manually_disposable</code>, because <code>Dispose()</code> is the only deterministic way to
+end the borrow:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[diplomat::opaque_mut]
+pub struct Source(View);
+
+#[diplomat::opaque_mut]
+#[diplomat::attr(dotnet, manually_disposable)]
+pub struct View;
+
+impl Source {
+    pub fn view_mut(&amp;mut self) -&gt; &amp;mut View { &amp;mut self.0 } // `View` must be disposable
+}
+<span class="boring">}</span></code></pre>
+<p>A mutation attempt while an operation or <code>WithSpan</code> callback exposes a native pointer throws
+instead of invalidating that pointer. Every handle is a <code>SafeHandle</code>; a scoped operation guard
+protects the directly invoked value during its native call. Source edges validate borrow state
+without recursively taking <code>SafeHandle</code> claims.</p>
+<p>The generated API does not synchronize calls, mutation, or disposal across threads. Callers
+must serialize access to every value in a dependency chain; racing these operations is outside
+the supported contract and may cause undefined native behavior.</p>
+<p>An owned return that borrows a managed slice or string parameter keeps that buffer pinned until
+its handle is disposed or finalized. A type that also hands out borrows cannot be
+<code>manually_disposable</code>, so its pin lasts until finalization.</p>
+<p>A Rust destructor, including any custom <code>Drop</code>, must not read memory borrowed from another
+opaque: the runtime may finalize the parent first, and this backend no longer keeps a parent
+alive for a dependent’s destructor. The generator cannot check this; keep it in review.</p>
 <p>By default, generated opaques are <strong>finalizer-only</strong>: no public <code>Dispose()</code>, cleanup runs
-through a private idempotent path invoked by the finalizer. Add
+through a private idempotent path invoked by the handle finalizer. Add
 <code>#[diplomat::attr(dotnet, manually_disposable)]</code> on an opaque type declaration to generate
 <code>: IDisposable</code> plus a public <code>Dispose()</code> that runs the same cleanup and
-<code>GC.SuppressFinalize(this)</code>. <code>Dispose()</code> releases this wrapper’s ownership reference but
-does not necessarily destroy the native value immediately: existing borrowers keep it
-alive and remain valid. The disposed wrapper itself rejects further use with
-<code>ObjectDisposedException</code>. In both modes, native calls are followed by
-<code>GC.KeepAlive(this)</code> to prevent finalization while P/Invoke is still using the pointer.</p>
+<code>GC.SuppressFinalize(this)</code>. Callers must not race <code>Dispose()</code> with calls from another thread.
+After release, calls on the wrapper throw <code>ObjectDisposedException</code>. Methods that would expose
+a retained borrow from this source are rejected during generation, so <code>Dispose()</code> is not a
+parent-invalidation API. Native operations use scoped leases so the directly invoked handle
+stays alive and its source edges remain reachable and validated through P/Invoke.</p>
 <h2 id="string-encoding"><a class="header" href="#string-encoding">String encoding</a></h2>
 <p>The backend supports both UTF-8 and UTF-16 strings, zero-copy wherever the C# and Rust
 representations line up:</p>
@@ -2757,11 +2831,11 @@ generated source instead of hiding inside generic marshalling.</li>
 </ul>
 <p>A borrowed string or slice return (<code>&amp;'a str</code> / <code>&amp;'a DiplomatStr</code> / <code>&amp;'a DiplomatStr16</code> /
 <code>&amp;'a [u8]</code> / <code>&amp;'a [u32]</code>) surfaces as <code>DiplomatBorrowedSpan&lt;T&gt;</code> — a zero-copy view over
-memory Rust still owns, rooted with the same keep-alive-edge mechanism as a borrowed
-opaque return. It intentionally does not expose a <code>Span</code>-returning property (nothing
-would keep the view rooted once the span escaped it); call <code>WithSpan(...)</code> for scoped,
-zero-copy, read-only access instead — the same pattern <code>RustVec</code> uses for owned returns
-(see below). Producing an independent <code>T[]</code> is a separate, explicit step: call <code>Clone()</code>.</p>
+memory Rust still owns, rooted with managed source-handle edges. It validates those sources
+before every raw access and implements <code>IDisposable</code> to release its edges. It intentionally
+does not expose a <code>Span</code>-returning property; call <code>WithSpan(...)</code> for scoped, zero-copy,
+read-only access instead. Producing an independent <code>T[]</code> is a separate, explicit step: call
+<code>Clone()</code>.</p>
 <p>An owned <code>Box&lt;[u8]&gt;</code> return surfaces as <code>RustVec</code> — it owns the native allocation, is
 <code>IDisposable</code>, and offers the same <code>WithSpan(...)</code> / <code>Clone()</code> shape as
 <code>DiplomatBorrowedSpan&lt;T&gt;</code> (it deliberately avoids <code>MemoryManager&lt;T&gt;</code> for the same reason:
@@ -3355,7 +3429,7 @@ so here some specific examples</p>
 <p>These are Python classes, bound similarly to opaques; however, each field is defined as properties on the class.</p>
 <p>Note that Nanobind treats structures in Python as classes that hold mutable references to an underlying C++ type. For this reason, Nanobind treats every struct as if it is a <a href="#mut-struct-1">mutable reference when generating C++ bindings</a>.
 However, if you still wish to access these structs mutably within your own method bindings, you will still need to tag them with <a href="#references"><code>#[diplomat::attr(*, mut_struct_ref)]</code></a>.</p>
-<h4 id="enums-2"><a class="header" href="#enums-2">Enums</a></h4>
+<h4 id="enums-3"><a class="header" href="#enums-3">Enums</a></h4>
 <p>These are also bound as classes, but with an inner bound <code>enum.Enum</code> class. The variants can be accessed through the parent <code>Type.*</code>, but the inner enum type can be accessed through <code>Type.Type</code>.</p>
 <h3 id="options-2"><a class="header" href="#options-2">Options</a></h3>
 <p>Any <code>Option&lt;T&gt;</code> type in Python is represented as a <code>T | None</code> value.</p>
@@ -3387,7 +3461,11 @@ except Exception as e:
 <h3 id="diplomatwrite-2"><a class="header" href="#diplomatwrite-2">DiplomatWrite</a></h3>
 <p>The Nanobind backend uses the <a href="#diplomatwrite-1">default C++ implementation for DiplomatWrite</a>, and so returns a <code>str</code> type.</p>
 <h3 id="callbacks-4"><a class="header" href="#callbacks-4">Callbacks</a></h3>
-<p>Implemented as any ordinary Python function (lambda or <code>def</code> will work).</p>
+<p>Implemented as any ordinary Python function (lambda or <code>def</code> will work). Callback returns are fallible, so any callback return must be bound with <a href="#fallible-callback-returns">ffi_error</a>.</p>
+<h3 id="traits-3"><a class="header" href="#traits-3">Traits</a></h3>
+<p>Trait methods are fallible here, so any returned trait must be bound with <a href="#fallible-callback-returns">ffi_error</a>.</p>
+<p>Implemented as classes that subclass a given <code>TraitName</code>. Python will raise a <code>TypeError</code> if <em>any</em> method is not implemented in the trait. If you attempt to <code>super()</code> a trait name, since the method is abstract, it will raise a <code>TypeError</code>. Any exceptions raised while executing in Rust code will be returned as an FFI error.</p>
+<p>There is an additional <code>TraitName_PyBase</code> class that Nanobind generates. This is purely for stubgen purposes: Nanobind has to bind the <a href="#traits-2">underlying abstract class</a> for stubgen, and create an implementation class for binding the abstract methods from Python.</p>
 <h2 id="debugging"><a class="header" href="#debugging">Debugging</a></h2>
 <p>Nanobind <code>.pyd</code> files can be stepped through using any debugger. As long as you’ve built the <code>.pyd</code> file with debugging symbols, you can attach to any running Python process that has the <code>.pyd</code> imported. Here are the steps:</p>
 <ol>
@@ -3516,16 +3594,16 @@ somelib.run_callback(lambda: pass)
 <p><input disabled="" type="checkbox" checked=""> <a href="#callbacks">Callbacks</a></p>
 </li>
 <li>
-<p><input disabled="" type="checkbox"> <a href="#traits">Traits</a></p>
+<p><input disabled="" type="checkbox" checked=""> <a href="#traits">Traits</a></p>
 </li>
 <li>
 <p><input disabled="" type="checkbox"> Custom Errors</p>
 </li>
 <li>
-<p><input disabled="" type="checkbox"> Traits are Send</p>
+<p><input disabled="" type="checkbox" checked=""> Traits are Send</p>
 </li>
 <li>
-<p><input disabled="" type="checkbox"> Traits are Sync</p>
+<p><input disabled="" type="checkbox" checked=""> Traits are Sync</p>
 </li>
 <li>
 <p><input disabled="" type="checkbox"> Generate Mocking Interface</p>

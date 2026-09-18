@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9950896b.js";
+            window.path_to_searchindex_js = "../searchindex-a8275b12.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e5cc950d.js"></script>
+        <script src="../toc-548185b0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -263,6 +263,8 @@ template&lt;typename T&gt; struct WriteTrait {
 <p>If you use <code>WriteTrait</code>, you will be interfacing with the <a href="./c.html#diplomatwrite">C ABI of DiplomatWrite</a>.</p>
 <h3 id="callbacks"><a class="header" href="#callbacks">Callbacks</a></h3>
 <p>Callbacks are represented as <code>std::function&lt;Ret(Args...)&gt;</code>, where <code>Ret</code> and <code>Args...</code> are diplomat-friendly C++ types. These work just like any other C++ callback function and are converted in to the C ABI with some templating.</p>
+<h3 id="traits"><a class="header" href="#traits">Traits</a></h3>
+<p>Traits are implemented as abstract classes with <code>virtual</code> functions that must be overridden. When a method accepts a trait in C++, it will be a <code>std::unique_ptr</code> of the abstract class, and will be converted into the <a href="./c.html#traits">C VTable of the trait</a>.</p>
 <h3 id="struct-references"><a class="header" href="#struct-references">Struct References</a></h3>
 <h4 id="mut-struct"><a class="header" href="#mut-struct">&amp;mut Struct</a></h4>
 <p>Any structure tagged with <code>#[diplomat::attr(auto, mut_struct_ref)]</code> will be codegenned with different fields than you might expect. Currently, this only holds for structures that hold references:</p>
@@ -372,16 +374,16 @@ SomeStruct_takes_mut(ffiFriendly);
 <p><input disabled="" type="checkbox" checked=""> <a href="../types/callbacks.html">Callbacks</a></p>
 </li>
 <li>
-<p><input disabled="" type="checkbox"> <a href="../types/traits.html">Traits</a></p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../types/traits.html">Traits</a></p>
 </li>
 <li>
 <p><input disabled="" type="checkbox"> Custom Errors</p>
 </li>
 <li>
-<p><input disabled="" type="checkbox"> Traits are Send</p>
+<p><input disabled="" type="checkbox" checked=""> Traits are Send</p>
 </li>
 <li>
-<p><input disabled="" type="checkbox"> Traits are Sync</p>
+<p><input disabled="" type="checkbox" checked=""> Traits are Sync</p>
 </li>
 <li>
 <p><input disabled="" type="checkbox"> Generate Mocking Interface</p>

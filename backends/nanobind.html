@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9950896b.js";
+            window.path_to_searchindex_js = "../searchindex-a8275b12.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e5cc950d.js"></script>
+        <script src="../toc-548185b0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -254,7 +254,11 @@ except Exception as e:
 <h3 id="diplomatwrite"><a class="header" href="#diplomatwrite">DiplomatWrite</a></h3>
 <p>The Nanobind backend uses the <a href="./cpp.html#diplomatwrite">default C++ implementation for DiplomatWrite</a>, and so returns a <code>str</code> type.</p>
 <h3 id="callbacks"><a class="header" href="#callbacks">Callbacks</a></h3>
-<p>Implemented as any ordinary Python function (lambda or <code>def</code> will work).</p>
+<p>Implemented as any ordinary Python function (lambda or <code>def</code> will work). Callback returns are fallible, so any callback return must be bound with <a href="../attrs/fallible_callback_returns.html">ffi_error</a>.</p>
+<h3 id="traits"><a class="header" href="#traits">Traits</a></h3>
+<p>Trait methods are fallible here, so any returned trait must be bound with <a href="../attrs/fallible_callback_returns.html">ffi_error</a>.</p>
+<p>Implemented as classes that subclass a given <code>TraitName</code>. Python will raise a <code>TypeError</code> if <em>any</em> method is not implemented in the trait. If you attempt to <code>super()</code> a trait name, since the method is abstract, it will raise a <code>TypeError</code>. Any exceptions raised while executing in Rust code will be returned as an FFI error.</p>
+<p>There is an additional <code>TraitName_PyBase</code> class that Nanobind generates. This is purely for stubgen purposes: Nanobind has to bind the <a href="./cpp.html#traits">underlying abstract class</a> for stubgen, and create an implementation class for binding the abstract methods from Python.</p>
 <h2 id="debugging"><a class="header" href="#debugging">Debugging</a></h2>
 <p>Nanobind <code>.pyd</code> files can be stepped through using any debugger. As long as you’ve built the <code>.pyd</code> file with debugging symbols, you can attach to any running Python process that has the <code>.pyd</code> imported. Here are the steps:</p>
 <ol>
@@ -383,16 +387,16 @@ somelib.run_callback(lambda: pass)
 <p><input disabled="" type="checkbox" checked=""> <a href="../types/callbacks.html">Callbacks</a></p>
 </li>
 <li>
-<p><input disabled="" type="checkbox"> <a href="../types/traits.html">Traits</a></p>
+<p><input disabled="" type="checkbox" checked=""> <a href="../types/traits.html">Traits</a></p>
 </li>
 <li>
 <p><input disabled="" type="checkbox"> Custom Errors</p>
 </li>
 <li>
-<p><input disabled="" type="checkbox"> Traits are Send</p>
+<p><input disabled="" type="checkbox" checked=""> Traits are Send</p>
 </li>
 <li>
-<p><input disabled="" type="checkbox"> Traits are Sync</p>
+<p><input disabled="" type="checkbox" checked=""> Traits are Sync</p>
 </li>
 <li>
 <p><input disabled="" type="checkbox"> Generate Mocking Interface</p>
